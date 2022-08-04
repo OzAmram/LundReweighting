@@ -46,7 +46,9 @@ f_bkg = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_mak
 
 
 subjet_rw = True
-outdir = "ttbar_rw_subjet_test_v2/"
+excjet_rw = False
+outdir = "ttbar_rw_subjet_test_jul15/"
+
 
 pt_max = 1000
 
@@ -70,12 +72,20 @@ dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
 
 
 
-jetR = 0.4
 fill_z = False
+jetR = -1.0
+
+num_excjets = -1
 
 if(subjet_rw):
+    jetR = 0.4
     n_pt_bins = 5
     pt_bins = array('f', [0., 10., 25., 40., 60., 99999.])
+elif(excjet_rw):
+    jetR = 1.0 #idk if this matters ? 
+    n_pt_bins = 5
+    num_excjets = 2
+    pt_bins = array('f', [0., 50., 100., 200., 300., 450.])
 else:
     n_pt_bins = 4
     pt_bins = array('f', [200., 300., 400., 600., 99999.])
@@ -257,31 +267,31 @@ LP_weights = []
 
 for i,pf_cand in enumerate(pf_cands_ttbar):
     weight =weights_ttbar[i]
-    if(not subjet_rw): fill_lund_plane(h_mc, pf_cand, fill_z = fill_z, weight = weight)
-    else:
+    if(subjet_rw):
         pt_eta_phi_m_vec = jet_kinematics_ttbar[i]
         jet_4vec = convert_4vec(pt_eta_phi_m_vec)
         boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
-        fill_lund_plane(h_mc, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR)
+        fill_lund_plane(h_mc, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, weight = weight)
+    else: fill_lund_plane(h_mc, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, weight = weight)
 
 for i,pf_cand in enumerate(pf_cands_bkg):
     weight =weights_bkg[i]
-    if(not subjet_rw): fill_lund_plane(h_bkg, pf_cand, fill_z = fill_z, weight = weight)
-    else:
+    if(subjet_rw):
         pt_eta_phi_m_vec = jet_kinematics_bkg[i]
         jet_4vec = convert_4vec(pt_eta_phi_m_vec)
         boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
         fill_lund_plane(h_bkg, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, weight = weight)
+    else: fill_lund_plane(h_bkg, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, weight = weight)
 
 
 for i,pf_cand in enumerate(pf_cands_data):
     weight = 1.
-    if(not subjet_rw): fill_lund_plane(h_data, pf_cand, fill_z = fill_z, weight = weight)
-    else:
+    if(subjet_rw):
         pt_eta_phi_m_vec = jet_kinematics_data[i]
         jet_4vec = convert_4vec(pt_eta_phi_m_vec)
         boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
         fill_lund_plane(h_data, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, weight = weight)
+    else: fill_lund_plane(h_data, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, weight = weight)
 
 
 
@@ -388,12 +398,13 @@ f_out.Close()
 
 LP_weights = []
 for i,pf_cand in enumerate(pf_cands_ttbar):
-    rw = reweight_lund_plane(h_ratio, pf_cand, fill_z = fill_z)
     if(subjet_rw):
         pt_eta_phi_m_vec = jet_kinematics_ttbar[i]
         jet_4vec = convert_4vec(pt_eta_phi_m_vec)
         boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
         rw = reweight_lund_plane(h_ratio, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR)
+    else: 
+        rw = reweight_lund_plane(h_ratio, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets)
 
     LP_weights.append(rw)
 

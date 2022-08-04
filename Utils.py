@@ -14,7 +14,7 @@ def convert_4vec(vec):
     return [rvec.Px(), rvec.Py(), rvec.Pz(), rvec.E()]
 
 
-def fill_lund_plane(h, pf_cands, dR = 0.8,  fill_z = True, jetR = -1, boost_vec = None, maxJets = -1, pt_min = 0., weight = 1.):
+def fill_lund_plane(h, pf_cands, dR = 0.8,  fill_z = True, jetR = -1, boost_vec = None, maxJets = -1, num_excjets = -1, pt_min = 0., weight = 1.):
     pjs = []
 
     for c in pf_cands:
@@ -32,16 +32,21 @@ def fill_lund_plane(h, pf_cands, dR = 0.8,  fill_z = True, jetR = -1, boost_vec 
     else: R = jetR
     jet_def = fj.JetDefinition(fj.cambridge_algorithm, R)
     cs = fj.ClusterSequence(pjs, jet_def)
-    js = fj.sorted_by_pt(cs.inclusive_jets())
-    if(boost_vec is None): #only do first vec
-        js = [js[0]]
-    elif(maxJets > 0):
-        nMax = min(len(js), maxJets)
-        js = js[:nMax]
+    if(num_excjets < 0):
+        js = fj.sorted_by_pt(cs.inclusive_jets())
+        if(boost_vec is None): #only do first vec
+            js = [js[0]]
+        elif(maxJets > 0):
+            nMax = min(len(js), maxJets)
+            js = js[:nMax]
+    else:
+        js = fj.sorted_by_pt(cs.exclusive_jets_up_to(num_excjets))
+
 
     for i, j in enumerate(js):
         pseudojet = j
         jet_pt = j.pt()
+        #print(i, j.pt())
         while True:
             j1 = fj.PseudoJet()
             j2 = fj.PseudoJet()
@@ -67,12 +72,12 @@ def fill_lund_plane(h, pf_cands, dR = 0.8,  fill_z = True, jetR = -1, boost_vec 
 
 
 
-def reweight_lund_plane(h_rw, pf_cands, dR = 0.8, fill_z = True, jetR = -1, boost_vec = None, maxJets = -1, pt_min = 0., weight = 1.):
+def reweight_lund_plane(h_rw, pf_cands, dR = 0.8, fill_z = True, jetR = -1, boost_vec = None, maxJets = -1, num_excjets = -1, pt_min = 0., weight = 1.):
     pjs = []
 
     h_jet = h_rw.Clone("temp")
     h_jet.Reset()
-    fill_lund_plane(h_jet, pf_cands, dR, fill_z = fill_z, jetR = jetR, boost_vec = boost_vec, maxJets = maxJets, weight = weight)
+    fill_lund_plane(h_jet, pf_cands, dR, fill_z = fill_z, jetR = jetR, boost_vec = boost_vec, maxJets = maxJets, num_excjets = num_excjets, weight = weight)
     #h_jet.Scale(1./h_jet.Integral())
     #h_jet.Multiply(h_rw)
 
@@ -84,18 +89,19 @@ def reweight_lund_plane(h_rw, pf_cands, dR = 0.8, fill_z = True, jetR = -1, boos
                 for k in range(1, h_jet.GetNbinsZ() + 1):
                     n_cands = h_jet.GetBinContent(i,j,k)
                     if(n_cands > 0): 
-                        #print("Rw %.3f, cont %.3f, i %i j %i k %i" % (rw, h_rw.GetBinContent(i,j,k), i,j,k))
-                        rw *= h_rw.GetBinContent(i,j,k)
+                        #print("Rw %.3f, cont %.3f, i %i j %i k %i n %i" % (rw, h_rw.GetBinContent(i,j,k), i,j,k, n_cands))
+                        rw *= h_rw.GetBinContent(i,j,k)**n_cands
 
     else:
         for i in range(1, h_jet.GetNbinsX() + 1):
             for j in range(1, h_jet.GetNbinsY() + 1):
                 n_cands = h_jet.GetBinContent(i,j)
-                if(n_cands > 0): rw *= h_rw.GetBinContent(i,j)
+                if(n_cands > 0): rw *= h_rw.GetBinContent(i,j)**n_cands
 
     #h_jet.Print("range")
     return rw
 
+#No longer used
 def reweight_subjet_lund_plane(h_rw, pf_cands, boost_vec, dR = 0.4, fill_z = True, jetR = 0.4):
     pjs = []
 
