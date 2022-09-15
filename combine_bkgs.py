@@ -26,7 +26,10 @@ for fname, xsec in files:
     gen_weights = f['event_info'][:,3]
     presel_eff = f['preselection_eff'][0]
     rw_factor = xsec * 1000. * presel_eff / np.sum(gen_weights)
-    f['event_info'][:,3] *= rw_factor
+    norm_weights =  (gen_weights * rw_factor).reshape(-1)
+    if('norm_weights' in f.keys()):
+        del f['norm_weights']
+    f.create_dataset('norm_weights', data = norm_weights, chunks = True, size = None)
     print(fname, xsec * 1000. * presel_eff, rw_factor)
     merge_cmd += idir+fname + " " 
 

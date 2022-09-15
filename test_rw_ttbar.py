@@ -1,4 +1,6 @@
 from Utils import *
+import os
+
 
 def cleanup_hist(h):
     if(type(h) == ROOT.TH3F):
@@ -39,15 +41,25 @@ def copy_proj(bin_i, h_ratio_proj, h_ratio):
             h_ratio.SetBinError(bin_i,j,k, h_ratio_proj.GetBinError(j,k))
     return
 
+#NON UL (2018B only)
 lumi = 6.90
 f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/SingleMu_2018C.h5", "r")
 f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/TTToSemiLep_2018.h5", "r")
+
+#UL
+#lumi = 59.74
+#f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/SingleMu_2018_total.h5", "r")
+#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/TTbar_semilep_2018.h5", "r")
+
 f_bkg = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/QCD_WJets_merged.h5", "r")
 
 
-subjet_rw = True
-excjet_rw = False
-outdir = "ttbar_rw_subjet_test_jul15/"
+subjet_rw = False
+excjet_rw = True
+outdir = "ttbar_test_UL_sep2/"
+
+
+if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
 
 pt_max = 1000
@@ -110,6 +122,7 @@ jet_kinematics_ttbar= f_ttbar['jet_kinematics'][()]
 pf_cands_ttbar = f_ttbar['jet1_PFCands'][()].astype(np.float64)
 jet1_feats_ttbar = f_ttbar['jet1_extraInfo'][()]
 event_info_ttbar = f_ttbar['event_info'][()]
+weights_ttbar_raw = f_ttbar['norm_weights'][()].reshape(-1)
 
 
 jet_kinematics_bkg= f_bkg['jet_kinematics'][()]
@@ -117,6 +130,7 @@ pf_cands_bkg = f_bkg['jet1_PFCands'][()].astype(np.float64)
 jet1_feats_bkg = f_bkg['jet1_extraInfo'][()]
 event_info_bkg = f_bkg['event_info'][()]
 label_bkg = f_bkg['truth_label'][()]
+weights_bkg_raw = f_bkg['norm_weights'][()].reshape(-1)
 
 #soft drop mass cut at 10 gev
 msd_cut_ttbar = jet_kinematics_ttbar[:,3] > 10.
@@ -150,6 +164,7 @@ jet_kinematics_ttbar = jet_kinematics_ttbar[cut_ttbar]
 pf_cands_ttbar = pf_cands_ttbar[cut_ttbar]
 jet1_feats_ttbar = jet1_feats_ttbar[cut_ttbar]
 event_info_ttbar = event_info_ttbar[cut_ttbar]
+weights_ttbar_raw = weights_ttbar_raw[cut_ttbar] * lumi
 print(pf_cands_ttbar.shape, jet_kinematics_ttbar.shape)
 
 
@@ -158,6 +173,7 @@ pf_cands_bkg = pf_cands_bkg[cut_bkg]
 jet1_feats_bkg = jet1_feats_bkg[cut_bkg]
 event_info_bkg = event_info_bkg[cut_bkg]
 label_bkg = label_bkg[cut_bkg].reshape(-1)
+weights_bkg_raw = weights_bkg_raw[cut_bkg] * lumi
 
 QCD_mask = (label_bkg == 0)
 WJets_mask = (label_bkg == -1)
@@ -169,9 +185,10 @@ num_bkg = pf_cands_data.shape[0]
 
 print("Num data %i. Num ttbar MC %i " % (num_data, num_ttbar))
 
+print(weights_bkg_raw.shape)
+print(label_bkg.shape)
 
-weights_ttbar_raw = event_info_ttbar[:,3] * lumi 
-weights_bkg_raw = event_info_bkg[:,3] * lumi
+
 #print(weights_ttbar_raw[:5])
 #print(np.mean(weights_ttbar_raw))
 print("%i data, %.0f ttbar %.0f wjets %.0f qcd" % ( num_data, np.sum(weights_ttbar_raw), np.sum(weights_bkg_raw[WJets_mask]), np.sum(weights_bkg_raw[QCD_mask])))
@@ -193,20 +210,20 @@ eps = 1e-8
 tau21_ttbar = (jet1_feats_ttbar[:,1] / (jet1_feats_ttbar[:,0] + eps))
 tau32_ttbar = (jet1_feats_ttbar[:,2] / (jet1_feats_ttbar[:,1] + eps))
 tau43_ttbar = (jet1_feats_ttbar[:,3] / (jet1_feats_ttbar[:,2] + eps))
-nPF_ttbar= jet1_feats_ttbar[:,-1]
+nPF_ttbar= jet1_feats_ttbar[:,6]
 
 
 tau21_bkg = (jet1_feats_bkg[:,1] / (jet1_feats_bkg[:,0] + eps))
 tau32_bkg = (jet1_feats_bkg[:,2] / (jet1_feats_bkg[:,1] + eps))
 tau43_bkg = (jet1_feats_bkg[:,3] / (jet1_feats_bkg[:,2] + eps))
-nPF_bkg= jet1_feats_bkg[:,-1]
+nPF_bkg= jet1_feats_bkg[:,6]
 
 
 
 tau21_data = (jet1_feats_data[:,1] / (jet1_feats_data[:,0] + eps))
 tau32_data = (jet1_feats_data[:,2] / (jet1_feats_data[:,1] + eps))
 tau43_data = (jet1_feats_data[:,3] / (jet1_feats_data[:,2] + eps))
-nPF_data= jet1_feats_data[:,-1]
+nPF_data= jet1_feats_data[:,6]
 
 root_colors = [ROOT.kBlue, ROOT.kRed]
 
@@ -273,6 +290,7 @@ for i,pf_cand in enumerate(pf_cands_ttbar):
         boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
         fill_lund_plane(h_mc, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, weight = weight)
     else: fill_lund_plane(h_mc, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, weight = weight)
+
 
 for i,pf_cand in enumerate(pf_cands_bkg):
     weight =weights_bkg[i]
@@ -397,21 +415,29 @@ f_out.Close()
 
 
 LP_weights = []
+LP_uncs = []
 for i,pf_cand in enumerate(pf_cands_ttbar):
     if(subjet_rw):
         pt_eta_phi_m_vec = jet_kinematics_ttbar[i]
         jet_4vec = convert_4vec(pt_eta_phi_m_vec)
         boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
-        rw = reweight_lund_plane(h_ratio, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR)
+        rw, unc = reweight_lund_plane(h_ratio, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, uncs = True)
     else: 
-        rw = reweight_lund_plane(h_ratio, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets)
+        rw, unc = reweight_lund_plane(h_ratio, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True)
 
     LP_weights.append(rw)
+    if(rw >= 1e-6):
+        LP_uncs.append(unc/rw)
+    else:
+        LP_uncs.append(0.)
 
 
 LP_weights = np.clip(LP_weights, 0., 10.)
-LP_weights /= np.mean(LP_weights)
+LP_uncs = np.clip(LP_uncs, 0., 1.5)
+mean = np.mean(LP_weights)
+LP_weights /= mean
 print(LP_weights[:10])
+print(LP_uncs[:10])
 
 weights_rw = [  weights_bkg, LP_weights * weights_ttbar]
 
@@ -419,6 +445,8 @@ weights_rw = [  weights_bkg, LP_weights * weights_ttbar]
 make_histogram(LP_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", n_bins,
      normalize=norm, fname=outdir + "lundPlane_weights.png")
 
+make_histogram(LP_uncs, "Fractional Uncertainties", 'b', 'Weight Fractional Uncertainty ', "Lund Plane Reweighting Factors Uncertainty", 20,
+     normalize=norm, fname=outdir + "lundPlane_weights_unc.png")
 
 make_stack_ratio_histogram(data = tau21_data, entries = [tau21_bkg, tau21_ttbar], weights = weights_rw, labels = ["QCD + WJets", "ttbar"], 
     colors = root_colors, axis_label = 'Tau21',  title = 'Tau21 :  LP Reweighted', num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + 'tau21_ratio_after.png' )
