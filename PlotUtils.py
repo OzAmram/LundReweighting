@@ -387,7 +387,7 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
 
     return ns, bins, ratios, frac_unc
 
-def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[],
+def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[], drawSys = False,
         logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=1, ratio_range = None, NDiv = 205, prelim = False):  
 
     # histlist is just the generic list but if bkglist is specified (non-empty)
@@ -425,8 +425,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
         padx = 3
         pady = 2
     else:
-        print 'histlist of size ' + str(len(histlist)) + ' not currently supported'
-        print histlist
+        print('histlist of size ' + str(len(histlist)) + ' not currently supported')
+        print(histlist)
         return 0
 
     tdrstyle.setTDRStyle()
@@ -458,7 +458,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
         # If this is a TH2, just draw the lego
         if hist.ClassName().find('TH2') != -1:
-            print 'ERROR: It seems you are trying to plot backgrounds with data on a 2D plot. This is not supported since there is no good way to view this type of distribution.'
+            print('ERROR: It seems you are trying to plot backgrounds with data on a 2D plot. This is not supported since there is no good way to view this type of distribution.')
         
         # Otherwise it's a TH1 hopefully
         else:
@@ -623,7 +623,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 totlist[hist_index].SetMarkerStyle(20)
                 totlist[hist_index].SetMarkerSize(0.01)
 
-                totlist[hist_index].Draw('e2 same')
+                if(drawSys):
+                    totlist[hist_index].Draw('e2 same')
 
                 if not dataOff:
                     legends_list[hist_index].append((hist,dataName,datastyle))
@@ -639,7 +640,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 for entry in legends_list[hist_index][::-1]:
                     legends[hist_index].AddEntry(entry[0], entry[1], entry[2])
 
-                legends[hist_index].AddEntry(totlist[hist_index], "Sys. unc.", "f")
+                if(drawSys):
+                    legends[hist_index].AddEntry(totlist[hist_index], "Sys. unc.", "f")
 
 
                 ratio, ratio_sys_unc = makeRatio(hist,totlist[hist_index])
@@ -648,7 +650,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     #chi2 += pull.GetBinContent(i)**2;
                 #print("Chi2/nbin for chan %s is %.1f/%i" % (titles[hist_index], chi2, pull.GetNbinsX()))
 
-                legends[hist_index].AddEntry(ratio_sys_unc, "Total fit. unc.", "f")
+                if(drawSys):
+                    legends[hist_index].AddEntry(ratio_sys_unc, "Total fit. unc.", "f")
 
 
 
@@ -671,23 +674,28 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 ratio.SetMarkerStyle(8)
 
 
-                ratio_sys_unc.GetYaxis().SetRangeUser(ratio_range[0], ratio_range[1])
-                ratio_sys_unc.GetYaxis().SetTitleOffset(lTOffset)
-                ratio_sys_unc.GetYaxis().SetTickLength(0.04)
+                r_axis_hist = ratio
+                if(drawSys):
+                    r_axis_hist = ratio_sys_unc
+
+                r_axis_hist.GetYaxis().SetRangeUser(ratio_range[0], ratio_range[1])
+                r_axis_hist.GetYaxis().SetTitleOffset(lTOffset)
+                r_axis_hist.GetYaxis().SetTickLength(0.04)
                              
-                ratio_sys_unc.GetYaxis().SetLabelSize(LS)
-                ratio_sys_unc.GetYaxis().SetTitleSize(YTS)
-                ratio_sys_unc.GetYaxis().SetNdivisions(NDiv)
-                ratio_sys_unc.GetYaxis().SetTitle("Data / fit")
+                r_axis_hist.GetYaxis().SetLabelSize(LS)
+                r_axis_hist.GetYaxis().SetTitleSize(YTS)
+                r_axis_hist.GetYaxis().SetNdivisions(NDiv)
+                r_axis_hist.GetYaxis().SetTitle("Data / MC")
 
-                ratio_sys_unc.GetXaxis().SetRangeUser(hist.GetXaxis().GetXmin(), hist.GetXaxis().GetXmax())
-                ratio_sys_unc.GetXaxis().SetTitleOffset(1.)
-                ratio_sys_unc.GetXaxis().SetLabelOffset(0.05)
-                ratio_sys_unc.GetXaxis().SetLabelSize(LS)
-                ratio_sys_unc.GetXaxis().SetTitleSize(XTS)
-                ratio_sys_unc.GetXaxis().SetTitle(xtitle)
-                ratio_sys_unc.GetXaxis().SetTickLength(0.06)
+                r_axis_hist.GetXaxis().SetRangeUser(hist.GetXaxis().GetXmin(), hist.GetXaxis().GetXmax())
+                r_axis_hist.GetXaxis().SetTitleOffset(1.)
+                r_axis_hist.GetXaxis().SetLabelOffset(0.05)
+                r_axis_hist.GetXaxis().SetLabelSize(LS)
+                r_axis_hist.GetXaxis().SetTitleSize(XTS)
+                r_axis_hist.GetXaxis().SetTitle(xtitle)
+                r_axis_hist.GetXaxis().SetTickLength(0.06)
 
+                r_axis_hist.SetTitle("")
 
                 #ratio_sys_unc.SetFillColor(ROOT.kBlack)
                 #ratio_sys_unc.SetFillStyle(3015)
@@ -695,13 +703,15 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 ratio_sys_unc.SetFillColor(ROOT.kGray)
                 #ratio_sys_unc.SetFillStyle(3015)
 
-                ratio_sys_unc.SetTitle("")
 
 
                 ratio.SetLineStyle(1)
                 ratio.SetLineWidth(2)
-                ratio_sys_unc.Draw("A3 same")
-                ratio.Draw('p0e0Z same')
+                if(drawSys):
+                    ratio_sys_unc.Draw("A3 same")
+                    ratio.Draw('p0e0Z same')
+                else:
+                    ratio.Draw('Ap0e0Z same')
                 
                 line = ROOT.TLine(0, 1.0, hist.GetNbinsX() - 0.08, 1.0)
                 line.SetLineStyle(9)
@@ -804,7 +814,7 @@ def make_root_hist(data = None, weight = None, name = "h", num_bins = 1, bin_low
 
 
 
-def make_stack_ratio_histogram(data = None, entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins = None, 
+def make_stack_ratio_histogram(data = None, entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins = None, drawSys = False,
     normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
     if(h_range == None):
         low = np.amin(entries[0])
@@ -827,7 +837,7 @@ def make_stack_ratio_histogram(data = None, entries = None, labels = None, color
     for h in hists: h_tot.Add(h)
 
     return makeCan("temp", fname, [h_data], bkglist = [hists], totlist = [h_tot], colors = colors, bkgNames = labels, titles = [title], logy = logy, xtitle = axis_label,
-        ratio_range = ratio_range)
+        drawSys = drawSys, ratio_range = ratio_range)
 
 
 def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, save=False, h_range = None, 

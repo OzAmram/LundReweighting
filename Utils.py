@@ -5,9 +5,56 @@ import sys
 from PlotUtils import *
 import ROOT
 from array import array
+import copy
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(False)
+
+
+        
+
+
+def cleanup_hist(h):
+    if(type(h) == ROOT.TH3F):
+        for i in range(h.GetNbinsX()+1):
+            for j in range(h.GetNbinsY()+1):
+                for k in range(h.GetNbinsZ()+1):
+                    c = h.GetBinContent(i,j,k)
+                    if( c < 0): 
+                        h.SetBinContent(i,j,k, 0.)
+                        h.SetBinError(i,j,k, 0.)
+    elif(type(h) == ROOT.TH2F):
+        for i in range(h.GetNbinsX()+1):
+            for j in range(h.GetNbinsY()+1):
+                c = h.GetBinContent(i,j)
+                if( c < 0): 
+                    h.SetBinContent(i,j, 0.)
+                    h.SetBinError(i,j, 0.)
+
+
+
+def copy_proj(bin_i, h_ratio_proj, h_ratio):
+    for j in range(h_ratio.GetNbinsY()):
+        for k in range(h_ratio.GetNbinsZ()):
+            h_ratio.SetBinContent(bin_i,j,k, h_ratio_proj.GetBinContent(j,k))
+            h_ratio.SetBinError(bin_i,j,k, h_ratio_proj.GetBinError(j,k))
+    return
+
+def get_unc_hist(h):
+    h_unc = h.Clone(h.GetName() + "_unc")
+    for i in range(1, h.GetNbinsX() + 1):
+        for j in range(1, h.GetNbinsY() + 1):
+            err = h.GetBinError(i,j)
+            cont = h.GetBinContent(i,j)
+
+            if(cont > 0):
+                h_unc.SetBinContent(i,j, err/cont)
+                h_unc.SetBinError(i,j, 0.)
+            else:
+                h_unc.SetBinContent(i,j, 0.)
+    return h_unc
+
+
 
 def convert_4vec(vec):
     rvec = ROOT.Math.PtEtaPhiMVector(vec[0], vec[1], vec[2], vec[3])
@@ -181,3 +228,92 @@ def reweight_subjet_lund_plane(h_rw, pf_cands, boost_vec, dR = 0.4, fill_z = Tru
             if(n_cands > 0): rw *= h_rw.GetBinContent(i,j)
 
     return rw
+
+
+
+class Dataset():
+    def __init__(self, f, is_data = False, label = "", color = ""):
+
+        self.f = f
+        self.is_data = is_data
+
+        self.label = label
+        self.color = color
+
+        self.n_evts = f['event_info'].shape[-1]
+        self.mask = f['jet_kinematics'][:,0] > 0.
+        self.norm_factor = 1.0
+
+    def n(self):
+        return np.sum(self.mask)
+
+    def apply_cut(self, cut):
+        self.mask = self.mask & cut
+    
+    def get_masked(self, key):
+        return self.f[key][()][self.mask]
+
+    def get_weights(self):
+        if(self.is_data): return np.ones(self.n())
+        else: return self.get_masked('norm_weights') * self.norm_factor
+
+    def compute_obs(self):
+        eps = 1e-8
+        feats = self.get_masked('jet1_extraInfo')
+        kins = self.get_masked('jet_kinematics')
+        self.tau21 = (feats[:,1] / (feats[:,0] + eps))
+        self.tau32 = (feats[:,2] / (feats[:,1] + eps))
+        self.tau43 = (feats[:,3] / (feats[:,2] + eps))
+        self.mSoftDrop = kins[:,3]
+        self.pt = kins[:,0]
+        self.nPF= feats[:,6]
+
+
+
+    def fill_LP(self, h, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2):
+
+        pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
+        jet_kinematics = self.get_masked("jet_kinematics")
+        weights = self.get_weights()
+        for i,pf_cand in enumerate(pf_cands):
+            weight =weights[i]
+            if(subjet_rw):
+                pt_eta_phi_m_vec = jet_kinematics[i]
+                jet_4vec = convert_4vec(pt_eta_phi_m_vec)
+                boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
+                fill_lund_plane(h, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, weight = weight)
+            else: fill_lund_plane(h, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, weight = weight)
+
+    def reweight_LP(self, h_ratio, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2, uncs = True, max_evts =-1):
+    #always uncs for now
+
+        LP_weights = []
+        LP_uncs = []
+        pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
+        jet_kinematics = self.get_masked("jet_kinematics")
+
+        if(max_evts > 0 and pf_cands.shape[0] > max_evts):
+            pf_cands = pf_cands[:max_evts]
+            jet_kinematics = jet_kinematics[:max_evts]
+
+        for i,pf_cand in enumerate(pf_cands):
+            if(subjet_rw):
+                pt_eta_phi_m_vec = jet_kinematics[i]
+                jet_4vec = convert_4vec(pt_eta_phi_m_vec)
+                boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
+                rw, unc = reweight_lund_plane(h_ratio, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, uncs = True)
+            else: 
+                rw, unc = reweight_lund_plane(h_ratio, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True)
+
+            LP_weights.append(rw)
+            if(rw >= 1e-6):
+                LP_uncs.append(unc/rw)
+            else:
+                LP_uncs.append(0.)
+
+
+        LP_weights = np.clip(np.array(LP_weights), 0., 10.)
+        LP_uncs = np.clip(np.array(LP_uncs), 0., 1.5)
+        mean = np.mean(LP_weights)
+        LP_weights /= mean
+        return LP_weights, LP_uncs

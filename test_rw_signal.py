@@ -1,60 +1,50 @@
 
 from Utils import *
+import os
 
 
 
-f_sig = h5py.File("../TagNTrain/data/WpToBpT_Wp3000_Bp400_UL17_TIMBER.h5", "r")
+f_sig = h5py.File("../TagNTrain/data/WpToBpT_Wp3000_Bp400_Top170_Zbt_TuneCP5_13TeV-madgraphMLM-pythia8_TIMBER_fix.h5", "r")
+num_excjets = 3
+jetR = 1.0 
 
-f_ratio = ROOT.TFile("ttbar_rw_ak8_test_v2/ratio.root", "READ")
+
+subjet_rw = False
+excjet_rw = True
+
+d_sig = Dataset(f_sig, label = "WToBpT")
+
+f_ratio = ROOT.TFile("ttbar_test_UL_sep21_toprw/ratio.root", "READ")
 h_rw = f_ratio.Get("h_ratio")
 
 loadMax = 200000
 numJets = 10000
 
-pt_min = 200.
+#pt_min = 200.
+pt_min = 0.
 pt_max = 99999.
 
-dr_bin_min = -1.
-dr_bin_max = 8.
-#y_bin_min = np.log(1./0.5)
-#y_bin_max = 20*y_bin_min
-#y_label = "ln(1/z)"
-y_bin_min = -5
-y_bin_max = np.log(pt_max)
-y_label = "ln(kt)"
-n_bins = 20
-
-jetR = 0.4
 fill_z = False
 
 ratio_range = [0.5, 1.5]
 
-outDir = "Wp_rw_test/"
+outDir = "Wp_rw_test_sep21/"
 
-subjet_rw = False
-
-
-if(subjet_rw):
-    n_pt_bins = 5
-    pt_bins = array('f', [0., 10., 25., 40., 60., 99999.])
-else:
-    n_pt_bins = 4
-    pt_bins = array('f', [200., 300., 400., 600., 99999.])
-    #pt_bins = array('f', [200., 300.])
+if(not os.path.exists(outDir)): os.system("mkdir " + outDir)
 
 
 
 jet_kinematics_sig= f_sig['jet_kinematics'][:loadMax]
-all_cands_sig = f_sig['jet1_PFCands'][:loadMax].astype(np.float64)
-jet1_feats_sig = f_sig['jet1_extraInfo'][:loadMax]
 
 pt_cut_mask = (jet_kinematics_sig[:,2] > pt_min) & (jet_kinematics_sig[:,2] < pt_max)
 
 print("pt_cut", np.mean(pt_cut_mask))
 
-cut_cands_sig = all_cands_sig[ pt_cut_mask]
-cut_feats_sig = jet1_feats_sig[ pt_cut_mask]
-cut_kinematics_sig = jet_kinematics_sig[pt_cut_mask]
+d_sig.apply_cut(pt_cut_mask)
+
+cut_cands_sig = d_sig.get_masked("jet1_PFCands")[:numJets]
+cut_feats_sig = d_sig.get_masked("jet1_extraInfo")[:numJets]
+cut_kinematics_sig = d_sig.get_masked("jet_kinematics")[:numJets]
 
 print(cut_cands_sig.shape)
 
@@ -66,50 +56,68 @@ print(cut_cands_sig.shape)
 eps = 1e-8
 
 
-tau21_sig = (cut_feats_sig[:,1] / (cut_feats_sig[:,0] + eps))[:numJets ]
+tau21_sig = (cut_feats_sig[:,1] / (cut_feats_sig[:,0] + eps))
 
-tau32_sig = (cut_feats_sig[:,2] / (cut_feats_sig[:,1] + eps))[:numJets ]
+tau32_sig = (cut_feats_sig[:,2] / (cut_feats_sig[:,1] + eps))
 
-tau43_sig = (cut_feats_sig[:,3] / (cut_feats_sig[:,2] + eps))[:numJets]
+tau43_sig = (cut_feats_sig[:,3] / (cut_feats_sig[:,2] + eps))
 
-nPF_sig= cut_feats_sig[:,-1][:numJets]
+nPF_sig= cut_feats_sig[:,-1]
+
+msd_sig = cut_kinematics_sig[:,3]
 
 n_bins = 12
 
 
 
-LP_weights = []
 
-for i in range(0, numJets):
-    pf_cands_sig = cut_cands_sig[i]
 
-    rw = reweight_lund_plane(h_rw, pf_cands_sig, fill_z = fill_z)
-    if(subjet_rw):
+#uncs given as a fractional uncertainty
+LP_weights, LP_uncs = d_sig.reweight_LP(h_rw, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, max_evts = numJets)
 
-        jet_4vec = convert_4vec(cut_kinematics_sig[i,2:6])
-        boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
-        rw = reweight_lund_plane(h_rw, pf_cands_sig,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, maxJets = 4, pt_min = 10.)
-    LP_weights.append(rw)
+
+
+
+#for i in range(0, numJets):
+#    pf_cands_sig = cut_cands_sig[i]
+#
+#    if(subjet_rw):
+#
+#        jet_4vec = convert_4vec(cut_kinematics_sig[i,2:6])
+#        boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
+#        rw = reweight_lund_plane(h_rw, pf_cands_sig,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, maxJets = 4, pt_min = 10.)
+#    else:
+#
+#    LP_weights.append(rw)
 
 
 
 
 LP_weights = np.clip(LP_weights, 0., 10.)
-print(LP_weights[:10])
 
-weights = [  LP_weights, [1.]*len(tau21_sig)]
-print(LP_weights.shape, tau21_sig.shape)
+LP_weights_up = LP_weights + LP_uncs*LP_weights
+LP_weights_down = LP_weights - LP_uncs*LP_weights
+
+print(LP_weights.shape, LP_weights_up.shape)
+
+
+weights = [  [1.]*len(tau21_sig), LP_weights, LP_weights_up, LP_weights_down]
+labels = ["Nom", "RW", "RW Up", "RW Down"]
+colors = ['green','black', 'blue', 'red']
 
 
 
-make_ratio_histogram([tau21_sig, tau21_sig], ["sig RW", "sig"], ['b', 'r'], 'Tau21', "Tau21 : Before vs. After Lund Plane Reweighting", n_bins,
+make_multi_ratio_histogram([tau21_sig]*4, labels, colors, 'Tau21', "Tau21 : Before vs. After Lund Plane Reweighting", n_bins,
      ratio_range = ratio_range, normalize=True, weights = weights, save = True, fname=outDir + "tau21_before_vs_after.png")
 
-make_ratio_histogram([tau32_sig, tau32_sig], ["sig RW", "sig"], ['b', 'r'], 'tau32', "tau32 : Before vs. After Lund Plane Reweighting", n_bins,
+make_multi_ratio_histogram([tau32_sig]*4, labels, colors, 'tau32', "tau32 : Before vs. After Lund Plane Reweighting", n_bins,
      ratio_range = ratio_range, normalize=True, weights = weights, save = True, fname=outDir + "tau32_before_vs_after.png")
 
-make_ratio_histogram([tau43_sig, tau43_sig], ["sig RW", "sig"], ['b', 'r'], 'tau43', "tau43 : Before vs. After Lund Plane Reweighting", n_bins,
+make_multi_ratio_histogram([tau43_sig]*4, labels, colors, 'tau43', "tau43 : Before vs. After Lund Plane Reweighting", n_bins,
      ratio_range = ratio_range, normalize=True, weights = weights, save = True, fname=outDir + "tau43_before_vs_after.png")
 
-make_ratio_histogram([nPF_sig, nPF_sig], ["sig RW", "sig"], ['b', 'r'], 'nPF', "nPF : Before vs. After Lund Plane Reweighting", n_bins,
+make_multi_ratio_histogram([nPF_sig ]*4, labels, colors, 'nPF', "nPF : Before vs. After Lund Plane Reweighting", n_bins,
      ratio_range = ratio_range, normalize=True, weights = weights, save = True, fname=outDir + "nPF_before_vs_after.png")
+
+make_multi_ratio_histogram([msd_sig ]*4, labels, colors, 'mSoftDrop', "mSoftDrop : Before vs. After Lund Plane Reweighting", n_bins,
+     ratio_range = ratio_range, normalize=True, weights = weights, save = True, fname=outDir + "msd_before_vs_after.png")
