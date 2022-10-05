@@ -26,41 +26,65 @@ lumi = 59.74
 #f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/TW.h5", "r")
 #f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/SingleTop_merge.h5", "r")
 
-f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep21/SingleMu_2018_merge.h5", "r")
-#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep21/TTToSemiLeptonic.h5", "r")
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep21/TT_merge.h5", "r")
-#f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep21/QCD_WJets_merge.h5", "r")
-f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep21/WJets_merge.h5", "r")
-f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep21/diboson.h5", "r")
-f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep21/TW.h5", "r")
-f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep21/SingleTop_merge.h5", "r")
+f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleMu_2018_merge.h5", "r")
+f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5", "r")
+#f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/QCD_WJets.h5", "r")
+f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/WJets.h5", "r")
+f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/diboson.h5", "r")
+f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TW.h5", "r")
+f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5", "r")
 
 
 
 
 subjet_rw = False
 excjet_rw = True
-outdir = "ttbar_test_UL_sep26_norm_noQCD/"
+outdir = "ttbar_UL_oct4_W_rw/"
+#sys = "PS_FSR_down"
+sys = ""
 
 norm = True
 
+jms_corr = 0.93
+
 m_cut_min = 50.
-m_cut_max = 250.
+m_cut_max = 110.
 pt_cut = 200.
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
 d_data = Dataset(f_data, is_data = True)
-d_ttbar = Dataset(f_ttbar, label = "ttbar", color = ROOT.kRed)
-d_tw = Dataset(f_tw, label = "tW", color = ROOT.kMagenta)
-d_wjets = Dataset(f_wjets, label = "W+Jets + QCD", color = ROOT.kBlue)
-d_diboson = Dataset(f_diboson, label = "Diboson", color = ROOT.kGreen+4)
-d_singletop = Dataset(f_singletop, label = "Single Top", color = ROOT.kMagenta+4)
 
-sigs = [d_tw, d_ttbar]
-bkgs = [d_diboson, d_wjets, d_singletop]
+d_tw = Dataset(f_tw, label = "tW", color = ROOT.kMagenta, jms_corr = jms_corr)
+d_wjets = Dataset(f_wjets, label = "W+Jets + QCD", color = ROOT.kGray, jms_corr = jms_corr)
+d_diboson = Dataset(f_diboson, label = "Diboson", color = ROOT.kCyan, jms_corr = jms_corr)
+d_singletop = Dataset(f_singletop, label = "Single Top", color = ROOT.kMagenta+4, jms_corr = jms_corr)
 
 
+d_ttbar_w_match = Dataset(f_ttbar, label = "ttbar : W-matched", color = ROOT.kRed, jms_corr =jms_corr)
+d_ttbar_t_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr)
+d_ttbar_nomatch = Dataset(f_ttbar, label = "ttbar : unmatched", color = ROOT.kGreen+3, jms_corr = jms_corr)
+
+ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]
+
+#0 is unmatched, 1 is W matched, 2 is top matched
+nomatch_cut = ttbar_gen_matching < 0.1
+w_match_cut = (ttbar_gen_matching  > 0.9) &  (ttbar_gen_matching < 1.1)
+t_match_cut = (ttbar_gen_matching  > 1.9) &  (ttbar_gen_matching < 2.1)
+
+d_ttbar_w_match.apply_cut(w_match_cut)
+d_ttbar_t_match.apply_cut(t_match_cut)
+d_ttbar_nomatch.apply_cut(nomatch_cut)
+
+
+sigs = [d_ttbar_w_match, d_tw]
+bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_diboson, d_wjets, d_singletop]
+
+
+if(len(sys) != 0):
+    for d in sigs: 
+        d.apply_sys(sys)
+        d.sys_power = 2.0
 
 
 
@@ -96,9 +120,9 @@ if(subjet_rw):
     pt_bins = array('f', [0., 10., 25., 40., 60., 99999.])
 elif(excjet_rw):
     jetR = 1.0 #idk if this matters ? 
-    n_pt_bins = 5
+    n_pt_bins = 6
     num_excjets = 2
-    pt_bins = array('f', [0., 50., 100., 200., 300., 99999.])
+    pt_bins = array('f', [0., 50., 100., 200., 300., 450., 99999.])
 else:
     n_pt_bins = 4
     pt_bins = array('f', [200., 300., 400., 600., 99999.])
@@ -121,25 +145,30 @@ for d in (bkgs + sigs):
 
     d.norm_factor = lumi
 
-    jet_kinematics = d.get_masked('jet_kinematics')
-    msd_cut_mask = (jet_kinematics[:,3] > m_cut_min) & (jet_kinematics[:,3] < m_cut_max)
+    jet_kinematics = d.f['jet_kinematics'][:]
+    msd_cut_mask = (jet_kinematics[:,3] * jms_corr > m_cut_min) & (jet_kinematics[:,3] * jms_corr < m_cut_max)
     pt_cut_mask = jet_kinematics[:,0] > pt_cut
     d.apply_cut(msd_cut_mask & pt_cut_mask)
     d.compute_obs()
 
 
 
-print("Num data %i. Num ttbar MC %i " % (d_data.n(), d_ttbar.n()))
+#print("Num data %i. Num ttbar MC %i " % (d_data.n(), d_ttbar.n()))
 
 
 num_data = np.sum(d_data.get_weights())
-num_ttbar = np.sum(d_ttbar.get_weights())
+num_ttbar_nomatch = np.sum(d_ttbar_nomatch.get_weights())
+num_ttbar_w_match = np.sum(d_ttbar_w_match.get_weights())
+num_ttbar_t_match = np.sum(d_ttbar_t_match.get_weights())
+num_ttbar_tot = num_ttbar_nomatch + num_ttbar_w_match + num_ttbar_t_match
 num_tw = np.sum(d_tw.get_weights())
 
 tot_bkg = 0.
-for d in bkgs: tot_bkg += np.sum(d.get_weights())
-print("%i data, %.0f ttbar %.0f tW %.0f bkg" % ( num_data, num_ttbar, num_tw, tot_bkg))
-normalization = num_data  / (num_ttbar + num_tw + tot_bkg)
+for d in (d_diboson, d_wjets, d_singletop):
+    tot_bkg += np.sum(d.get_weights())
+print("%i data, %.0f ttbar (%.0f unmatched, %.0f W matched, %.0f t matched), %.0f tW %.0f bkg" % ( num_data, num_ttbar_tot,num_ttbar_nomatch, 
+                                                                                          num_ttbar_w_match, num_ttbar_t_match, num_tw, tot_bkg))
+normalization = num_data  / (num_ttbar_tot + num_tw + tot_bkg)
 print("normalization", normalization)
 
 if(norm):
@@ -163,10 +192,20 @@ for l in obs:
     for d in (bkgs + sigs):
         a.append(getattr(d, l))
 
-    if(l == 'mSoftDrop'): h_range = (m_cut_min, m_cut_max)
-    else: h_range = None
-    make_stack_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_nom, labels = labels, h_range = h_range, drawSys = False,
-            colors = colors, axis_label = l,  title = l + " : No Reweighting", num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_before.png' )
+    if(l == 'mSoftDrop'): 
+        h_range = (m_cut_min, m_cut_max)
+        n_bins_ = n_bins
+    elif(l == 'nPF'): 
+        h_range = (0.5,120.5)
+        n_bins_ = 40
+    elif(l == 'pt'): 
+        h_range = (200., 800.)
+        n_bins_ = n_bins
+    else: 
+        n_bins_ = n_bins
+        h_range = None
+    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_nom, labels = labels, h_range = h_range, drawSys = False, stack = False,
+            colors = colors, axis_label = l,  title = l + " : No Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_before.png' )
 
 
 
@@ -228,6 +267,7 @@ for i in range(1, h_data.GetNbinsX() + 1):
     h_bkg_proj = h_bkg_clone.Project3D("zy")
     h_data_proj = h_data_clone.Project3D("zy")
 
+
     #h_mc_proj.Print()
     #h_bkg_proj.Print()
     #h_data_proj.Print()
@@ -250,15 +290,18 @@ for i in range(1, h_data.GetNbinsX() + 1):
 
     c_mc = ROOT.TCanvas("c", "", 1000, 1000)
     h_mc_proj.Draw("colz")
+    c_mc.SetRightMargin(0.2)
     c_mc.Print(outdir + "lundPlane_bin%i_MC.png" % i)
 
 
     c_bkg = ROOT.TCanvas("c", "", 1000, 800)
     h_bkg_proj.Draw("colz")
+    c_bkg.SetRightMargin(0.2)
     c_bkg.Print(outdir + "lundPlane_bin%i_bkg.png" % i)
 
     c_data = ROOT.TCanvas("c", "", 1000, 800)
     h_data_proj.Draw("colz")
+    c_data.SetRightMargin(0.2)
     c_data.Print(outdir + "lundPlane_bin%i_data.png" %i )
 
 
@@ -266,6 +309,7 @@ for i in range(1, h_data.GetNbinsX() + 1):
     c_ratio = ROOT.TCanvas("c", "", 1000, 800)
     cleanup_ratio(h_ratio_proj, h_min =0., h_max = 2.0)
     h_ratio_proj.Draw("colz")
+    c_ratio.SetRightMargin(0.2)
     c_ratio.Print(outdir + "lundPlane_bin%i_ratio.png" % i)
 
     h_ratio_unc = get_unc_hist(h_ratio_proj)
@@ -273,6 +317,7 @@ for i in range(1, h_data.GetNbinsX() + 1):
     c_ratio_unc = ROOT.TCanvas("c_unc", "", 800, 800)
     h_ratio_unc.SetTitle("Ratio pT %.0f - %.0f (N = %.0f) Relative Unc." % (pt_bins[i-1], pt_bins[i], data_norm))
     h_ratio_unc.Draw("colz")
+    c_ratio_unc.SetRightMargin(0.2)
     c_ratio_unc.Print(outdir + "lundPlane_bin%i_ratio_unc.png" % i)
     h_ratio_unc.Reset()
 
@@ -307,10 +352,20 @@ for l in obs:
     a = []
     for d in (bkgs + sigs):
         a.append(getattr(d, l))
-    if(l == 'mSoftDrop'): h_range = (m_cut, 300.)
-    else: h_range = None
-    make_stack_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False,
-            colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
+    if(l == 'mSoftDrop'): 
+        h_range = (m_cut_min, m_cut_max)
+        n_bins_ = n_bins
+    elif(l == 'nPF'): 
+        h_range = (0.5,120.5)
+        n_bins_ = 40
+    elif(l == 'pt'): 
+        h_range = (200., 800.)
+        n_bins_ = n_bins
+    else: 
+        n_bins_ = n_bins
+        h_range = None
+    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False, stack = False,
+            colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
 
 
 

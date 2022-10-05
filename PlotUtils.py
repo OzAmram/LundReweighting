@@ -8,6 +8,7 @@ import scipy.stats
 import numpy as np
 import ROOT
 import tdrstyle
+import copy
 from array import array
 
 fig_size = (12,9)
@@ -262,7 +263,7 @@ def make_profile_hist(x,y, x_bins, xaxis_label="", yaxis_label="", fname = "", f
 
 
 
-def make_outline_hist(stacks,outlines, labels, colors, xaxis_label, title, num_bins, logy = False,  normalize = False, save=False, h_type = 'step', 
+def make_outline_hist(stacks,outlines, labels, colors, xaxis_label, title, num_bins, logy = False,  normalize = False,  h_type = 'step', 
         h_range = None, fontsize = 16, fname="", yaxis_label = ""):
     alpha = 1.
     n_stacks = len(stacks)
@@ -279,7 +280,7 @@ def make_outline_hist(stacks,outlines, labels, colors, xaxis_label, title, num_b
         plt.tick_params(axis='y', labelsize=fontsize)
     plt.title(title, fontsize=fontsize)
     plt.legend(loc='upper right', fontsize = fontsize)
-    if(save): 
+    if(fname != ""): 
         print("saving fig %s" %fname)
         plt.savefig(fname)
     #else: plt.show(block=False)
@@ -287,7 +288,7 @@ def make_outline_hist(stacks,outlines, labels, colors, xaxis_label, title, num_b
 
 
 
-def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, save=False, h_range = None, 
+def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, h_range = None, 
         weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, unc_band_norm = -1):
     h_type= 'step'
     alpha = 1.
@@ -381,14 +382,14 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
 
     plt.grid(axis='y')
 
-    if(save): 
+    if(fname != ""): 
         plt.savefig(fname)
         print("saving fig %s" %fname)
 
     return ns, bins, ratios, frac_unc
 
 def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[], drawSys = False,
-        logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=1, ratio_range = None, NDiv = 205, prelim = False):  
+        stack = True, logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=1, ratio_range = None, NDiv = 205, prelim = False):  
 
     # histlist is just the generic list but if bkglist is specified (non-empty)
     # then this function will stack the backgrounds and compare against histlist as if 
@@ -508,7 +509,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     y_size = 0.2 + 0.03*(len(bkglist[0])+len(signals))
                     x_size = 0.5
                     if(leg_align_right):
-                        x_start = 0.42
+                        x_start = 0.35
                     else:
                         x_start = 0.2
 
@@ -516,7 +517,6 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 else: 
                     legends.append(ROOT.TLegend(0.2,0.11,0.45,0.2+0.02*(len(bkglist[0])+len(signals))))
 
-                stacks.append(ROOT.THStack(hist.GetName()+'_stack',hist.GetName()+'_stack'))
                 legends_list.append([])
 
 
@@ -538,24 +538,32 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 subs[hist_index].Draw()
 
                 # Build the stack
-                for bkg_index,bkg in enumerate(bkglist[hist_index]):     # Won't loop if bkglist is empty
-                    # bkg.Sumw2()
-                    bkg.SetLineColor(ROOT.kBlack)
-                    if logy:
-                        bkg.SetMinimum(1e-3)
+                if(stack):
+                    stacks.append(ROOT.THStack(hist.GetName()+'_stack',hist.GetName()+'_stack'))
+                    for bkg_index,bkg in enumerate(bkglist[hist_index]):     # Won't loop if bkglist is empty
+                        # bkg.Sumw2()
+                        bkg.SetLineColor(ROOT.kBlack)
+                        if logy:
+                            bkg.SetMinimum(1e-3)
 
-                    if colors[bkg_index] != None:
-                        bkg.SetFillColor(colors[bkg_index])
-                        bkg.SetLineColor(colors[bkg_index])
-                    else:
-                        bkg.SetFillColor(default_colors[bkg_index])
-                        bkg.Print()
+                        if colors[bkg_index] != None:
+                            bkg.SetFillColor(colors[bkg_index])
+                            bkg.SetLineColor(colors[bkg_index])
+                        else:
+                            bkg.SetFillColor(default_colors[bkg_index])
+                            bkg.Print()
 
-                    stacks[hist_index].Add(bkg)
-                    if bkgNames == []: this_bkg_name = bkg.GetName().split('_')[0]
-                    elif type(bkgNames[0]) != list: this_bkg_name = bkgNames[bkg_index]
-                    else: this_bkg_name = bkgNames[hist_index][bkg_index]
-                    legends_list[hist_index].append((bkg,this_bkg_name,'f'))
+                        stacks[hist_index].Add(bkg)
+                        if bkgNames == []: this_bkg_name = bkg.GetName().split('_')[0]
+                        elif type(bkgNames[0]) != list: this_bkg_name = bkgNames[bkg_index]
+                        else: this_bkg_name = bkgNames[hist_index][bkg_index]
+                        legends_list[hist_index].append((bkg,this_bkg_name,'f'))
+
+                    histList = [stacks[hist_index],totlist[hist_index],hist]
+                else:
+                    histList = copy.copy(bkglist[hist_index])
+                    histList += [totlist[hist_index], hist]
+
                     
                 # Go to main pad, set logy if needed
                 mains[hist_index].cd()
@@ -563,7 +571,6 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
                 # Set y max of all hists to be the same to accomodate the tallest
                 max_scaling = 3.0
-                histList = [stacks[hist_index],totlist[hist_index],hist]
 
                 yMax = histList[0].GetMaximum()
                 maxHist = histList[0]
@@ -603,12 +610,17 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 hist.Draw(datastyle)
                 #print("Drawing %s %s \n" hist.GetName(), datastyle)
 
-                stacks[hist_index].Draw('same hist')
+                if(stack): stacks[hist_index].Draw('same hist')
+                else:
+                    for i,h in enumerate(bkglist[hist_index]): 
+                        h.SetLineWidth(2)
+                        h.Draw('same hist')
+                        legends_list[hist_index].append((h,bkgNames[i], 'L') )
                 #print("Drawing %s same hist \n" stacks[hist_index].GetName())
 
                 # Do the signals
                 if len(signals) > 0: 
-                    signals[hist_index].SetLineColor(kBlue)
+                    signals[hist_index].SetLineColor(ROOT.kBlue)
                     signals[hist_index].SetLineWidth(2)
                     if logy == True:
                         signals[hist_index].SetMinimum(1e-3)
@@ -616,15 +628,21 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     legends_list[hist_index].append((signals[hist_index],this_sig_name,'L'))
                     signals[hist_index].Draw('hist same')
 
-                ROOT.gStyle.SetHatchesLineWidth(2)
-                totlist[hist_index].SetLineColor(ROOT.kWhite)
-                totlist[hist_index].SetFillColor(ROOT.kBlack)
-                totlist[hist_index].SetFillStyle(3354)
-                totlist[hist_index].SetMarkerStyle(20)
-                totlist[hist_index].SetMarkerSize(0.01)
+                if(stack):
+                    ROOT.gStyle.SetHatchesLineWidth(3)
+                    totlist[hist_index].SetLineColor(ROOT.kWhite)
+                    totlist[hist_index].SetFillColor(ROOT.kBlack)
+                    totlist[hist_index].SetFillStyle(3354)
+                    totlist[hist_index].SetMarkerStyle(20)
+                    totlist[hist_index].SetMarkerSize(0.01)
 
-                if(drawSys):
-                    totlist[hist_index].Draw('e2 same')
+                    if(drawSys):
+                        totlist[hist_index].Draw('e2 same')
+                else:
+                    totlist[hist_index].SetLineWidth(3)
+                    totlist[hist_index].Draw('hist same')
+                    legends_list[hist_index].append((totlist[hist_index], "Total", 'L') )
+
 
                 if not dataOff:
                     legends_list[hist_index].append((hist,dataName,datastyle))
@@ -636,9 +654,10 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 #legends[hist_index].SetHeader(titles[0], "c")
                 legends[hist_index].SetNColumns(2)
                 legends[hist_index].SetTextSize(0.05)
-                
+
                 for entry in legends_list[hist_index][::-1]:
                     legends[hist_index].AddEntry(entry[0], entry[1], entry[2])
+
 
                 if(drawSys):
                     legends[hist_index].AddEntry(totlist[hist_index], "Sys. unc.", "f")
@@ -713,7 +732,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 else:
                     ratio.Draw('Ap0e0Z same')
                 
-                line = ROOT.TLine(0, 1.0, hist.GetNbinsX() - 0.08, 1.0)
+                line = ROOT.TLine(hist.GetXaxis().GetXmin(), 1.0, hist.GetXaxis().GetXmax(), 1.0)
                 line.SetLineStyle(9)
                 line.Draw()
 
@@ -814,8 +833,9 @@ def make_root_hist(data = None, weight = None, name = "h", num_bins = 1, bin_low
 
 
 
-def make_stack_ratio_histogram(data = None, entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins = None, drawSys = False,
+def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins = None, drawSys = False, stack = True,
     normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
+    print(entries[0])
     if(h_range == None):
         low = np.amin(entries[0])
         high = np.amax(entries[0])
@@ -827,21 +847,24 @@ def make_stack_ratio_histogram(data = None, entries = None, labels = None, color
     for i,e in enumerate(entries):
         if(weights is not None): weight = weights[i]
         hist = make_root_hist(data = e, weight = weight, name = "h" + labels[i], num_bins = num_bins, bin_low = low, bin_high = high)
-        hist.SetFillColor(colors[i])
+        if(stack): hist.SetFillColor(colors[i])
         hist.SetLineColor(colors[i])
         hists.append(hist)
-
+    
     h_data = make_root_hist(data = data, weight = None, name = 'data', num_bins = num_bins, bin_low = low, bin_high = high)
     h_tot = hists[0].Clone("h_tot")
     h_tot.Reset()
     for h in hists: h_tot.Add(h)
+    if(not stack): h_tot.SetLineColor(ROOT.kBlue)
 
     return makeCan("temp", fname, [h_data], bkglist = [hists], totlist = [h_tot], colors = colors, bkgNames = labels, titles = [title], logy = logy, xtitle = axis_label,
-        drawSys = drawSys, ratio_range = ratio_range)
+        drawSys = drawSys, ratio_range = ratio_range, stack = stack)
 
 
-def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, save=False, h_range = None, 
+def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, h_range = None, 
         weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
+
+
     h_type= 'step'
     alpha = 1.
     fontsize = 16
@@ -919,7 +942,7 @@ def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, n
 
     plt.grid(axis='y')
 
-    if(save): 
+    if(fname != ""):
         plt.savefig(fname)
         print("saving fig %s" %fname)
 

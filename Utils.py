@@ -10,6 +10,34 @@ import copy
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(False)
 
+sys_weights_map = {
+        'nom_weight' : 0,
+        'pdf_up' : 1,
+        'pdf_down': 2,
+        'prefire_up': 3,
+        'prefire_down' : 4,
+        'pileup_up' : 5 ,
+        'pileup_down' : 6,
+        'btag_up' : 7,
+        'btag_down' : 8,
+        'PS_ISR_up' : 9,
+        'PS_ISR_down' : 10,
+        'PS_FSR_up' : 11,
+        'PS_FSR_down' : 12,
+        'F_up' : 13,
+        'F_down' : 14,
+        'R_up' : 15,
+        'R_down' : 16,
+        'RF_up' : 17,
+        'RF_down' : 18,
+        'top_ptrw_up' : 19,
+        'top_ptrw_down' : 20,
+        'mu_trigger_up': 21,
+        'mu_trigger_down': 22,
+        'mu_id_up': 23,
+        'mu_id_down': 24,
+        }
+
 
         
 
@@ -119,7 +147,8 @@ def fill_lund_plane(h, pf_cands = None, subjets = None,  splittings = None, fill
         subjets = np.array(subjets).reshape(-1)
 
     for jet_i, delta, kt in splittings:
-        jet_pt = subjets[jet_i*4]
+        jet_int = int(np.round(jet_i))
+        jet_pt = subjets[jet_int*4]
         if(delta > 0. and kt > 0.):
             if(fill_z): 
                 print("FillZ DEPRECATED")
@@ -131,12 +160,14 @@ def fill_lund_plane(h, pf_cands = None, subjets = None,  splittings = None, fill
 
 
 
-def reweight_lund_plane(h_rw, pf_cands, dR = 0.8, fill_z = True, jetR = -1, boost_vec = None, maxJets = -1, num_excjets = -1, pt_min = 0., weight = 1., uncs = False):
+def reweight_lund_plane(h_rw, pf_cands = None, splittings = None, subjets = None,  dR = 0.8, fill_z = True, jetR = -1, 
+                                boost_vec = None, maxJets = -1, num_excjets = -1, pt_min = 0., weight = 1., uncs = False):
     pjs = []
 
     h_jet = h_rw.Clone("temp")
     h_jet.Reset()
-    fill_lund_plane(h_jet, pf_cands, dR, fill_z = fill_z, jetR = jetR, boost_vec = boost_vec, maxJets = maxJets, num_excjets = num_excjets, weight = weight)
+    fill_lund_plane(h_jet, pf_cands = pf_cands, splittings = splittings, subjets = subjets, 
+            dR = dR, fill_z = fill_z, jetR = jetR, boost_vec = boost_vec, maxJets = maxJets, num_excjets = num_excjets, weight = weight)
     #h_jet.Scale(1./h_jet.Integral())
     #h_jet.Multiply(h_rw)
 
@@ -174,65 +205,10 @@ def reweight_lund_plane(h_rw, pf_cands, dR = 0.8, fill_z = True, jetR = -1, boos
     
     return rw, unc
 
-#No longer used
-def reweight_subjet_lund_plane(h_rw, pf_cands, boost_vec, dR = 0.4, fill_z = True, jetR = 0.4):
-    pjs = []
-
-    h_jet = h_rw.Clone("temp")
-    h_jet.Reset()
-
-
-    #fill_lund_plane(h_jet, pf_cands, dR, fill_z)
-
-    pjs = []
-
-    for c in pf_cands:
-        if(c[3] > 0.0001):
-            pj = fj.PseudoJet(c[0], c[1], c[2], c[3])
-            pj_boost = pj.unboost(boost_vec)
-            #idk why you have to do this...
-            pjp = fj.PseudoJet(pj_boost.px(), pj_boost.py(), pj_boost.pz(), pj_boost.E())
-            pjs.append(pjp)
-
-
-
-    jetR = 0.4
-    jet_def = fj.JetDefinition(fj.cambridge_algorithm, jetR)
-    cs = fj.ClusterSequence(pjs, jet_def)
-
-    jets = cs.inclusive_jets()
-
-    for i,j in enumerate(jets):
-        pseudojet = j
-        while True:
-            j1 = fj.PseudoJet()
-            j2 = fj.PseudoJet()
-            if pseudojet and pseudojet.has_parents(j1, j2):
-                # order the parents in pt
-                if (j2.pt() > j1.pt()):
-                    j1, j2 = j2, j1
-                delta = j1.delta_R(j2)
-                kt = j2.pt() * delta
-                z = j2.pt() / (j1.pt() + j2.pt())
-                if(fill_z): h.Fill(np.log(dR/delta), np.log(1./z))
-                else: h_jet.Fill(np.log(dR/delta), np.log(kt))
-                pseudojet = j1
-            else:
-                break
-
-    rw = 1.0
-    eps = 1e-4
-    for i in range(1, h_jet.GetNbinsX() + 1):
-        for j in range(1, h_jet.GetNbinsY() + 1):
-            n_cands = h_jet.GetBinContent(i,j)
-            if(n_cands > 0): rw *= h_rw.GetBinContent(i,j)
-
-    return rw
-
 
 
 class Dataset():
-    def __init__(self, f, is_data = False, label = "", color = ""):
+    def __init__(self, f, is_data = False, label = "", color = "", jms_corr = 1.0):
 
         self.f = f
         self.is_data = is_data
@@ -244,6 +220,10 @@ class Dataset():
         self.mask = f['jet_kinematics'][:,0] > 0.
         self.norm_factor = 1.0
 
+        self.jms_corr = jms_corr
+        self.sys_key = ""
+        self.sys_power = 1.0
+
     def n(self):
         return np.sum(self.mask)
 
@@ -253,9 +233,23 @@ class Dataset():
     def get_masked(self, key):
         return self.f[key][()][self.mask]
 
+    def apply_sys(self, sys_key):
+        if(sys_key not in sys_weights_map.keys()): 
+            print("Invalid sys %s!")
+            exit(1)
+        self.sys_key = sys_key
+
     def get_weights(self):
         if(self.is_data): return np.ones(self.n())
-        else: return self.get_masked('norm_weights') * self.norm_factor
+        weights = self.get_masked('norm_weights') * self.norm_factor
+        if(len(self.sys_key) > 0):
+            sys_idx = sys_weights_map[self.sys_key]
+            reweighting = np.power(self.get_masked('sys_weights')[:,sys_idx], self.sys_power)
+            #reweighting = self.get_masked('sys_weights')[:,sys_idx]
+            np.clip(reweighting, 0., 10.0)
+            reweighting /= np.mean(reweighting)
+            weights *=  reweighting
+        return weights
 
     def compute_obs(self):
         eps = 1e-8
@@ -264,27 +258,36 @@ class Dataset():
         self.tau21 = (feats[:,1] / (feats[:,0] + eps))
         self.tau32 = (feats[:,2] / (feats[:,1] + eps))
         self.tau43 = (feats[:,3] / (feats[:,2] + eps))
-        self.mSoftDrop = kins[:,3]
+        self.mSoftDrop = kins[:,3] * self.jms_corr
         self.pt = kins[:,0]
         self.nPF= feats[:,6]
 
 
 
-    def fill_LP(self, h, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2):
+    def fill_LP(self, h, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2, prefix = "2prong"):
 
         pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
+        splittings = subjets =  split = subjet = None
+        if(prefix + "_splittings" in self.f.keys()):
+            splittings = self.get_masked(prefix + "_splittings")
+            subjets = self.get_masked(prefix + "_subjets")
+
         jet_kinematics = self.get_masked("jet_kinematics")
         weights = self.get_weights()
         for i,pf_cand in enumerate(pf_cands):
             weight =weights[i]
+            if(splittings is not None):
+                split = splittings[i]
+                subjet = subjets[i]
+
             if(subjet_rw):
                 pt_eta_phi_m_vec = jet_kinematics[i]
                 jet_4vec = convert_4vec(pt_eta_phi_m_vec)
                 boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
                 fill_lund_plane(h, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, weight = weight)
-            else: fill_lund_plane(h, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, weight = weight)
+            else: fill_lund_plane(h, pf_cands = pf_cand, fill_z = fill_z, jetR = jetR, subjets = subjet, splittings = split, num_excjets = num_excjets, weight = weight)
 
-    def reweight_LP(self, h_ratio, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2, uncs = True, max_evts =-1):
+    def reweight_LP(self, h_ratio, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2, uncs = True, max_evts =-1, prefix = "2prong"):
     #always uncs for now
 
         LP_weights = []
@@ -292,19 +295,32 @@ class Dataset():
         pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
         jet_kinematics = self.get_masked("jet_kinematics")
 
+        splittings = subjets = split = subjet = None
+        if(prefix + "_splittings" in self.f.keys()):
+            print("Found " + prefix + "_splittings" )
+            splittings = self.get_masked(prefix + "_splittings")
+            subjets = self.get_masked(prefix + "_subjets")
+
+
         if(max_evts > 0 and pf_cands.shape[0] > max_evts):
             pf_cands = pf_cands[:max_evts]
             jet_kinematics = jet_kinematics[:max_evts]
 
         for i,pf_cand in enumerate(pf_cands):
+
+            if(splittings is not None):
+                split = splittings[i]
+                subjet = subjets[i]
+
             if(subjet_rw):
                 pt_eta_phi_m_vec = jet_kinematics[i]
                 jet_4vec = convert_4vec(pt_eta_phi_m_vec)
                 boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
                 rw, unc = reweight_lund_plane(h_ratio, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, uncs = True)
             else: 
-                rw, unc = reweight_lund_plane(h_ratio, pf_cand, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True)
+                rw, unc = reweight_lund_plane(h_ratio, pf_cand, subjets = subjet, splittings = split, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True)
 
+            rw = max(rw, 1e-8)
             LP_weights.append(rw)
             if(rw >= 1e-6):
                 LP_uncs.append(unc/rw)
