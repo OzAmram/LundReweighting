@@ -206,11 +206,11 @@ def make_sic_curve(classifiers, y_true, colors = None, logy=False, labels = None
     plt.grid(axis = 'y', linestyle='--', linewidth = 0.5)
     plt.legend(loc="best", fontsize= fs_leg)
     if(fname != ""):
-        plt.savefig(fname)
+        plt.savefig(fname, bbox_inches = 'tight')
         print("Saving file to %s " % fname)
 
 def make_histogram(entries, labels, colors, xaxis_label="", title ="", num_bins = 10, logy = False, normalize = False, stacked = False, h_type = 'step', 
-        h_range = None, fontsize = 16, fname="", yaxis_label = "", ymax = -1):
+        h_range = None, fontsize = 24, fname="", yaxis_label = "", ymax = -1):
     alpha = 1.
     if(stacked): 
         h_type = 'barstacked'
@@ -219,6 +219,7 @@ def make_histogram(entries, labels, colors, xaxis_label="", title ="", num_bins 
     ns, bins, patches = plt.hist(entries, bins=num_bins, range=h_range, color=colors, alpha=alpha,label=labels, density = normalize, histtype=h_type)
     plt.xlabel(xaxis_label, fontsize =fontsize)
     plt.tick_params(axis='x', labelsize=fontsize)
+    plt.tick_params(axis='y', labelsize=fontsize)
 
     if(logy): plt.yscale('log')
     elif(ymax > 0):
@@ -233,7 +234,7 @@ def make_histogram(entries, labels, colors, xaxis_label="", title ="", num_bins 
     plt.title(title, fontsize=fontsize)
     plt.legend(loc='upper right', fontsize = fontsize)
     if(fname != ""): 
-        plt.savefig(fname)
+        plt.savefig(fname, bbox_inches = 'tight')
         print("saving fig %s" %fname)
     #else: plt.show(block=False)
     return fig
@@ -506,10 +507,10 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 #    CMS_align_right = True
                 if not logy: 
                     y_end = 0.88
-                    y_size = 0.2 + 0.03*(len(bkglist[0])+len(signals))
-                    x_size = 0.5
+                    y_size = 0.2 + 0.025*(len(bkglist[0])+len(signals))
+                    x_size = 0.65
                     if(leg_align_right):
-                        x_start = 0.35
+                        x_start = 0.25
                     else:
                         x_start = 0.2
 
@@ -636,10 +637,10 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     totlist[hist_index].SetMarkerStyle(20)
                     totlist[hist_index].SetMarkerSize(0.01)
 
-                    if(drawSys):
-                        totlist[hist_index].Draw('e2 same')
+                    #if(drawSys):
+                        #totlist[hist_index].Draw('e2 same')
                 else:
-                    totlist[hist_index].SetLineWidth(3)
+                    totlist[hist_index].SetLineWidth(4)
                     totlist[hist_index].Draw('hist same')
                     legends_list[hist_index].append((totlist[hist_index], "Total", 'L') )
 
@@ -659,8 +660,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     legends[hist_index].AddEntry(entry[0], entry[1], entry[2])
 
 
-                if(drawSys):
-                    legends[hist_index].AddEntry(totlist[hist_index], "Sys. unc.", "f")
+                #if(drawSys):
+                    #legends[hist_index].AddEntry(totlist[hist_index], "Sys. unc.", "f")
 
 
                 ratio, ratio_sys_unc = makeRatio(hist,totlist[hist_index])
@@ -669,8 +670,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     #chi2 += pull.GetBinContent(i)**2;
                 #print("Chi2/nbin for chan %s is %.1f/%i" % (titles[hist_index], chi2, pull.GetNbinsX()))
 
-                if(drawSys):
-                    legends[hist_index].AddEntry(ratio_sys_unc, "Total fit. unc.", "f")
+                #if(drawSys):
+                    #legends[hist_index].AddEntry(ratio_sys_unc, "Sys. unc.", "f")
 
 
 
@@ -822,20 +823,86 @@ def Make_up_down(hist):
     return hist_up,hist_down
 
 
-def make_root_hist(data = None, weight = None, name = "h", num_bins = 1, bin_low = 0, bin_high = 1):
+def get_eff_unc(data = None, weight = None, name = "h", num_bins = 1000, unc = None, cut_val = 0.):
+    #assumes selecting vals greater than cut_val
+    if(unc is None or weight is None): 
+        print("Missing args")
+        return None
+
+    bin_low = np.amin(data) - 1e-8
+    bin_high = np.amax(data) + 1e-8
+
     h = ROOT.TH1F(name, "", num_bins, bin_low, bin_high)
+    h_up = ROOT.TH1F(name+"_up", "", num_bins, bin_low, bin_high)
+    h_down = ROOT.TH1F(name+"_down", "", num_bins, bin_low, bin_high)
+
+    weights_up = np.clip(weight + unc, 0, 9999)
+    weights_down = np.clip(weight - unc, 0, 9999)
+
+    for i,e in enumerate(data):
+        h.Fill(e, weight[i])
+        h_up.Fill(e, weights_up[i])
+        h_down.Fill(e, weights_down[i])
+
+
+    h.Print()
+    cut_bin = h.GetXaxis().FindBin(cut_val)
+    tot_nom = h.Integral()
+    tot_up = h_up.Integral()
+    tot_down = h_down.Integral()
+    cut_nom = cut_up = cut_down = 0.
+    #add difference as uncertainty
+    for ibin in range(cut_bin,num_bins +1):
+        cut_nom += h.GetBinContent(ibin)
+        cut_up += h_up.GetBinContent(ibin)
+        cut_down += h_down.GetBinContent(ibin)
+
+    eff_nom = cut_nom / tot_nom
+    #eff_unc_up = (cut_up - cut_nom) / tot_nom 
+    #eff_unc_down = (cut_down - cut_nom) / tot_nom
+    eff_unc_up = eff_nom - cut_up/ tot_up
+    eff_unc_down = eff_nom - cut_down / tot_down
+    return eff_nom, eff_unc_up, eff_unc_down
+
+
+
+def make_root_hist(data = None, weight = None, name = "h", num_bins = 1, bin_low = 0, bin_high = 1, unc = None):
+    h = ROOT.TH1F(name, "", num_bins, bin_low, bin_high)
+    h.Sumw2()
+
     for i,e in enumerate(data):
         if(weight is not None): w = weight[i]
         else: w = 1.
         h.Fill(e, w)
+
+    if(unc is not None and np.sum(unc) > 1e-4):
+        weights_up = np.clip(weight + unc, 0, 9999)
+        weights_down = np.clip(weight - unc, 0, 9999)
+
+        h_up = ROOT.TH1F(name+"_up", "", num_bins, bin_low, bin_high)
+        h_down = ROOT.TH1F(name+"_down", "", num_bins, bin_low, bin_high)
+        for i,e in enumerate(data):
+            h_up.Fill(e, weights_up[i])
+            h_down.Fill(e, weights_down[i])
+
+        #add difference as uncertainty
+        for ibin in range(1,num_bins +1):
+
+            sys_err = abs(h_up.GetBinContent(ibin) - h_down.GetBinContent(ibin)) / 2.0
+            old_err = h.GetBinError(ibin)
+            new_err = (sys_err**2 + old_err**2)**(0.5)
+            h.SetBinError(ibin, new_err)
+
+
+
+
     return h
 
 
 
 
-def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins = None, drawSys = False, stack = True,
+def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, uncs = None, colors = None, axis_label = None, title = None, num_bins = None, drawSys = False, stack = True,
     normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
-    print(entries[0])
     if(h_range == None):
         low = np.amin(entries[0])
         high = np.amax(entries[0])
@@ -845,17 +912,21 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, c
 
     hists = []
     for i,e in enumerate(entries):
+        unc = weight = None
         if(weights is not None): weight = weights[i]
-        hist = make_root_hist(data = e, weight = weight, name = "h" + labels[i], num_bins = num_bins, bin_low = low, bin_high = high)
+        if(uncs is not None): unc = uncs[i]
+        hist = make_root_hist(data = e, weight = weight, unc = unc, name = "h" + labels[i], num_bins = num_bins, bin_low = low, bin_high = high)
         if(stack): hist.SetFillColor(colors[i])
         hist.SetLineColor(colors[i])
         hists.append(hist)
     
-    h_data = make_root_hist(data = data, weight = None, name = 'data', num_bins = num_bins, bin_low = low, bin_high = high)
+    h_data = make_root_hist(data = data, weight = None, unc = None, name = 'data', num_bins = num_bins, bin_low = low, bin_high = high)
     h_tot = hists[0].Clone("h_tot")
     h_tot.Reset()
     for h in hists: h_tot.Add(h)
-    if(not stack): h_tot.SetLineColor(ROOT.kBlue)
+    if(not stack): 
+        h_tot.SetLineColor(ROOT.kBlue)
+        
 
     return makeCan("temp", fname, [h_data], bkglist = [hists], totlist = [h_tot], colors = colors, bkgNames = labels, titles = [title], logy = logy, xtitle = axis_label,
         drawSys = drawSys, ratio_range = ratio_range, stack = stack)

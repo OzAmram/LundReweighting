@@ -36,8 +36,30 @@ sys_weights_map = {
         'mu_trigger_down': 22,
         'mu_id_up': 23,
         'mu_id_down': 24,
+        'bkg_norm_up': -999,
+        'bkg_norm_down': -999,
         }
 
+sig_sys = {
+        'pdf_up' : 1,
+        'pdf_down': 2,
+        'prefire_up': 3,
+        'prefire_down' : 4,
+        'btag_up' : 7,
+        'btag_down' : 8,
+        'F_up' : 13,
+        'F_down' : 14,
+        'R_up' : 15,
+        'R_down' : 16,
+        'RF_up' : 17,
+        'RF_down' : 18,
+        'top_ptrw_up' : 19,
+        'top_ptrw_down' : 20,
+        'mu_trigger_up': 21,
+        'mu_trigger_down': 22,
+        'mu_id_up': 23,
+        'mu_id_down': 24,
+        }
 
         
 
@@ -83,6 +105,121 @@ def get_unc_hist(h):
     return h_unc
 
 
+def cleanup_ratio(h, h_min = 0., h_max = 2.):
+    for i in range(1, h.GetNbinsX() + 1):
+        for j in range(1, h.GetNbinsY() + 1):
+            cont = h.GetBinContent(i,j)
+            cont = max(h_min, min(cont, h_max))
+            h.SetBinContent(i,j,cont)
+    #h.GetZAxis().SetRangeUser(h_min, h_max);
+
+def make_LP_ratio(h_data, h_bkg, h_mc, pt_bins, outdir = "", save_plots = False):
+
+
+    h_data.Print()
+    h_bkg.Print()
+    h_mc.Print()
+
+    cleanup_hist(h_mc)
+    cleanup_hist(h_bkg)
+
+    h_bkg_clone = h_bkg.Clone(h_bkg.GetName() + "_clone")
+    h_mc_clone = h_mc.Clone(h_mc.GetName() + "_clone")
+
+    data_norm = h_data.Integral()
+    est = h_bkg_clone.Integral() + h_mc_clone.Integral()
+
+
+    h_bkg_clone.Scale(data_norm / est)
+    h_mc_clone.Scale(data_norm / est)
+
+    h_ratio = h_data.Clone(h_mc_clone.GetName() + "_ratio")
+    h_ratio.SetTitle("(Data - Bkg ) / TTbar MC")
+
+    h_data_sub = h_data.Clone("h_data_sub")
+    h_data_sub.Add(h_bkg_clone, -1.)
+    h_data_sub.Print()
+
+
+    cleanup_hist(h_data_sub)
+
+
+    for i in range(1, h_data.GetNbinsX() + 1):
+        h_bkg_clone1 = h_bkg_clone.Clone("h_bkg_clone%i" %i)
+        h_mc_clone1 = h_mc_clone.Clone("h_mc_clone%i"% i)
+        h_data_clone1 = h_data_sub.Clone("h_data_clone%i" %i)
+
+        h_mc_clone1.GetXaxis().SetRange(i,i)
+        h_bkg_clone1.GetXaxis().SetRange(i,i)
+        h_data_clone1.GetXaxis().SetRange(i,i)
+
+
+        h_mc_proj = h_mc_clone1.Project3D("zy")
+        h_bkg_proj = h_bkg_clone1.Project3D("zy")
+        h_data_proj = h_data_clone1.Project3D("zy")
+
+
+        h_bkg_proj.Scale(1./h_bkg_proj.Integral())
+
+        data_norm = h_data_proj.Integral()
+        h_data_proj.Scale(1./data_norm)
+        h_mc_proj.Scale(1./h_mc_proj.Integral())
+
+        h_ratio_proj = h_data_proj.Clone("h_ratio_proj%i" %i)
+        h_ratio_proj.Divide(h_mc_proj)
+
+        #if(i == 1): 
+        #    h_mc_proj.Print("range")
+        #    h_data_proj.Print("range")
+        #    h_ratio_proj.Print("range")
+
+        copy_proj(i, h_ratio_proj, h_ratio)
+
+
+
+        if(save_plots): 
+
+            h_bkg_proj.SetTitle("Bkg MC pT %.0f - %.0f" % (pt_bins[i-1], pt_bins[i]))
+            h_mc_proj.SetTitle("TTbar MC pT %.0f - %.0f" % (pt_bins[i-1], pt_bins[i]))
+            h_data_proj.SetTitle("Data - Bkg pT %.0f - %.0f (N = %.0f)" % (pt_bins[i-1], pt_bins[i], data_norm))
+            h_ratio_proj.SetTitle("Ratio pT %.0f - %.0f (N = %.0f)" % (pt_bins[i-1], pt_bins[i], data_norm))
+
+
+            c_mc = ROOT.TCanvas("c", "", 1000, 1000)
+            h_mc_proj.Draw("colz")
+            c_mc.SetRightMargin(0.2)
+            c_mc.Print(outdir + "lundPlane_bin%i_MC.png" % i)
+
+
+            c_bkg = ROOT.TCanvas("c", "", 1000, 800)
+            h_bkg_proj.Draw("colz")
+            c_bkg.SetRightMargin(0.2)
+            c_bkg.Print(outdir + "lundPlane_bin%i_bkg.png" % i)
+
+            c_data = ROOT.TCanvas("c", "", 1000, 800)
+            h_data_proj.Draw("colz")
+            c_data.SetRightMargin(0.2)
+            c_data.Print(outdir + "lundPlane_bin%i_data.png" %i )
+
+
+
+            c_ratio = ROOT.TCanvas("c", "", 1000, 800)
+            cleanup_ratio(h_ratio_proj, h_min =0., h_max = 2.0)
+            h_ratio_proj.Draw("colz")
+            c_ratio.SetRightMargin(0.2)
+            c_ratio.Print(outdir + "lundPlane_bin%i_ratio.png" % i)
+
+            h_ratio_unc = get_unc_hist(h_ratio_proj)
+            cleanup_ratio(h_ratio_unc, h_min = 0., h_max = 1.0)
+            c_ratio_unc = ROOT.TCanvas("c_unc", "", 800, 800)
+            h_ratio_unc.SetTitle("Ratio pT %.0f - %.0f (N = %.0f) Relative Unc." % (pt_bins[i-1], pt_bins[i], data_norm))
+            h_ratio_unc.Draw("colz")
+            c_ratio_unc.SetRightMargin(0.2)
+            c_ratio_unc.Print(outdir + "lundPlane_bin%i_ratio_unc.png" % i)
+            h_ratio_unc.Reset()
+
+    return h_ratio
+
 
 def convert_4vec(vec):
     rvec = ROOT.Math.PtEtaPhiMVector(vec[0], vec[1], vec[2], vec[3])
@@ -103,7 +240,9 @@ def get_splittings(pf_cands, jetR = -1, boost_vec = None, maxJets = -1, num_excj
 
     if(jetR < 0): R = 1000.0
     else: R = jetR
-    jet_def = fj.JetDefinition(fj.cambridge_algorithm, R)
+    jet_algo = fj.cambridge_algorithm
+    #jet_algo = fj.kt_algorithm
+    jet_def = fj.JetDefinition(jet_algo, R)
     cs = fj.ClusterSequence(pjs, jet_def)
     if(num_excjets < 0):
         js = fj.sorted_by_pt(cs.inclusive_jets())
@@ -142,6 +281,16 @@ def get_splittings(pf_cands, jetR = -1, boost_vec = None, maxJets = -1, num_excj
 
 def fill_lund_plane(h, pf_cands = None, subjets = None,  splittings = None, fill_z = True, jetR = -1, dR = 0.8, boost_vec = None, maxJets = -1, num_excjets = -1, pt_min = 0., weight = 1.):
 
+    if(type(h) != list):
+        hists = [h]
+        weights = [weight]
+    else:
+        hists = h
+        weights = weight
+        #if (len(weights) > 1):
+        #    print(weights)
+        #    exit(1)
+
     if(subjets is None or splittings is None):
         subjets, splittings = get_splittings(pf_cands, jetR = jetR, boost_vec = boost_vec, maxJets = maxJets, num_excjets = num_excjets)
         subjets = np.array(subjets).reshape(-1)
@@ -154,14 +303,15 @@ def fill_lund_plane(h, pf_cands = None, subjets = None,  splittings = None, fill
                 print("FillZ DEPRECATED")
                 break
             else: 
-                if(type(h) == ROOT.TH3F): h.Fill(jet_pt, np.log(dR/delta), np.log(kt), weight)
-                else: h.Fill(np.log(dR/delta), np.log(kt), weight)
+                for h_idx, h in enumerate(hists):
+                    if(type(h) == ROOT.TH3F): h.Fill(jet_pt, np.log(dR/delta), np.log(kt), weights[h_idx])
+                    else: h.Fill(np.log(dR/delta), np.log(kt), weights[h_idx])
     return
 
 
 
 def reweight_lund_plane(h_rw, pf_cands = None, splittings = None, subjets = None,  dR = 0.8, fill_z = True, jetR = -1, 
-                                boost_vec = None, maxJets = -1, num_excjets = -1, pt_min = 0., weight = 1., uncs = False):
+                                boost_vec = None, maxJets = -1, num_excjets = -1, pt_min = 0., weight = 1., uncs = False, rand_noise = None):
     pjs = []
 
     h_jet = h_rw.Clone("temp")
@@ -175,6 +325,11 @@ def reweight_lund_plane(h_rw, pf_cands = None, splittings = None, subjets = None
     rw = 1.0
     unc = 0.0
     eps = 1e-4
+
+    smeared_rw = None
+
+    if(rand_noise is not None):
+        smeared_rw = [1.0]*rand_noise.shape[-1]
     if(type(h_rw) == ROOT.TH3F):
         for i in range(1, h_jet.GetNbinsX() + 1):
             for j in range(1, h_jet.GetNbinsY() + 1):
@@ -187,6 +342,10 @@ def reweight_lund_plane(h_rw, pf_cands = None, splittings = None, subjets = None
                             err = h_rw.GetBinError(i,j,k)
                             #uncertainty propagation
                             unc = ( (n_cands * rw * val**(n_cands -1) * err)**2 + (val**n_cands * unc)**2) ** (0.5)
+                            if(rand_noise is not None):
+                                smeared_vals = val + rand_noise[i-1,j-1,k-1] * err
+                                smeared_rw *= smeared_vals ** n_cands
+
                         rw *= val ** n_cands
 
     else:
@@ -203,7 +362,7 @@ def reweight_lund_plane(h_rw, pf_cands = None, splittings = None, subjets = None
 
     #h_jet.Print("range")
     
-    return rw, unc
+    return rw, unc, smeared_rw
 
 
 
@@ -223,6 +382,9 @@ class Dataset():
         self.jms_corr = jms_corr
         self.sys_key = ""
         self.sys_power = 1.0
+
+        self.norm_unc = 0.1
+
 
     def n(self):
         return np.sum(self.mask)
@@ -258,13 +420,15 @@ class Dataset():
         self.tau21 = (feats[:,1] / (feats[:,0] + eps))
         self.tau32 = (feats[:,2] / (feats[:,1] + eps))
         self.tau43 = (feats[:,3] / (feats[:,2] + eps))
+        self.DeepAK8_W_MD = feats[:,8]
         self.mSoftDrop = kins[:,3] * self.jms_corr
         self.pt = kins[:,0]
         self.nPF= feats[:,6]
 
 
 
-    def fill_LP(self, h, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2, prefix = "2prong"):
+
+    def fill_LP(self, h, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2, prefix = "2prong", sys_variations = None):
 
         pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
         splittings = subjets =  split = subjet = None
@@ -273,9 +437,35 @@ class Dataset():
             subjets = self.get_masked(prefix + "_subjets")
 
         jet_kinematics = self.get_masked("jet_kinematics")
-        weights = self.get_weights()
+        nom_weights = self.get_weights()
+
+        hists = [h]
+        weights = [nom_weights]
+
+        if(sys_variations is not None):
+
+            all_sys_weights = self.get_masked('sys_weights')
+
+
+            for sys in sys_variations.keys():
+                #don't vary ttbar norm at the same time
+                if(sys == 'bkg_norm_up'): weights_sys = nom_weights * (1. + self.norm_unc)
+                elif(sys == 'bkg_norm_down'): weights_sys = nom_weights  * (1. - self.norm_unc)
+                else:
+                    sys_idx = sys_weights_map[sys]
+                    weights_sys = nom_weights * all_sys_weights[:, sys_idx]
+
+                weights.append(weights_sys)
+                hists.append(sys_variations[sys])
+
+
+            #for idx,h in enumerate(hists):
+            #    h.Print()
+            #    print(weights[idx][:10])
+
+
+        weights = np.array(weights, dtype = np.float32)
         for i,pf_cand in enumerate(pf_cands):
-            weight =weights[i]
             if(splittings is not None):
                 split = splittings[i]
                 subjet = subjets[i]
@@ -284,16 +474,25 @@ class Dataset():
                 pt_eta_phi_m_vec = jet_kinematics[i]
                 jet_4vec = convert_4vec(pt_eta_phi_m_vec)
                 boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
-                fill_lund_plane(h, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, weight = weight)
-            else: fill_lund_plane(h, pf_cands = pf_cand, fill_z = fill_z, jetR = jetR, subjets = subjet, splittings = split, num_excjets = num_excjets, weight = weight)
+                fill_lund_plane(hists, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, weight = weights[:,i])
+            else: 
+                fill_lund_plane(hists, pf_cands = pf_cand, fill_z = fill_z, jetR = jetR, subjets = subjet, splittings = split, num_excjets = num_excjets, weight = weights[:,i])
+            
 
-    def reweight_LP(self, h_ratio, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2, uncs = True, max_evts =-1, prefix = "2prong"):
+
+
+
+
+    def reweight_LP(self, h_ratio, subjet_rw = False, fill_z = False, jetR = 0.8, num_excjets = 2, uncs = True, max_evts =-1, prefix = "2prong", rand_noise = None):
     #always uncs for now
 
         LP_weights = []
         LP_uncs = []
+        LP_smeared_weights = []
         pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
         jet_kinematics = self.get_masked("jet_kinematics")
+
+
 
         splittings = subjets = split = subjet = None
         if(prefix + "_splittings" in self.f.keys()):
@@ -313,23 +512,33 @@ class Dataset():
                 subjet = subjets[i]
 
             if(subjet_rw):
-                pt_eta_phi_m_vec = jet_kinematics[i]
-                jet_4vec = convert_4vec(pt_eta_phi_m_vec)
-                boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
-                rw, unc = reweight_lund_plane(h_ratio, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, uncs = True)
+                #pt_eta_phi_m_vec = jet_kinematics[i]
+                #jet_4vec = convert_4vec(pt_eta_phi_m_vec)
+                #boost_vec = fj.PseudoJet(jet_4vec[0], jet_4vec[1], jet_4vec[2], jet_4vec[3])
+                #rw, unc = reweight_lund_plane(h_ratio, pf_cand,  boost_vec = boost_vec, fill_z =fill_z, dR = jetR, jetR = jetR, uncs = True)
+                print("NO LONGER SUPPORTED!")
             else: 
-                rw, unc = reweight_lund_plane(h_ratio, pf_cand, subjets = subjet, splittings = split, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True)
+                rw, unc, smeared_rw  = reweight_lund_plane(h_ratio, pf_cand, subjets = subjet, splittings = split, fill_z = fill_z, 
+                                           jetR = jetR, num_excjets = num_excjets, uncs = uncs, rand_noise = rand_noise)
 
             rw = max(rw, 1e-8)
             LP_weights.append(rw)
+            if(rand_noise is not None):
+                LP_smeared_weights.append(smeared_rw)
             if(rw >= 1e-6):
-                LP_uncs.append(unc/rw)
+                LP_uncs.append(unc)
             else:
                 LP_uncs.append(0.)
 
 
         LP_weights = np.clip(np.array(LP_weights), 0., 10.)
-        LP_uncs = np.clip(np.array(LP_uncs), 0., 1.5)
         mean = np.mean(LP_weights)
         LP_weights /= mean
-        return LP_weights, LP_uncs
+        LP_uncs /= mean
+        if(rand_noise is None):
+            return LP_weights, LP_uncs
+        else:
+            LP_smeared_weights = np.clip(np.array(LP_smeared_weights), 0., 10.)
+            smear_means = np.mean(LP_smeared_weights, axis = 0)
+            LP_smeared_weights /= smear_means
+            return LP_weights, LP_uncs, LP_smeared_weights

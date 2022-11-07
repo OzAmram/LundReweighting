@@ -22,15 +22,23 @@ f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/L
 f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5", "r")
 
 
-f_ratio = "ttbar_UL_oct4_W_rw/ratio.root"
+f_ratio = ROOT.TFile.Open("ttbar_UL_oct17_W_rw_sys/ratio.root")
+#f_ratio = ROOT.TFile.Open("ttbar_UL_oct17_W_rw_R04_test/ratio.root")
+
 #f_ratio = "ttbar_UL_oct3_W_rw_PS_FSR_down_squared/ratio.root"
+
+#for SF computation
+tau32_cut = 0.52
 
 
 
 subjet_rw = False
 excjet_rw = True
 sys = ""
-outdir = "ttbar_UL_oct4_top/"
+outdir = "ttbar_UL_oct17_top/"
+do_sys_variations = True
+
+max_evts = -1
 
 norm = True
 
@@ -99,7 +107,10 @@ dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
 
 
 fill_z = False
-jetR = 1.0
+
+#jetR = 1.0
+
+jetR = 0.4
 
 num_excjets = 3
 
@@ -153,10 +164,12 @@ obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt"]
 
 colors = []
 weights_nom = []
+uncs_nom = []
 labels = []
 for d in (bkgs + sigs):
     colors.append(d.color)
     weights_nom.append(d.get_weights())
+    uncs_nom.append(np.zeros_like(weights_nom[-1]))
     labels.append(d.label)
 
 for l in obs:
@@ -182,37 +195,113 @@ for l in obs:
 
 
 weights_rw = copy.deepcopy(weights_nom)
+uncs_rw = copy.deepcopy(uncs_nom)
 
-f = ROOT.TFile.Open(f_ratio)
-h_ratio = f.Get("h_ratio")
+h_ratio = f_ratio.Get("ratio_nom")
 
-LP_weights = []
-LP_uncs = []
-for i,d in enumerate(sigs):
-    print("Reweighting ", d.f, i)
-    d_LP_weights, d_LP_uncs = d.reweight_LP(h_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = "3prong")
-    LP_weights.append(d_LP_weights)
-    LP_uncs.append(d_LP_uncs)
+nToys = 100
 
-    #apply weights, keep normalization fixed
-    old_norm = np.sum(weights_rw[len(bkgs) + i])
-    weights_rw[len(bkgs) + i] *= d_LP_weights
-    new_norm = np.sum(weights_rw[len(bkgs) + i])
-    
-    weights_rw[len(bkgs) + i] *= old_norm / new_norm
+#Noise used to generated smeared ratio's based on stat unc
+rand_noise = np.random.normal(size = (h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), nToys))
+
+sig_idx = len(bkgs)
+d = sigs[0]
+print("Reweighting ", d.f )
+d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = "3prong", 
+        rand_noise = rand_noise)
+
+LP_weights = d_LP_weights
+LP_uncs = d_LP_uncs/d_LP_weights
+
+#cap at 100% uncertainty
+d_LP_uncs = np.minimum(d_LP_uncs, d_LP_weights)
+
+#apply weights, keep normalization fixed
+old_norm = np.sum(weights_rw[ sig_idx])
+weights_rw[sig_idx] *= d_LP_weights
+
+new_norm = np.sum(weights_rw[sig_idx])
+
+weights_rw[sig_idx] *= old_norm / new_norm
+uncs_rw [sig_idx] = weights_nom[sig_idx] * d_LP_uncs * (old_norm / new_norm)
+LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom[sig_idx], -1) * (old_norm / new_norm))
+
+print("smeared", LP_smeared_weights.shape)
 
 
-f.Close()
+sys_variations = dict()
+if(do_sys_variations):
+    d_sig = sigs[0]
+    sys_list = list(sys_weights_map.keys())
+    for sys in sys_list:
+        if(sys == 'nom_weight'): continue
+        sys_ratio = f_ratio.Get("ratio_" + sys)
+        sys_ratio.Print()
+
+        #limit to 1 signal for now
+        sys_LP_weights, _ = d_sig.reweight_LP(sys_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = "3prong", max_evts = max_evts)
+        sys_weights = weights_nom[sig_idx] * sys_LP_weights
+        rw = np.sum(weights_nom[sig_idx]) / np.sum(sys_weights)
+        sys_weights *= rw
+        sys_variations[sys] = sys_weights
 
 
-#print(LP_weights[0][:10])
-#print(LP_uncs[0][:10])
 
-make_histogram(LP_weights[0], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
+
+make_histogram(LP_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
      normalize=False, fname=outdir + "lundPlane_weights.png")
 
-make_histogram(LP_uncs[0], "Fractional Uncertainties", 'b', 'Weight Fractional Uncertainty ', "Lund Plane Reweighting Factors Uncertainty", 20,
+make_histogram(LP_uncs, "Fractional Uncertainties", 'b', 'Weight Fractional Uncertainty ', "Lund Plane Reweighting Factors Uncertainty", 20,
      normalize=False, fname=outdir + "lundPlane_weights_unc.png", h_range = (0., 1.5))
+
+#compute 'Scalefactor'
+cut = d_ttbar_t_match.tau32 < tau32_cut
+
+eff_nom = np.average(cut, weights = weights_nom[sig_idx])
+eff_rw = np.average(cut, weights = weights_rw[sig_idx])
+
+print("Nom %.3f, RW %.3f" % (eff_nom, eff_rw))
+
+
+eff_toys = []
+for i in range(nToys):
+    eff = np.average(cut, weights = LP_smeared_weights[:,i])
+    eff_toys.append(eff)
+
+toys_mean = np.mean(eff_toys)
+toys_std = np.std(eff_toys)
+
+print("Toys avg %.3f, std dev %.3f" % (toys_mean, toys_std))
+
+#Add systematic differences in quadrature
+sys_unc_up = sys_unc_down = 0.
+if(do_sys_variations):
+    for sys in sys_variations.keys():
+        eff = np.average(cut, weights = sys_variations[sys])
+        diff = eff - eff_rw
+        if(diff > 0): sys_unc_up += diff**2
+        else: sys_unc_down += diff**2
+        print("%s %.4f" % (sys,  diff))
+
+    sys_unc_up = sys_unc_up**(0.5)
+    sys_unc_down = sys_unc_down**(0.5)
+
+
+SF = eff_rw / eff_nom
+SF_stat_unc = toys_std / eff_nom
+SF_sys_unc_up = sys_unc_up / eff_nom
+SF_sys_unc_down = sys_unc_down / eff_nom
+
+print("\n\nSF (cut val %.3f ) is %.2f +/- %.2f  (stat) + %.2f - %.2f (sys) \n\n"  % (tau32_cut, SF, SF_stat_unc, SF_sys_unc_up, SF_sys_unc_down))
+f_ratio.Close()
+
+#approximate uncertainty on the reweighting for the plots
+overall_unc = (SF_stat_unc **2 + (0.5 * SF_sys_unc_up + 0.5 * SF_sys_unc_down)**2) **0.5 / SF
+print("overall unc %.3f" % overall_unc)
+
+uncs_rw[len(bkgs)] = overall_unc * weights_rw[len(bkgs)]
+
+
 
 for l in obs:
     a = []
@@ -230,6 +319,8 @@ for l in obs:
     else: 
         n_bins_ = n_bins
         h_range = None
-    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False, stack = False,
+    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, uncs = uncs_rw, h_range = h_range, drawSys = False, stack = False,
             colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
+
+
 
