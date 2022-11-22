@@ -22,10 +22,9 @@ f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/L
 f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5", "r")
 
 
-f_ratio = ROOT.TFile.Open("ttbar_UL_oct17_W_rw_sys/ratio.root")
-#f_ratio = ROOT.TFile.Open("ttbar_UL_oct17_W_rw_R04_test/ratio.root")
+#f_ratio = ROOT.TFile.Open("ttbar_UL_oct17_W_rw_sys/ratio.root")
+f_ratio = ROOT.TFile.Open("ttbar_UL_nov7_W_rw_kt_sys/ratio.root")
 
-#f_ratio = "ttbar_UL_oct3_W_rw_PS_FSR_down_squared/ratio.root"
 
 #for SF computation
 tau32_cut = 0.52
@@ -35,7 +34,7 @@ tau32_cut = 0.52
 subjet_rw = False
 excjet_rw = True
 sys = ""
-outdir = "ttbar_UL_oct17_top/"
+outdir = "ttbar_UL_top_SF_nov7_kt_sys/"
 do_sys_variations = True
 
 max_evts = -1

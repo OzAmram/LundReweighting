@@ -1,12 +1,12 @@
 from Utils import *
 import math
 
-#f_data = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleMu_2018_merge.h5"
-#f_ttbar = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5"
+f_data = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleMu_2018_merge.h5"
+f_ttbar = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5"
 f_wjets = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/QCD_WJets.h5"
-#f_diboson = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/diboson.h5"
-#f_tw = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TW.h5"
-#f_singletop = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5"
+f_diboson = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/diboson.h5"
+f_tw = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TW.h5"
+f_singletop = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5"
 
 #flist = [f_data, f_ttbar, f_wjets, f_diboson, f_tw, f_singletop]
 flist = [f_wjets]
@@ -15,8 +15,8 @@ flist = [f_wjets]
 overwrite = True
 
 num_excjets = 2
-jetR = -1
-tag = "2prong_"
+jetR = 1.0
+tag = "2prong_kt"
 batch_size = 10000
 
 

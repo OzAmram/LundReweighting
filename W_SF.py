@@ -32,11 +32,16 @@ f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweig
 
 subjet_rw = False
 excjet_rw = True
-outdir = "ttbar_UL_nov7_W_rw_kt_sys/"
+outdir = "ttbar_UL_W_SF_nov7_kt_sys/"
+f_ratio = ROOT.TFile.Open("ttbar_UL_nov7_W_rw_kt_sys/ratio.root")
 sys = ""
-#CA_prefix = "2prong"
-CA_prefix = "2prong_kt"
+prefix = "2prong_kt"
 
+
+
+#tau21_cut = 0.2700 # med
+tau21_cut = 0.3452 # loose
+DeepAK8_cut = 0.479
 
 do_sys_variations = True
 
@@ -47,15 +52,6 @@ jms_corr = 0.95
 m_cut_min = 60.
 m_cut_max = 110.
 pt_cut = 225.
-#m_cut_min = 79.
-#m_cut_max = 81.
-
-#jetR = 0.4
-jetR = 1.0
-n_pt_bins = 6
-num_excjets = 2
-pt_bins = array('f', [0., 50., 100., 175., 250., 350., 99999.])
-
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
@@ -70,10 +66,6 @@ d_singletop = Dataset(f_singletop, label = "Single Top", color = ROOT.kMagenta+4
 d_ttbar_w_match = Dataset(f_ttbar, label = "ttbar : W-matched", color = ROOT.kRed, jms_corr =jms_corr)
 d_ttbar_t_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr)
 d_ttbar_nomatch = Dataset(f_ttbar, label = "ttbar : unmatched", color = ROOT.kGreen+3, jms_corr = jms_corr)
-
-d_ttbar_w_match.norm_uncertainty = 0.
-d_ttbar_t_match.norm_uncertainty = 0.
-d_ttbar_nomatch.norm_uncertainty = 0.
 
 ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]
 
@@ -120,30 +112,24 @@ dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
 
 
 fill_z = False
+jetR = 1.0
 
+num_excjets = -1
 
+if(subjet_rw):
+    jetR = 0.4
+    n_pt_bins = 5
+    pt_bins = array('f', [0., 10., 25., 40., 60., 99999.])
+elif(excjet_rw):
+    jetR = 1.0 #idk if this matters ? 
+    n_pt_bins = 6
+    num_excjets = 2
+    pt_bins = array('f', [0., 50., 100., 200., 300., 450., 99999.])
+else:
+    n_pt_bins = 4
+    pt_bins = array('f', [200., 300., 400., 600., 99999.])
+    #pt_bins = array('f', [200., 300.])
 
-ratio_range = [0.5, 1.5]
-h_mc = ROOT.TH3F("mc_nom", "Lund Plane MC", n_pt_bins, pt_bins, n_bins_LP,  dr_bins, n_bins_LP, kt_bins) 
-h_bkg = ROOT.TH3F("bkg_nom", "Lund Plane Bkg", n_pt_bins, pt_bins, n_bins_LP,  dr_bins, n_bins_LP, kt_bins) 
-h_data = ROOT.TH3F("data", "Lund Plane Data", n_pt_bins, pt_bins, n_bins_LP, dr_bins, n_bins_LP, kt_bins) 
-
-h_mc.GetZaxis().SetTitle(z_label)
-h_mc.GetYaxis().SetTitle(y_label)
-h_bkg.GetZaxis().SetTitle(z_label)
-h_bkg.GetYaxis().SetTitle(y_label)
-h_data.GetZaxis().SetTitle(z_label)
-h_data.GetYaxis().SetTitle(y_label)
-
-
-bkg_sys_variations = dict()
-sig_sys_variations = dict()
-if(do_sys_variations):
-    keys = sys_weights_map.keys()
-    keys.remove("nom_weight")
-    for sys in keys: 
-        bkg_sys_variations[sys] = h_bkg.Clone(h_bkg.GetName().replace("nom",sys))
-        if(sys in sig_sys): sig_sys_variations[sys] = h_mc.Clone(h_mc.GetName().replace("nom",sys))
 
 
 
@@ -193,10 +179,12 @@ obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt", "DeepAK8_W_MD"]
 
 colors = []
 weights_nom = []
+uncs_nom = []
 labels = []
 for d in (bkgs + sigs):
     colors.append(d.color)
     weights_nom.append(d.get_weights())
+    uncs_nom.append(np.zeros_like(weights_nom[-1]))
     labels.append(d.label)
 
 for l in obs:
@@ -219,64 +207,55 @@ for l in obs:
     make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_nom, labels = labels, h_range = h_range, drawSys = False, stack = False,
             colors = colors, axis_label = l,  title = l + " : No Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_before.png' )
 
-
-
-
-
-d_data.fill_LP(h_data, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix)
-
-for d in sigs:
-    d.fill_LP(h_mc, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix)
-
-for d in bkgs:
-    d.fill_LP(h_bkg, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix)
-
-
-
-
-
-
-default = ROOT.TStyle("Default","Default Style");
-default.cd()
-ROOT.gROOT.SetStyle('Default')
-ROOT.gStyle.SetOptStat(0) # To display the mean and RMS:   SetOptStat("mr")
-
-f_out = ROOT.TFile.Open(outdir + "ratio.root", "RECREATE")
-nom_ratio = make_LP_ratio(h_data, h_bkg, h_mc, pt_bins, outdir = outdir, save_plots = True)
-nom_ratio.SetName("ratio_nom")
-nom_ratio.Write()
-
-if(do_sys_variations):
-    keys = sys_weights_map.keys()
-    keys.remove("nom_weight")
-    for i,sys_name in enumerate(keys):
-        print(sys_name)
-        h_bkg_sys = bkg_sys_variations[sys_name]
-
-        #Some systematics only for bkgs not signal (want denom of ratio to be consistent)
-        if(sys_name in sig_sys): h_mc_sys = sig_sys_variations[sys_name]
-        else: h_mc_sys = h_mc
-
-        sys_ratio = make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, pt_bins)
-        sys_ratio.SetName("ratio_" + sys_name)
-        #sys_ratio.Print("range") 
-        sys_ratio.Write()
-
-
-
-#f_out.Close()
-
-
 weights_rw = copy.deepcopy(weights_nom)
+uncs_rw = copy.deepcopy(uncs_nom)
 
-LP_weights = []
-LP_uncs = []
-for i,d in enumerate(sigs):
-    d_LP_weights, d_LP_uncs = d.reweight_LP(nom_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = CA_prefix)
-    LP_weights.append(d_LP_weights)
-    LP_uncs.append(d_LP_uncs/ d_LP_weights)
 
-    weights_rw[len(bkgs) + i] *= d_LP_weights
+h_ratio = f_ratio.Get("ratio_nom")
+
+#Noise used to generated smeared ratio's based on stat unc
+nToys = 100
+rand_noise = np.random.normal(size = (h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), nToys))
+
+h_ratio = f_ratio.Get("ratio_nom")
+
+d = sigs[0]
+
+print("Reweighting ", d.f)
+sig_idx = len(bkgs)
+d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = prefix, 
+        rand_noise = rand_noise)
+LP_weights = d_LP_weights
+LP_uncs = d_LP_uncs/d_LP_weights
+
+#cap at 100% uncertainty
+d_LP_uncs = np.minimum(d_LP_uncs, d_LP_weights)
+
+#apply weights, keep normalization fixed
+old_norm = np.sum(weights_rw[sig_idx])
+weights_rw[sig_idx] *= d_LP_weights
+new_norm = np.sum(weights_rw[sig_idx])
+weights_rw[sig_idx] *= old_norm / new_norm
+uncs_rw [sig_idx] = weights_nom[sig_idx] * d_LP_uncs * (old_norm / new_norm)
+LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom[sig_idx], -1) * (old_norm / new_norm))
+
+
+sys_ratios = []
+sys_variations = dict()
+if(do_sys_variations):
+    sys_list = list(sys_weights_map.keys())
+    for sys in sys_list:
+        if(sys == 'nom_weight'): continue
+        sys_ratio = f_ratio.Get("ratio_" + sys)
+        sys_ratio.Print()
+
+        #limit to 1 signal for now...
+        d = sigs[0]
+        sys_LP_weights, _ = d.reweight_LP(sys_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = prefix)
+        sys_weights = weights_nom[sig_idx] * sys_LP_weights
+        rw = np.sum(weights_nom[sig_idx]) / np.sum(sys_weights)
+        sys_weights *= rw
+        sys_variations[sys] = sys_weights
 
 
 make_histogram(LP_weights[0], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
@@ -284,6 +263,67 @@ make_histogram(LP_weights[0], "Reweighting factors", 'b', 'Weight', "Lund Plane 
 
 make_histogram(LP_uncs[0], "Fractional Uncertainties", 'b', 'Weight Fractional Uncertainty ', "Lund Plane Reweighting Factors Uncertainty", 20,
      normalize=False, fname=outdir + "lundPlane_weights_unc.png", h_range = (0., 1.5))
+
+
+#compute 'Scalefactor'
+cut_tau21 = d_ttbar_w_match.tau21 < tau21_cut
+cut_DeepAK8 = d_ttbar_w_match.DeepAK8_W_MD > DeepAK8_cut
+
+cuts = [cut_tau21, cut_DeepAK8]
+cut_names = ["Tau21", "DeepAK8 W MD"]
+cut_vals = [tau21_cut, DeepAK8_cut]
+
+for idx,cut in enumerate(cuts):
+
+    print(cut.shape, weights_nom[sig_idx].shape, LP_smeared_weights[:,idx].shape)
+    eff_nom = np.average(cut, weights = weights_nom[sig_idx])
+    eff_rw = np.average(cut, weights = weights_rw[sig_idx])
+    print("Running %s" % cut_names[idx])
+
+    print("Nom %.3f, RW %.3f" % (eff_nom, eff_rw))
+
+
+    eff_toys = []
+    for i in range(nToys):
+        eff = np.average(cut, weights = LP_smeared_weights[:,i])
+        eff_toys.append(eff)
+
+    toys_mean = np.mean(eff_toys)
+    toys_std = np.std(eff_toys)
+
+    print("Toys avg %.3f, std dev %.3f" % (toys_mean, toys_std))
+
+    #Add systematic differences in quadrature
+    sys_unc_up = sys_unc_down = 0.
+    if(do_sys_variations):
+        for sys in sys_variations.keys():
+            eff = np.average(cut, weights = sys_variations[sys])
+            diff = eff - eff_rw
+            if(diff > 0): sys_unc_up += diff**2
+            else: sys_unc_down += diff**2
+            print("%s %.4f" % (sys,  diff))
+
+        sys_unc_up = sys_unc_up**(0.5)
+        sys_unc_down = sys_unc_down**(0.5)
+
+
+    SF = eff_rw / eff_nom
+    SF_stat_unc = toys_std / eff_nom
+    SF_sys_unc_up = sys_unc_up / eff_nom
+    SF_sys_unc_down = sys_unc_down / eff_nom
+
+    print(i, len(cut_names), len(cut_vals))
+    print("\n\nSF %s (cut val %.3f ) is %.2f +/- %.2f  (stat) + %.2f - %.2f (sys) \n\n"  % (cut_names[idx], cut_vals[idx], SF, SF_stat_unc, SF_sys_unc_up, SF_sys_unc_down))
+
+    #approximate uncertainty on the reweighting for the plots
+    overall_unc = (SF_stat_unc **2 + (0.5 * SF_sys_unc_up + 0.5 * SF_sys_unc_down)**2) **0.5 / SF
+    print("overall unc %.3f" % overall_unc)
+
+    uncs_rw[len(bkgs)] = overall_unc * weights_rw[len(bkgs)]
+
+
+f_ratio.Close()
+
 
 for l in obs:
     a = []
@@ -304,7 +344,5 @@ for l in obs:
     make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False, stack = False,
             colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
 
-
-f_out.Close()
 
 

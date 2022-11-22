@@ -240,8 +240,8 @@ def get_splittings(pf_cands, jetR = -1, boost_vec = None, maxJets = -1, num_excj
 
     if(jetR < 0): R = 1000.0
     else: R = jetR
-    jet_algo = fj.cambridge_algorithm
-    #jet_algo = fj.kt_algorithm
+    #jet_algo = fj.cambridge_algorithm
+    jet_algo = fj.kt_algorithm
     jet_def = fj.JetDefinition(jet_algo, R)
     cs = fj.ClusterSequence(pjs, jet_def)
     if(num_excjets < 0):
@@ -252,7 +252,22 @@ def get_splittings(pf_cands, jetR = -1, boost_vec = None, maxJets = -1, num_excj
             nMax = min(len(js), maxJets)
             js = js[:nMax]
     else:
-        js = fj.sorted_by_pt(cs.exclusive_jets_up_to(num_excjets))
+        js = list(fj.sorted_by_pt(cs.exclusive_jets_up_to(num_excjets)))
+
+        #for kt jets, recluster to get CA splittings
+        if (jet_algo is fj.kt_algorithm):
+            CA_R = 1000.
+            js_new = []
+            clust_seqs = []
+            for i, j in enumerate(js):
+                CA_jet_def = fj.JetDefinition(fj.cambridge_algorithm, CA_R)
+                constituents = j.validated_cs().constituents(j)
+                CA_cs = fj.ClusterSequence(constituents, CA_jet_def)
+                CA_jet = fj.sorted_by_pt(CA_cs.inclusive_jets())
+                js_new.append(CA_jet[0])
+                clust_seqs.append(CA_cs) #prevent from going out of scope
+
+            js = js_new
 
     subjets = []
     splittings = []
