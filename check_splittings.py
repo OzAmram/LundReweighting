@@ -18,7 +18,8 @@ def get_dists(q_eta_phis, subjets_eta_phis):
 
 
 f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5", "r")
-outdir = "gen_matching_check_oct28/"
+outdir = "gen_matching_check_dec7/"
+if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 jet_str = 'CA'
 
 
@@ -73,10 +74,9 @@ pf_cands_w = d_ttbar_w_match.get_masked('jet1_PFCands')[:max_evts].astype(np.flo
 w_subjets = np.zeros((pf_cands_w.shape[0], 2, 4), dtype = np.float32)
 
 for i,pf_cand_w in enumerate(pf_cands_w):
-    if(i > 0): exit(1)
     w_subjets[i], splittings = get_splittings(pf_cand_w, jetR = jetR, num_excjets = 2)
-    print(w_subjets[i])
-    print(splittings)
+    #print(w_subjets[i])
+    #print(splittings)
 
 gen_parts_w = d_ttbar_w_match.get_masked('gen_parts')[:max_evts]
 w_q1_eta_phi = gen_parts_w[:,18:20]
@@ -88,9 +88,22 @@ w_q2_dists = get_dists(w_q2_eta_phi, w_subjets[:,:,1:3])
 w_q1_close = np.amin(w_q1_dists, axis = -1)
 w_q2_close = np.amin(w_q2_dists, axis = -1)
 
+w_all_far = (w_q1_close > 0.4) | (w_q2_close > 0.4)
+
+w_q1_which = np.argmin(w_q1_dists, axis = -1)
+w_q2_which = np.argmin(w_q2_dists, axis = -1)
+w_qs_samejet = (w_q1_which == w_q2_which)
+
 print("\nW-subjet matching :")
 print("Q1 dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(w_q1_close), np.std(w_q1_close), np.mean(w_q1_close > 0.4)))
 print("Q2 dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(w_q2_close), np.std(w_q2_close), np.mean(w_q2_close > 0.4)))
+print("Overall frac > 0.4 %.3f" % np.mean(w_all_far))
+print("Fraction of quarks matched to same subjet %.4f" % (np.mean(w_qs_samejet)))
+print("Overall bad matching frac %.4f" % np.mean(np.mean(w_qs_samejet | w_all_far)) )
+
+w_subjets_pt = w_subjets[:,:,0].reshape(-1)
+make_histogram(w_subjets_pt, "W subjets", colors = 'blue', xaxis_label = 'Subjet pt (GeV)', 
+                title = "W-jets : subjet pt", num_bins = 40, normalize = True, fname = outdir + "W_subjet_pt.png")
 
 
 make_histogram([w_q1_close, w_q2_close], ['Q1', 'Q2'], colors = ['red', 'blue'], xaxis_label = r'$\Delta R$ to closest sub-jet', 
@@ -118,12 +131,27 @@ top_q1_close = np.amin(top_q1_dists, axis = -1)
 top_q2_close = np.amin(top_q2_dists, axis = -1)
 top_b_close = np.amin(top_b_dists, axis = -1)
 
+top_q1_which = np.argmin(top_q1_dists, axis = -1)
+top_q2_which = np.argmin(top_q2_dists, axis = -1)
+top_b_which = np.argmin(top_b_dists, axis = -1)
+
+#if all different should be 0 1 2
+top_qs_samejet = (top_q1_which == top_q2_which) | (top_q1_which == top_b_which) |  (top_q2_which == top_b_which)
+top_all_far = (top_q1_close > 0.4) | (top_q2_close > 0.4) | (top_b_close > 0.4)
+
 print("\ntop-subjet matching :")
 print("Q1 dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(top_q1_close), np.std(top_q1_close), np.mean(top_q1_close > 0.4)))
 print("Q2 dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(top_q2_close), np.std(top_q2_close), np.mean(top_q2_close > 0.4)))
 print("b dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(top_b_close), np.std(top_b_close), np.mean(top_b_close > 0.4)))
+print("Overall frac > 0.4 %.3f" % np.mean(top_all_far))
+print("Fraction of quarks matched to same subjet %.4f" % (np.mean(top_qs_samejet)))
+print("Overall bad matching frac %.4f" % np.mean(np.mean(top_qs_samejet | top_all_far)) )
 
 
 make_histogram([top_q1_close, top_q2_close, top_b_close], ['Q1', 'Q2', 'b Quark'], colors = ['red', 'blue', 'green'], xaxis_label = r'$\Delta R$ to closest sub-jet', 
                 title = 'top-jets : quark-subjet matching %s' % jet_str, num_bins = 40, normalize = True, fname = outdir + "top_quark_%s_matching.png" % jet_str)
 
+top_subjets_pt = top_subjets[:,:,0].reshape(-1)
+print("Frac with pt > 350 : %.3f" % np.mean(top_subjets_pt > 350.))
+make_histogram(top_subjets_pt, "top subjets", colors = 'blue', xaxis_label = 'Subjet pt (GeV)', 
+                title = "top-jets : subjet pt", num_bins = 40, normalize = True, fname = outdir + "top_subjet_pt.png")
