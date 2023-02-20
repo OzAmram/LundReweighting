@@ -20,18 +20,21 @@ def get_dists(q_eta_phis, subjets_eta_phis):
 
 
 
-#f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/CASE_signals/Wkk_M2500_R200_nonUL_test.h5", "r")
-f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/CASE_signals/ZpToTp_Zp5000_Tp400_test.h5", "r")
 outdir = "CASE_gen_matching_checks_dec7/"
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 jet_str = 'CA'
-label = "ZpToTpTp"
+
+#f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/CASE_signals/Wkk_M2500_R200_nonUL_test.h5", "r")
+#f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/CASE_signals/Wkk_M3000_R170_2018_UL.h5", "r")
 #label = "Wkk"
 #n_prongs = (4,2)
+#sig_mass = 3000.
+
+#f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/CASE_signals/ZpToTp_Zp5000_Tp400_test.h5", "r")
+f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/CASE_signals/ZpToTp_Zp5000_Tp400_new.h5", "r")
+label = "ZpToTpTp"
 n_prongs = (5,5)
 sig_mass = 5000.
-#sig_mass = 2500.
-
 
 subjet_rw = False
 excjet_rw = True
@@ -45,7 +48,8 @@ max_evts = 10000
 d = Dataset(f_sig, label = label, color = ROOT.kRed)
 is_lep = f_sig['event_info'][:,4]
 mjj = f_sig['jet_kinematics'][:,0]
-cut = (is_lep < 0.5) & (mjj > 0.8*sig_mass) & (mjj < 1.2*sig_mass)
+cut = (is_lep < 0.5)
+#cut = (is_lep < 0.5) & (mjj > 0.8*sig_mass) & (mjj < 1.2*sig_mass)
 #cut = (mjj > 0.8*sig_mass) & (mjj < 1.2*sig_mass)
 d.apply_cut(cut)
 
@@ -70,6 +74,10 @@ gen_parts_eta_phi = gen_parts[:,:,1:3]
 j1_dists = get_dists(gen_parts_eta_phi, j1_subjets[:,:,1:3])
 j2_dists = get_dists(gen_parts_eta_phi, j2_subjets[:,:,1:3])
 
+
+print(j1_dists.shape)
+
+
 j1_closest = np.amin(j1_dists, axis = -1)
 j2_closest = np.amin(j2_dists, axis = -1)
 
@@ -90,8 +98,10 @@ j_correct_idxs = np.concatenate(np.arange(n_prongs[0]),  np.sum(10+np.arange(n_p
 j_comb_idx_sums = np.sum(j_comb_which, axis = -1)
 j_comb_unique = np.unique(j_comb_which, axis = 1)
 
+deltaR_cut = 0.2
+
 #find number of subjets matched to same gen particle, discounting ones already failing DeltaR cut
-n_repeated = [np.sum(j_closest[i] < 0.4)  - np.unique(j_comb_which[i, j_closest[i] < 0.4]).shape[0] for i in range(j_comb_which.shape[0])]
+n_repeated = [np.sum(j_closest[i] < deltaR_cut)  - np.unique(j_comb_which[i, j_closest[i] < deltaR_cut]).shape[0] for i in range(j_comb_which.shape[0])]
 
 
 j_samejet = j_comb_idx_sums != j_correct_sum
@@ -100,7 +110,8 @@ j_samejet = j_comb_idx_sums != j_correct_sum
 samejet_frac = np.mean(n_repeated) / j_comb_which.shape[1]
 
 print("\nSubjet matching :")
-print("Overall avg %.3f, std %.3f. Frac of subjets over 0.4 %.3f, frac of events %.3f" % (np.mean(j_closest), np.std(j_closest), np.mean(j_closest), np.mean(j_farthest_per_evt > 0.4)))
+print("Overall avg %.3f, std %.3f. Frac of subjets over %.1f %.3f, frac of events %.3f" % 
+        (np.mean(j_closest), np.std(j_closest), deltaR_cut, np.mean(j_closest), np.mean(j_farthest_per_evt > deltaR_cut)))
 print("Same-jet frac %.3f" % (samejet_frac) )
 print("Overall bad matching frac %.3f" % ( np.mean(j_closest) + samejet_frac)) 
 

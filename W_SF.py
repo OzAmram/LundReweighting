@@ -1,7 +1,10 @@
 from Utils import *
 import os
 
+parser = input_options()
+options = parser.parse_args()
 
+print(options)
 
 
 #NON UL (2018B only)
@@ -12,38 +15,32 @@ import os
 #
 #UL
 lumi = 59.74
-#f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/SingleMu_2018_merge.h5", "r")
-#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/TTToSemiLep_sep21.h5", "r")
-#f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/WJets_merge.h5", "r")
-#f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/diboson.h5", "r")
-#f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/TW.h5", "r")
-#f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files/SingleTop_merge.h5", "r")
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/"
 
-f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleMu_2018_merge.h5", "r")
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5", "r")
-f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/QCD_WJets.h5", "r")
-#f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/WJets.h5", "r")
-f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/diboson.h5", "r")
-f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TW.h5", "r")
-f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5", "r")
+f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
+f_ttbar = h5py.File(f_dir + "TT.h5", "r")
+f_wjets = h5py.File(f_dir + "QCD_WJets.h5", "r")
+f_diboson = h5py.File(f_dir + "diboson.h5", "r")
+f_tw = h5py.File(f_dir + "TW.h5", "r")
+f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
 
-subjet_rw = False
-excjet_rw = True
-outdir = "ttbar_UL_W_SF_nov7_kt_sys/"
-f_ratio = ROOT.TFile.Open("ttbar_UL_nov7_W_rw_kt_sys/ratio.root")
-sys = ""
-prefix = "2prong_kt"
+#f_ratio = ROOT.TFile.Open("ttbar_UL_feb14_W_rw/ratio.root")
+#f_ratio = ROOT.TFile.Open("ttbar_UL_feb14_W_rw_chg_only/ratio.root")
+f_ratio = ROOT.TFile.Open(options.fin)
+outdir = options.outdir
+prefix = ""
 
 
 
 #tau21_cut = 0.2700 # med
-tau21_cut = 0.3452 # loose
-DeepAK8_cut = 0.479
+tau21_cut_val = 0.3452 # loose
+DeepAK8_MD_cut_val = 0.479
+DeepAK8_cut_val = 0.762
 
-do_sys_variations = True
+do_sys_variations = not (options.no_sys)
 
 norm = True
 
@@ -83,11 +80,6 @@ sigs = [d_ttbar_w_match]
 bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_tw, d_diboson, d_wjets, d_singletop]
 
 
-if(len(sys) != 0):
-    for d in sigs: 
-        d.apply_sys(sys)
-        d.sys_power = 2.0
-
 
 
 
@@ -116,19 +108,10 @@ jetR = 1.0
 
 num_excjets = -1
 
-if(subjet_rw):
-    jetR = 0.4
-    n_pt_bins = 5
-    pt_bins = array('f', [0., 10., 25., 40., 60., 99999.])
-elif(excjet_rw):
-    jetR = 1.0 #idk if this matters ? 
-    n_pt_bins = 6
-    num_excjets = 2
-    pt_bins = array('f', [0., 50., 100., 200., 300., 450., 99999.])
-else:
-    n_pt_bins = 4
-    pt_bins = array('f', [200., 300., 400., 600., 99999.])
-    #pt_bins = array('f', [200., 300.])
+jetR = 1.0
+n_pt_bins = 6
+num_excjets = 2
+pt_bins = array('f', [0., 50., 100., 200., 300., 450., 99999.])
 
 
 
@@ -175,7 +158,7 @@ if(norm):
 
 
 
-obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt", "DeepAK8_W_MD"]
+obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt", "DeepAK8_W_MD", "DeepAK8_W"]
 
 colors = []
 weights_nom = []
@@ -223,8 +206,8 @@ d = sigs[0]
 
 print("Reweighting ", d.f)
 sig_idx = len(bkgs)
-d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = prefix, 
-        rand_noise = rand_noise)
+d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = prefix, 
+        rand_noise = rand_noise, charge_only = options.charge_only)
 LP_weights = d_LP_weights
 LP_uncs = d_LP_uncs/d_LP_weights
 
@@ -243,7 +226,10 @@ LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom[
 sys_ratios = []
 sys_variations = dict()
 if(do_sys_variations):
-    sys_list = list(sys_weights_map.keys())
+    #sys_list = list(sys_weights_map.keys())
+    sys_list = []
+    sys_list.append("sys_tot_up")
+    sys_list.append("sys_tot_down")
     for sys in sys_list:
         if(sys == 'nom_weight'): continue
         sys_ratio = f_ratio.Get("ratio_" + sys)
@@ -251,7 +237,7 @@ if(do_sys_variations):
 
         #limit to 1 signal for now...
         d = sigs[0]
-        sys_LP_weights, _ = d.reweight_LP(sys_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = prefix)
+        sys_LP_weights, _ = d.reweight_LP(sys_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = prefix)
         sys_weights = weights_nom[sig_idx] * sys_LP_weights
         rw = np.sum(weights_nom[sig_idx]) / np.sum(sys_weights)
         sys_weights *= rw
@@ -266,12 +252,13 @@ make_histogram(LP_uncs[0], "Fractional Uncertainties", 'b', 'Weight Fractional U
 
 
 #compute 'Scalefactor'
-cut_tau21 = d_ttbar_w_match.tau21 < tau21_cut
-cut_DeepAK8 = d_ttbar_w_match.DeepAK8_W_MD > DeepAK8_cut
+cut_tau21 = d_ttbar_w_match.tau21 < tau21_cut_val
+cut_DeepAK8_MD = d_ttbar_w_match.DeepAK8_W_MD > DeepAK8_MD_cut_val
+cut_DeepAK8 = d_ttbar_w_match.DeepAK8_W > DeepAK8_cut_val
 
-cuts = [cut_tau21, cut_DeepAK8]
-cut_names = ["Tau21", "DeepAK8 W MD"]
-cut_vals = [tau21_cut, DeepAK8_cut]
+cuts = [cut_tau21, cut_DeepAK8_MD, cut_DeepAK8]
+cut_names = ["Tau21", "DeepAK8 W MD", "DeepAK8 W"]
+cut_vals = [tau21_cut_val, DeepAK8_MD_cut_val, DeepAK8_cut_val]
 
 for idx,cut in enumerate(cuts):
 
@@ -296,24 +283,29 @@ for idx,cut in enumerate(cuts):
     #Add systematic differences in quadrature
     sys_unc_up = sys_unc_down = 0.
     if(do_sys_variations):
-        for sys in sys_variations.keys():
-            eff = np.average(cut, weights = sys_variations[sys])
-            diff = eff - eff_rw
-            if(diff > 0): sys_unc_up += diff**2
-            else: sys_unc_down += diff**2
-            print("%s %.4f" % (sys,  diff))
 
-        sys_unc_up = sys_unc_up**(0.5)
-        sys_unc_down = sys_unc_down**(0.5)
+        eff_sys_tot_up = np.average(cut, weights = sys_variations['sys_tot_up'])
+        eff_sys_tot_down = np.average(cut, weights = sys_variations['sys_tot_down'])
+        SF_sys_unc_up = (eff_sys_tot_up - eff_rw)/eff_nom
+        SF_sys_unc_down = (eff_sys_tot_down - eff_rw)/eff_nom
+        SF_sys_unc = max(SF_sys_unc_up, SF_sys_unc_down)
+
+        #for sys in sys_variations.keys():
+        #    eff = np.average(cut, weights = sys_variations[sys])
+        #    diff = eff - eff_rw
+        #    if(diff > 0): sys_unc_up += diff**2
+        #    else: sys_unc_down += diff**2
+        #    print("%s %.4f" % (sys,  diff))
+
+        #sys_unc_up = sys_unc_up**(0.5)
+        #sys_unc_down = sys_unc_down**(0.5)
 
 
     SF = eff_rw / eff_nom
     SF_stat_unc = toys_std / eff_nom
-    SF_sys_unc_up = sys_unc_up / eff_nom
-    SF_sys_unc_down = sys_unc_down / eff_nom
 
     print(i, len(cut_names), len(cut_vals))
-    print("\n\nSF %s (cut val %.3f ) is %.2f +/- %.2f  (stat) + %.2f - %.2f (sys) \n\n"  % (cut_names[idx], cut_vals[idx], SF, SF_stat_unc, SF_sys_unc_up, SF_sys_unc_down))
+    print("\n\nSF %s (cut val %.3f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) \n\n"  % (cut_names[idx], cut_vals[idx], SF, SF_stat_unc, SF_sys_unc))
 
     #approximate uncertainty on the reweighting for the plots
     overall_unc = (SF_stat_unc **2 + (0.5 * SF_sys_unc_up + 0.5 * SF_sys_unc_down)**2) **0.5 / SF

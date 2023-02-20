@@ -1,15 +1,17 @@
 from Utils import *
 import math
 
-f_data = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleMu_2018_merge.h5"
-f_ttbar = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5"
-f_wjets = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/QCD_WJets.h5"
-f_diboson = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/diboson.h5"
-f_tw = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TW.h5"
-f_singletop = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5"
+#d = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/"
+d = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/"
+f_data = d + "SingleMu_2018_merge.h5"
+f_ttbar = d + "TT.h5"
+f_wjets = d + "QCD_WJets.h5"
+f_diboson = d + "diboson.h5"
+f_tw = d + "TW.h5"
+f_singletop = d + "SingleTop_merge.h5"
 
 #flist = [f_data, f_ttbar, f_wjets, f_diboson, f_tw, f_singletop]
-flist = [f_wjets]
+flist = [f_diboson, f_tw, f_singletop]
 
 
 overwrite = True

@@ -13,44 +13,44 @@ import os
 #UL
 lumi = 59.74
 
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/"
+#f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleMu_2018_merge.h5", "r")
+#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5", "r")
+#f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/QCD_WJets.h5", "r")
+#f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/diboson.h5", "r")
+#f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TW.h5", "r")
+#f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5", "r")
 
-f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
-f_ttbar = h5py.File(f_dir + "TT.h5", "r")
-f_wjets = h5py.File(f_dir + "QCD_WJets.h5", "r")
-f_diboson = h5py.File(f_dir + "diboson.h5", "r")
-f_tw = h5py.File(f_dir + "TW.h5", "r")
-f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
+f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/SingleMu_2018_merge.h5", "r")
+f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/TT.h5", "r")
+f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/QCD_WJets.h5", "r")
+f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/diboson.h5", "r")
+f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/TW.h5", "r")
+f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/SingleTop_merge.h5", "r")
 
 
 
-outdir = "ttbar_UL_feb20_W_rw_chg_only_v2/"
+
+outdir = "ttbar_UL_top_rw_feb13/"
+do_sys_variations = True
+CA_prefix = "3prong_kt"
 sys = ""
-#CA_prefix = "2prong"
-CA_prefix = ""
-charge_only = True
-
 
 do_sys_variations = True
-do_plot = True
+
+max_evts = -1
 
 norm = True
-
 jms_corr = 0.95
 
-m_cut_min = 60.
-m_cut_min = 61.
-#m_cut_max = 65.
-m_cut_max = 110.
-pt_cut = 225.
-#m_cut_min = 79.
-#m_cut_max = 81.
+m_cut_min = 125.
+m_cut_max = 225.
+pt_cut = 500.
 
-#jetR = 0.4
 jetR = 1.0
 n_pt_bins = 6
-num_excjets = 2
+num_excjets = 3
 pt_bins = array('f', [0., 50., 100., 175., 250., 350., 99999.])
+do_plot = True
 
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
@@ -83,8 +83,8 @@ d_ttbar_t_match.apply_cut(t_match_cut)
 d_ttbar_nomatch.apply_cut(nomatch_cut)
 
 
-sigs = [d_ttbar_w_match]
-bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_tw, d_diboson, d_wjets, d_singletop]
+sigs = [d_ttbar_t_match]
+bkgs = [d_ttbar_nomatch, d_ttbar_w_match, d_tw, d_diboson, d_wjets, d_singletop]
 
 
 if(len(sys) != 0):
@@ -220,21 +220,20 @@ if(do_plot):
 
 
 
-d_data.subjets = d_data.fill_LP(h_data,  fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix, charge_only = charge_only)
+d_data.subjets = d_data.fill_LP(h_data, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix)
 
 for d in sigs:
-    d.subjets = d.fill_LP(h_mc,  fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix, charge_only = charge_only)
+    d.subjets = d.fill_LP(h_mc, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix)
 
 for d in bkgs:
-    d.subjets = d.fill_LP(h_bkg, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix, charge_only = charge_only)
+    d.subjets = d.fill_LP(h_bkg, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix)
+
 
 
 for d in ([d_data] + sigs + bkgs): 
     d.subjet_pt = np.array(d.subjets)[:,0]
 
 obs.append("subjet_pt")
-
-
 
 
 default = ROOT.TStyle("Default","Default Style");
@@ -268,6 +267,7 @@ if(do_sys_variations):
 
 
 if(do_plot):
+
     weights_rw = copy.deepcopy(weights_nom)
 
     LP_weights = []
@@ -308,5 +308,7 @@ if(do_plot):
         make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False, stack = False,
                 colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
 
-
 f_out.Close()
+
+
+

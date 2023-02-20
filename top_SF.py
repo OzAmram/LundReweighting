@@ -13,17 +13,17 @@ def cleanup_ratio(h, h_min = 0., h_max = 2.):
 
 #UL
 lumi = 59.74
-f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleMu_2018_merge.h5", "r")
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5", "r")
-f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/QCD_WJets.h5", "r")
-#f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/WJets_merge.h5", "r")
-f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/diboson.h5", "r")
-f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TW.h5", "r")
-f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5", "r")
+f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/SingleMu_2018_merge.h5", "r")
+f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/TT.h5", "r")
+f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/QCD_WJets.h5", "r")
+f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/diboson.h5", "r")
+f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/TW.h5", "r")
+f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/SingleTop_merge.h5", "r")
 
 
-#f_ratio = ROOT.TFile.Open("ttbar_UL_oct17_W_rw_sys/ratio.root")
-f_ratio = ROOT.TFile.Open("ttbar_UL_nov7_W_rw_kt_sys/ratio.root")
+
+#f_ratio = ROOT.TFile.Open("ttbar_UL_jan20_W_rw_kt_sys/ratio.root")
+f_ratio = ROOT.TFile.Open("ttbar_UL_top_rw_feb13/ratio.root")
 
 
 #for SF computation
@@ -31,10 +31,7 @@ tau32_cut = 0.52
 
 
 
-subjet_rw = False
-excjet_rw = True
-sys = ""
-outdir = "ttbar_UL_top_SF_nov7_kt_sys/"
+outdir = "ttbar_UL_top_SF_topRatio_feb13/"
 do_sys_variations = True
 
 max_evts = -1
@@ -77,11 +74,6 @@ sigs = [d_ttbar_t_match]
 bkgs = [d_ttbar_nomatch, d_ttbar_w_match, d_tw,  d_diboson, d_wjets, d_singletop]
 
 
-
-if(len(sys) != 0):
-    for d in sigs: 
-        d.apply_sys(sys)
-        d.sys_power = 2.0
 
 
 
@@ -198,7 +190,7 @@ uncs_rw = copy.deepcopy(uncs_nom)
 
 h_ratio = f_ratio.Get("ratio_nom")
 
-nToys = 100
+nToys = 500
 
 #Noise used to generated smeared ratio's based on stat unc
 rand_noise = np.random.normal(size = (h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), nToys))
@@ -206,7 +198,7 @@ rand_noise = np.random.normal(size = (h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), 
 sig_idx = len(bkgs)
 d = sigs[0]
 print("Reweighting ", d.f )
-d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = "3prong", 
+d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = "3prong", 
         rand_noise = rand_noise)
 
 LP_weights = d_LP_weights
@@ -231,14 +223,16 @@ print("smeared", LP_smeared_weights.shape)
 sys_variations = dict()
 if(do_sys_variations):
     d_sig = sigs[0]
-    sys_list = list(sys_weights_map.keys())
+    #sys_list = list(sys_weights_map.keys())
+    sys_list = []
+    sys_list.append("sys_tot_up")
+    sys_list.append("sys_tot_down")
     for sys in sys_list:
         if(sys == 'nom_weight'): continue
         sys_ratio = f_ratio.Get("ratio_" + sys)
         sys_ratio.Print()
 
-        #limit to 1 signal for now
-        sys_LP_weights, _ = d_sig.reweight_LP(sys_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = "3prong", max_evts = max_evts)
+        sys_LP_weights, _ = d_sig.reweight_LP(sys_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = "3prong", max_evts = max_evts)
         sys_weights = weights_nom[sig_idx] * sys_LP_weights
         rw = np.sum(weights_nom[sig_idx]) / np.sum(sys_weights)
         sys_weights *= rw
@@ -275,23 +269,30 @@ print("Toys avg %.3f, std dev %.3f" % (toys_mean, toys_std))
 #Add systematic differences in quadrature
 sys_unc_up = sys_unc_down = 0.
 if(do_sys_variations):
-    for sys in sys_variations.keys():
-        eff = np.average(cut, weights = sys_variations[sys])
-        diff = eff - eff_rw
-        if(diff > 0): sys_unc_up += diff**2
-        else: sys_unc_down += diff**2
-        print("%s %.4f" % (sys,  diff))
 
-    sys_unc_up = sys_unc_up**(0.5)
-    sys_unc_down = sys_unc_down**(0.5)
+    eff_sys_tot_up = np.average(cut, weights = sys_variations['sys_tot_up'])
+    eff_sys_tot_down = np.average(cut, weights = sys_variations['sys_tot_down'])
+    SF_sys_unc_up = (eff_sys_tot_up - eff_rw)/eff_nom
+    SF_sys_unc_down = (eff_sys_tot_down - eff_rw)/eff_nom
+    SF_sys_unc = max(SF_sys_unc_up, SF_sys_unc_down)
+
+
+    #for sys in sys_variations.keys():
+    #    eff = np.average(cut, weights = sys_variations[sys])
+    #    diff = eff - eff_rw
+    #    if(diff > 0): sys_unc_up += diff**2
+    #    else: sys_unc_down += diff**2
+    #    print("%s %.4f" % (sys,  diff))
+
+    #sys_unc_up = sys_unc_up**(0.5)
+    #sys_unc_down = sys_unc_down**(0.5)
+    
 
 
 SF = eff_rw / eff_nom
-SF_stat_unc = toys_std / eff_nom
-SF_sys_unc_up = sys_unc_up / eff_nom
-SF_sys_unc_down = sys_unc_down / eff_nom
+SF_stat_unc = abs(toys_mean - eff_rw)/eff_nom + toys_std /eff_nom
 
-print("\n\nSF (cut val %.3f ) is %.2f +/- %.2f  (stat) + %.2f - %.2f (sys) \n\n"  % (tau32_cut, SF, SF_stat_unc, SF_sys_unc_up, SF_sys_unc_down))
+print("\n\nSF (cut val %.3f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) \n\n"  % (tau32_cut, SF, SF_stat_unc, SF_sys_unc))
 f_ratio.Close()
 
 #approximate uncertainty on the reweighting for the plots

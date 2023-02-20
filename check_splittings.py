@@ -42,6 +42,9 @@ m_cut_w_min = 60.
 m_cut_w_max = 110.
 pt_cut_w = 225.
 
+#for bad matching check
+deltaR_cut = 0.2
+
 
 d_ttbar_w_match = Dataset(f_ttbar, label = "ttbar : W-matched", color = ROOT.kRed, jms_corr =jms_corr)
 d_ttbar_top_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr)
@@ -88,20 +91,21 @@ w_q2_dists = get_dists(w_q2_eta_phi, w_subjets[:,:,1:3])
 w_q1_close = np.amin(w_q1_dists, axis = -1)
 w_q2_close = np.amin(w_q2_dists, axis = -1)
 
-w_all_far = (w_q1_close > 0.4) | (w_q2_close > 0.4)
+w_all_far = (w_q1_close > deltaR_cut) | (w_q2_close > deltaR_cut)
 
 w_q1_which = np.argmin(w_q1_dists, axis = -1)
 w_q2_which = np.argmin(w_q2_dists, axis = -1)
 w_qs_samejet = (w_q1_which == w_q2_which)
 
 print("\nW-subjet matching :")
-print("Q1 dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(w_q1_close), np.std(w_q1_close), np.mean(w_q1_close > 0.4)))
-print("Q2 dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(w_q2_close), np.std(w_q2_close), np.mean(w_q2_close > 0.4)))
-print("Overall frac > 0.4 %.3f" % np.mean(w_all_far))
+print("Q1 dists, avg %.3f, std %.3f. Frac over %.1f %.3f" % (np.mean(w_q1_close), np.std(w_q1_close), deltaR_cut, np.mean(w_q1_close > deltaR_cut)))
+print("Q2 dists, avg %.3f, std %.3f. Frac over %.1f %.3f" % (np.mean(w_q2_close), np.std(w_q2_close), deltaR_cut, np.mean(w_q2_close > deltaR_cut)))
+print("Overall frac > %.1f %.3f" % (deltaR_cut, np.mean(w_all_far)))
 print("Fraction of quarks matched to same subjet %.4f" % (np.mean(w_qs_samejet)))
 print("Overall bad matching frac %.4f" % np.mean(np.mean(w_qs_samejet | w_all_far)) )
 
 w_subjets_pt = w_subjets[:,:,0].reshape(-1)
+print("Frac with pt > 350 : %.3f" % np.mean(w_subjets_pt > 350.))
 make_histogram(w_subjets_pt, "W subjets", colors = 'blue', xaxis_label = 'Subjet pt (GeV)', 
                 title = "W-jets : subjet pt", num_bins = 40, normalize = True, fname = outdir + "W_subjet_pt.png")
 
@@ -135,15 +139,16 @@ top_q1_which = np.argmin(top_q1_dists, axis = -1)
 top_q2_which = np.argmin(top_q2_dists, axis = -1)
 top_b_which = np.argmin(top_b_dists, axis = -1)
 
+
 #if all different should be 0 1 2
 top_qs_samejet = (top_q1_which == top_q2_which) | (top_q1_which == top_b_which) |  (top_q2_which == top_b_which)
-top_all_far = (top_q1_close > 0.4) | (top_q2_close > 0.4) | (top_b_close > 0.4)
+top_all_far = (top_q1_close > deltaR_cut) | (top_q2_close > deltaR_cut) | (top_b_close > deltaR_cut)
 
 print("\ntop-subjet matching :")
-print("Q1 dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(top_q1_close), np.std(top_q1_close), np.mean(top_q1_close > 0.4)))
-print("Q2 dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(top_q2_close), np.std(top_q2_close), np.mean(top_q2_close > 0.4)))
-print("b dists, avg %.3f, std %.3f. Frac over 0.4 %.3f" % (np.mean(top_b_close), np.std(top_b_close), np.mean(top_b_close > 0.4)))
-print("Overall frac > 0.4 %.3f" % np.mean(top_all_far))
+print("Q1 dists, avg %.3f, std %.3f. Frac over %.1f %.3f" % (np.mean(top_q1_close), np.std(top_q1_close), deltaR_cut, np.mean(top_q1_close > deltaR_cut)))
+print("Q2 dists, avg %.3f, std %.3f. Frac over %.1f %.3f" % (np.mean(top_q2_close), np.std(top_q2_close), deltaR_cut, np.mean(top_q2_close > deltaR_cut)))
+print("b dists, avg %.3f, std %.3f. Frac over %.1f %.3f" % (np.mean(top_b_close), np.std(top_b_close), deltaR_cut, np.mean(top_b_close > deltaR_cut)))
+print("Overall frac > %.1f %.3f" % (deltaR_cut, np.mean(top_all_far)))
 print("Fraction of quarks matched to same subjet %.4f" % (np.mean(top_qs_samejet)))
 print("Overall bad matching frac %.4f" % np.mean(np.mean(top_qs_samejet | top_all_far)) )
 
