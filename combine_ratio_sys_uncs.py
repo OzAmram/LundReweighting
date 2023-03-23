@@ -1,9 +1,15 @@
 from Utils import *
 import os
 
+parser = input_options()
+options = parser.parse_args()
+
+print(options)
+
 #f_ratio = ROOT.TFile.Open("ttbar_UL_top_rw_feb13/ratio.root", "UPDATE")
 #f_ratio = ROOT.TFile.Open("ttbar_UL_feb14_W_rw/ratio.root", "UPDATE")
-f_ratio = ROOT.TFile.Open("ttbar_UL_feb14_W_rw_chg_only/ratio.root", "UPDATE")
+#f_ratio = ROOT.TFile.Open("ttbar_UL_feb14_W_rw_chg_only/ratio.root", "UPDATE")
+f_ratio = ROOT.TFile.Open(options.fin, "UPDATE")
 
 sys_list = list(sys_weights_map.keys())
 sys_list.remove('nom_weight')

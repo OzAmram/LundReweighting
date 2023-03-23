@@ -115,7 +115,6 @@ kt_bins = array('f', np.linspace(kt_bin_min, kt_bin_max, num = n_bins_LP+1))
 dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
 
 
-fill_z = False
 
 
 
@@ -220,13 +219,13 @@ if(do_plot):
 
 
 
-d_data.subjets = d_data.fill_LP(h_data, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix)
+d_data.subjets = d_data.fill_LP(h_data, jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix)
 
 for d in sigs:
-    d.subjets = d.fill_LP(h_mc, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix)
+    d.subjets = d.fill_LP(h_mc, jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix)
 
 for d in bkgs:
-    d.subjets = d.fill_LP(h_bkg, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix)
+    d.subjets = d.fill_LP(h_bkg, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix)
 
 
 
@@ -273,7 +272,7 @@ if(do_plot):
     LP_weights = []
     LP_uncs = []
     for i,d in enumerate(sigs):
-        d_LP_weights, d_LP_uncs = d.reweight_LP(nom_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = CA_prefix)
+        d_LP_weights, d_LP_uncs = d.reweight_LP(nom_ratio, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = CA_prefix)
         LP_weights.append(d_LP_weights)
         LP_uncs.append(d_LP_uncs/ d_LP_weights)
 

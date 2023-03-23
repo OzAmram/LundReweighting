@@ -103,12 +103,10 @@ kt_bins = array('f', np.linspace(kt_bin_min, kt_bin_max, num = n_bins_LP+1))
 dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
 
 
-fill_z = False
 jetR = 1.0
 
 num_excjets = -1
 
-jetR = 1.0
 n_pt_bins = 6
 num_excjets = 2
 pt_bins = array('f', [0., 50., 100., 200., 300., 450., 99999.])
@@ -198,7 +196,7 @@ h_ratio = f_ratio.Get("ratio_nom")
 
 #Noise used to generated smeared ratio's based on stat unc
 nToys = 100
-rand_noise = np.random.normal(size = (h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), nToys))
+rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ()))
 
 h_ratio = f_ratio.Get("ratio_nom")
 
@@ -206,7 +204,7 @@ d = sigs[0]
 
 print("Reweighting ", d.f)
 sig_idx = len(bkgs)
-d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = prefix, 
+d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = prefix, 
         rand_noise = rand_noise, charge_only = options.charge_only)
 LP_weights = d_LP_weights
 LP_uncs = d_LP_uncs/d_LP_weights
@@ -237,7 +235,7 @@ if(do_sys_variations):
 
         #limit to 1 signal for now...
         d = sigs[0]
-        sys_LP_weights, _ = d.reweight_LP(sys_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = prefix)
+        sys_LP_weights, _ = d.reweight_LP(sys_ratio, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = prefix)
         sys_weights = weights_nom[sig_idx] * sys_LP_weights
         rw = np.sum(weights_nom[sig_idx]) / np.sum(sys_weights)
         sys_weights *= rw

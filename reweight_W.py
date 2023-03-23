@@ -24,11 +24,11 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
-outdir = "ttbar_UL_feb20_W_rw_chg_only_v2/"
+outdir = "ttbar_UL_feb20_W_rw/"
 sys = ""
 #CA_prefix = "2prong"
 CA_prefix = ""
-charge_only = True
+charge_only = False
 
 
 do_sys_variations = True
@@ -39,8 +39,6 @@ norm = True
 jms_corr = 0.95
 
 m_cut_min = 60.
-m_cut_min = 61.
-#m_cut_max = 65.
 m_cut_max = 110.
 pt_cut = 225.
 #m_cut_min = 79.
@@ -114,8 +112,6 @@ kt_bins = array('f', np.linspace(kt_bin_min, kt_bin_max, num = n_bins_LP+1))
 
 dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
 
-
-fill_z = False
 
 
 
@@ -220,17 +216,17 @@ if(do_plot):
 
 
 
-d_data.subjets = d_data.fill_LP(h_data,  fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix, charge_only = charge_only)
+d_data.subjets = d_data.fill_LP(h_data,  jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix, charge_only = charge_only)
 
 for d in sigs:
-    d.subjets = d.fill_LP(h_mc,  fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix, charge_only = charge_only)
+    d.subjets = d.fill_LP(h_mc,  jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix, charge_only = charge_only)
 
 for d in bkgs:
-    d.subjets = d.fill_LP(h_bkg, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix, charge_only = charge_only)
+    d.subjets = d.fill_LP(h_bkg, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix, charge_only = charge_only)
 
 
 for d in ([d_data] + sigs + bkgs): 
-    d.subjet_pt = np.array(d.subjets)[:,0]
+    d.subjet_pt = [sj[0] for sj in d.subjets]
 
 obs.append("subjet_pt")
 
@@ -273,7 +269,7 @@ if(do_plot):
     LP_weights = []
     LP_uncs = []
     for i,d in enumerate(sigs):
-        d_LP_weights, d_LP_uncs = d.reweight_LP(nom_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = CA_prefix)
+        d_LP_weights, d_LP_uncs = d.reweight_LP(nom_ratio, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = CA_prefix)
         LP_weights.append(d_LP_weights)
         LP_uncs.append(d_LP_uncs/ d_LP_weights)
 

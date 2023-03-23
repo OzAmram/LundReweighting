@@ -1,24 +1,21 @@
 from Utils import *
 import os
 
-def cleanup_ratio(h, h_min = 0., h_max = 2.):
-    for i in range(1, h.GetNbinsX() + 1):
-        for j in range(1, h.GetNbinsY() + 1):
-            cont = h.GetBinContent(i,j)
-            cont = max(h_min, min(cont, h_max))
-            h.SetBinContent(i,j,cont)
-    #h.GetZAxis().SetRangeUser(h_min, h_max);
+parser = input_options()
+options = parser.parse_args()
 
-
+print(options)
 
 #UL
 lumi = 59.74
-f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/SingleMu_2018_merge.h5", "r")
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/TT.h5", "r")
-f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/QCD_WJets.h5", "r")
-f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/diboson.h5", "r")
-f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/TW.h5", "r")
-f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/SingleTop_merge.h5", "r")
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/"
+
+f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
+f_ttbar = h5py.File(f_dir + "TT.h5", "r")
+f_wjets = h5py.File(f_dir + "QCD_WJets.h5", "r")
+f_diboson = h5py.File(f_dir + "diboson.h5", "r")
+f_tw = h5py.File(f_dir + "TW.h5", "r")
+f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
@@ -99,9 +96,9 @@ dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
 
 fill_z = False
 
-#jetR = 1.0
+jetR = 1.0
 
-jetR = 0.4
+#jetR = 0.4
 
 num_excjets = 3
 
@@ -190,15 +187,17 @@ uncs_rw = copy.deepcopy(uncs_nom)
 
 h_ratio = f_ratio.Get("ratio_nom")
 
-nToys = 500
+nToys = 100
 
 #Noise used to generated smeared ratio's based on stat unc
-rand_noise = np.random.normal(size = (h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), nToys))
+rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ() ))
+
+rw = LundReweighter(jetR = jetR, charge_only = options.charge_only)
 
 sig_idx = len(bkgs)
 d = sigs[0]
 print("Reweighting ", d.f )
-d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = "3prong", 
+d_LP_weights, _, d_LP_smeared_weights, d_LP_smeared_weights, d_pt_smeared_weights = d.reweight_LP(rw, h_ratio, num_excjets = num_excjets, uncs = False, prefix = "3prong", 
         rand_noise = rand_noise)
 
 LP_weights = d_LP_weights
@@ -214,7 +213,6 @@ weights_rw[sig_idx] *= d_LP_weights
 new_norm = np.sum(weights_rw[sig_idx])
 
 weights_rw[sig_idx] *= old_norm / new_norm
-uncs_rw [sig_idx] = weights_nom[sig_idx] * d_LP_uncs * (old_norm / new_norm)
 LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom[sig_idx], -1) * (old_norm / new_norm))
 
 print("smeared", LP_smeared_weights.shape)

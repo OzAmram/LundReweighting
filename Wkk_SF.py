@@ -1,46 +1,28 @@
 from Utils import *
 import os
 
-def ang_dist(phi1, phi2):
-    phi1 = phi1 % (2. * np.pi)
-    phi2 = phi2 % (2. * np.pi)
-    dphi = phi1 - phi2
-    dphi[dphi < -np.pi] += 2.*np.pi
-    dphi[dphi > np.pi] -= 2.*np.pi
-    return dphi
 
-def get_dists(q_eta_phis, subjets_eta_phis):
-    q_eta_phis = np.expand_dims(q_eta_phis, 2)
-    subjets_eta_phis = np.expand_dims(subjets_eta_phis, 1)
-    #print(q_eta_phis.shape)
-    #print(subjets_eta_phis.shape)
-    return np.sqrt(np.square(subjets_eta_phis[:,:,:,0] - q_eta_phis[:,:,:,0]) + 
-            np.square(ang_dist(subjets_eta_phis[:,:,:,1], q_eta_phis[:,:,:,1] )))
+parser = input_options()
+options = parser.parse_args()
 
+print(options)
 
-
-
-outdir = "Wkk_SF_jan3/"
-if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
+if(not os.path.exists(options.outdir)): os.system("mkdir %s" % options.outdir)
 jet_str = 'CA'
 
 f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/CASE_signals/Wkk_M3000_R170_2018_UL.h5", "r")
 #f_sig = h5py.File("/uscms_data/d3/oamram/CMSSW_12_4_0/src/CASE/CASEUtils/H5_maker/Wkk_M3500_test.h5", "r")
-f_ratio = ROOT.TFile.Open("ttbar_UL_nov7_W_rw_kt_sys/ratio_test.root")
+f_ratio = ROOT.TFile.Open(options.fin)
 label = "Radion"
 n_prongs = (4,2)
 sig_mass = 3000.
 
 
 j_idx = 0
-do_sys_variations = True
 
-subjet_rw = False
-excjet_rw = True
 
-jetR = 0.4
+jetR = 1.0
 num_excjets = 4
-fill_z = False
 
 max_evts = 100000
 
@@ -84,18 +66,24 @@ WH_cut = WH_score > 0.8
 #use gen weights ? 
 weights_nom = np.ones_like(WH_score)
 
-
 weights_rw = copy.deepcopy(weights_nom)
 
 h_ratio = f_ratio.Get("ratio_nom")
+f_ratio.cd('pt_extrap')
+rdir = ROOT.gDirectory
+pt_extrap_val = 350.
 
 nToys = 100
+nToys_pt = 100
 
 #Noise used to generated smeared ratio's based on stat unc
-rand_noise = np.random.normal(size = (h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), nToys))
+rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ()))
+pt_rand_noise = np.random.normal(size = (nToys_pt, h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), 3))
 
-d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = "4prong", 
-        rand_noise = rand_noise)
+#d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio,  jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = "4prong", 
+        #rand_noise = rand_noise)
+d_LP_weights, d_LP_uncs, d_LP_smeared_weights, d_pt_smeared_weights = d.reweight_LP(rw, h_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+        rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, pt_extrap_dir = rdir, pt_extrap_val = pt_extrap_val, charge_only = options.charge_only)
 
 LP_weights = d_LP_weights
 
@@ -108,22 +96,24 @@ new_norm = np.sum(weights_rw)
 
 weights_rw *= old_norm / new_norm
 LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom, -1) * (old_norm / new_norm))
+pt_smeared_weights = np.array(d_pt_smeared_weights * np.expand_dims(weights_nom, -1) * (old_norm / new_norm))
 
 print("smeared", LP_smeared_weights.shape)
 
 
 sys_variations = dict()
-if(do_sys_variations):
+if(not options.no_sys):
     #sys_list = list(sys_weights_map.keys())
-    sys_list = []
-    sys_list.append("sys_tot_up")
-    sys_list.append("sys_tot_down")
+    sys_list = ["sys_tot_up", "sys_tot_down"]
     for sys in sys_list:
         if(sys == 'nom_weight'): continue
         sys_ratio = f_ratio.Get("ratio_" + sys)
         sys_ratio.Print()
+        sys_str = sys + "_"
 
-        sys_LP_weights, _ = d.reweight_LP(sys_ratio, subjet_rw = subjet_rw, fill_z = fill_z, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = "3prong", max_evts = max_evts)
+        sys_LP_weights, _ = d.reweight_LP(sys_ratio, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = "", 
+                max_evts = max_evts, charge_only = options.charge_only,
+                pt_extrap_dir = rdir, pt_extrap_val = pt_extrap_val, sys_str = sys_str)
         sys_weights = weights_nom * sys_LP_weights
         rw = np.sum(weights_nom) / np.sum(sys_weights)
         sys_weights *= rw
@@ -144,18 +134,34 @@ print("Nom %.3f, RW %.3f" % (eff_nom, eff_rw))
 
 
 eff_toys = []
+pt_eff_toys = []
 for i in range(nToys):
     eff = np.average(WH_cut, weights = LP_smeared_weights[:,i])
     eff_toys.append(eff)
+
+
+
+for i in range(nToys_pt):
+    eff1 = np.average(WH_cut, weights = pt_smeared_weights[:,i])
+    pt_eff_toys.append(eff1)
+
 
 toys_mean = np.mean(eff_toys)
 toys_std = np.std(eff_toys)
 
 print("Toys avg %.3f, std dev %.3f" % (toys_mean, toys_std))
 
+
+pt_toys_mean = np.mean(pt_eff_toys)
+pt_toys_std = np.std(pt_eff_toys)
+
+
+print("Pt variation toys avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
+print(pt_eff_toys)
+
 #Add systematic differences in quadrature
-sys_unc_up = sys_unc_down = 0.
-if(do_sys_variations):
+SF_sys_unc_up = SF_sys_unc_down = SF_sys_unc = 0.
+if(not options.no_sys):
 
     eff_sys_tot_up = np.average(WH_cut, weights = sys_variations['sys_tot_up'])
     eff_sys_tot_down = np.average(WH_cut, weights = sys_variations['sys_tot_down'])
@@ -178,11 +184,12 @@ if(do_sys_variations):
 
 SF = eff_rw / eff_nom
 SF_stat_unc = abs(toys_mean - eff_rw)/eff_nom + toys_std /eff_nom
+SF_pt_unc = abs(pt_toys_mean - eff_rw)/eff_nom + pt_toys_std /eff_nom
 
-print("\n\nSF (WH_cut val 0.8 ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) \n\n"  % (SF, SF_stat_unc, SF_sys_unc))
+print("\n\nSF (WH_cut val 0.8 ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) \n\n"  % (SF, SF_stat_unc, SF_sys_unc, SF_pt_unc))
 f_ratio.Close()
 
 #approximate uncertainty on the reweighting for the plots
-overall_unc = (SF_stat_unc **2 + (0.5 * SF_sys_unc_up + 0.5 * SF_sys_unc_down)**2) **0.5 / SF
+overall_unc = (SF_stat_unc **2 + (0.5 * abs(SF_sys_unc_up) + 0.5 * abs(SF_sys_unc_down))**2) **0.5 / SF
 print("overall unc %.3f" % overall_unc)
 
