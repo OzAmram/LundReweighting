@@ -33,6 +33,7 @@ for i in range(h.GetNbinsX()+1):
     for j in range(h.GetNbinsY()+1):
         for k in range(h.GetNbinsZ()+1):
             c_nom = h_nom.GetBinContent(i,j,k)
+            e_nom = h_nom.GetBinError(i,j,k)
             c_err_up = 0.
             c_err_down = 0.
             #sum diffs (aka sys unc) in quadrature
@@ -44,9 +45,11 @@ for i in range(h.GetNbinsX()+1):
             c_err_up = c_err_up**0.5
             c_err_down = c_err_down**0.5
 
-            eps = 1e-8
+            eps = 1e-4
             h_sys_up.SetBinContent(i,j,k, c_nom + c_err_up)
+            h_sys_up.SetBinError(i,j,k, e_nom)
             h_sys_down.SetBinContent(i,j,k, max(c_nom - c_err_down, eps))
+            h_sys_down.SetBinError(i,j,k, e_nom)
             print(i,j,k, c_nom, c_nom + c_err_up, c_nom - c_err_down)
 
 print("MEANs are:", h_nom.GetMean(), h_sys_up.GetMean(), h_sys_down.GetMean())

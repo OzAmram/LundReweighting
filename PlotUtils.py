@@ -390,7 +390,7 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
     return ns, bins, ratios, frac_unc
 
 def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[], drawSys = False,
-        stack = True, logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=1, ratio_range = None, NDiv = 205, prelim = False):  
+        draw_chi2 = False, stack = True, logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=1, ratio_range = None, NDiv = 205, prelim = False):  
 
     # histlist is just the generic list but if bkglist is specified (non-empty)
     # then this function will stack the backgrounds and compare against histlist as if 
@@ -665,9 +665,20 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
 
                 ratio, ratio_sys_unc = makeRatio(hist,totlist[hist_index])
+
                 chi2 = 0.
-                #for i in range(1, pull.GetNbinsX()+1):
-                    #chi2 += pull.GetBinContent(i)**2;
+
+                ys = ratio.GetY()
+                xs = ratio.GetX()
+                e_low = ratio.GetEYlow()
+                e_high = ratio.GetEYhigh()
+                ndof = len(ys)
+
+
+                if(draw_chi2):
+                    for i,y in enumerate(ys):
+                        e = e_low[i] if y > 1 else e_high[i]
+                        chi2 += ((1. - y)/ e)**2;
                 #print("Chi2/nbin for chan %s is %.1f/%i" % (titles[hist_index], chi2, pull.GetNbinsX()))
 
                 #if(drawSys):
@@ -732,10 +743,23 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     ratio.Draw('p0e0Z same')
                 else:
                     ratio.Draw('Ap0e0Z same')
+
+
                 
                 line = ROOT.TLine(hist.GetXaxis().GetXmin(), 1.0, hist.GetXaxis().GetXmax(), 1.0)
                 line.SetLineStyle(9)
                 line.Draw()
+
+                if(draw_chi2):
+                    subs[hist_index].cd()
+                    xscale = (np.amax(xs) - np.amin(xs))
+                    x_start = np.amin(xs) + 0.75 * (np.amax(xs) - np.amin(xs))
+                    x_stop = np.amax(xs)
+
+                    pave = ROOT.TPaveText(x_start, 0.8 * ratio_range[1], x_stop, ratio_range[1])
+                    pave.AddText("chi2 / ndof = %.1f / %i" % (chi2, ndof))
+                    pave.SetBorderSize(1)
+                    pave.Draw()
 
                 if logy == True:
                     mains[hist_index].SetLogy()
@@ -873,9 +897,21 @@ def make_root_hist(data = None, weight = None, name = "h", num_bins = 1, bin_low
     for i,e in enumerate(data):
         if(weight is not None): w = weight[i]
         else: w = 1.
-        h.Fill(e, w)
 
-    if(unc is not None and np.sum(unc) > 1e-4):
+        if(hasattr(e, "__len__")): 
+            for en in e: h.Fill(en, w)
+        else: h.Fill(e, w)
+
+    if(unc is not None and type(unc) == float):
+        #single fractional unc
+        for ibin in range(1,num_bins +1):
+
+            cont = h.GetBinContent(ibin)
+            h.SetBinError(ibin, unc * cont)
+
+
+    elif(unc is not None and np.sum(unc) > 1e-4):
+        #unc weights
         weights_up = np.clip(weight + unc, 0, 9999)
         weights_down = np.clip(weight - unc, 0, 9999)
 
@@ -902,7 +938,7 @@ def make_root_hist(data = None, weight = None, name = "h", num_bins = 1, bin_low
 
 
 def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, uncs = None, colors = None, axis_label = None, title = None, num_bins = None, drawSys = False, stack = True,
-    normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
+    draw_chi2 = False, normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
     if(h_range == None):
         low = np.amin(entries[0])
         high = np.amax(entries[0])
@@ -929,7 +965,7 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, u
         
 
     return makeCan("temp", fname, [h_data], bkglist = [hists], totlist = [h_tot], colors = colors, bkgNames = labels, titles = [title], logy = logy, xtitle = axis_label,
-        drawSys = drawSys, ratio_range = ratio_range, stack = stack)
+        drawSys = drawSys, ratio_range = ratio_range, stack = stack, draw_chi2 = draw_chi2)
 
 
 def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, h_range = None, 
@@ -994,6 +1030,8 @@ def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, n
 
 
         ratio_err = ratio * np.sqrt((err0/n0)**2 + (err1/n1)**2)
+
+
 
     bincenters = 0.5*(bins[1:]+bins[:-1]) 
     ax1 = plt.subplot(gs[1])

@@ -2,40 +2,31 @@ from Utils import *
 import os
 
 
+parser = input_options()
+options = parser.parse_args()
+
+print(options)
 
 
-#NON UL (2018B only)
-#lumi = 6.90
-#f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/SingleMu_2018C.h5", "r")
-#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/TTToSemiLep_2018.h5", "r")
-#f_bkg = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/QCD_WJets_merged.h5", "r")
-#
-#UL
+
 lumi = 59.74
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/"
 
-#f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleMu_2018_merge.h5", "r")
-#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5", "r")
-#f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/QCD_WJets.h5", "r")
-#f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/diboson.h5", "r")
-#f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TW.h5", "r")
-#f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/SingleTop_merge.h5", "r")
-
-f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/SingleMu_2018_merge.h5", "r")
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/TT.h5", "r")
-f_wjets = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/QCD_WJets.h5", "r")
-f_diboson = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/diboson.h5", "r")
-f_tw = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/TW.h5", "r")
-f_singletop = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan17/SingleTop_merge.h5", "r")
+f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
+f_ttbar = h5py.File(f_dir + "TT.h5", "r")
+f_wjets = h5py.File(f_dir + "QCD_WJets.h5", "r")
+f_diboson = h5py.File(f_dir + "diboson.h5", "r")
+f_tw = h5py.File(f_dir + "TW.h5", "r")
+f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
 
-outdir = "ttbar_UL_top_rw_feb13/"
+
+outdir = "ttbar_UL_top_rw_april10/"
 do_sys_variations = True
-CA_prefix = "3prong_kt"
+CA_prefix = ""
 sys = ""
-
-do_sys_variations = True
 
 max_evts = -1
 
@@ -50,7 +41,7 @@ jetR = 1.0
 n_pt_bins = 6
 num_excjets = 3
 pt_bins = array('f', [0., 50., 100., 175., 250., 350., 99999.])
-do_plot = True
+do_plot = False
 
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
@@ -218,21 +209,34 @@ if(do_plot):
 
 
 
+LP_rw = LundReweighter(jetR = jetR, charge_only = options.charge_only)
 
-d_data.subjets = d_data.fill_LP(h_data, jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix)
+d_data.subjets = d_data.fill_LP(LP_rw, h_data, num_excjets = num_excjets, prefix = "")
 
 for d in sigs:
-    d.subjets = d.fill_LP(h_mc, jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix)
+    d.subjets = d.fill_LP(LP_rw, h_mc,  num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = "")
 
 for d in bkgs:
-    d.subjets = d.fill_LP(h_bkg, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix)
+    d.subjets = d.fill_LP(LP_rw, h_bkg, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = "")
 
 
 
-for d in ([d_data] + sigs + bkgs): 
-    d.subjet_pt = np.array(d.subjets)[:,0]
+#subjet pt plot
+mc_subjet_pts = []
+for d in ([d_data] + bkgs + sigs): 
+    if(len(d.subjets) > 0):
+        a = np.array(d.subjets)
+        d.subjet_pt = a[:,:,0]
+        if(d is not d_data): mc_subjet_pts.append(a[:,:,0])
+    else:
+        d.subjet_pt = []
+        mc_subjet_pts.append([])
 
-obs.append("subjet_pt")
+for i in range(len(mc_subjet_pts)):
+    print(len(mc_subjet_pts[i]), len(weights_nom[i]))
+make_multi_sum_ratio_histogram(data = d.subjet_pt, entries = mc_subjet_pts, weights = weights_nom, labels = labels, h_range = (0, 800.), drawSys = False, stack = False,
+        colors = colors, axis_label = "Subjet pT",  title = "", num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + 'subjet_pt_cmp.png' )
+
 
 
 default = ROOT.TStyle("Default","Default Style");
@@ -241,7 +245,7 @@ ROOT.gROOT.SetStyle('Default')
 ROOT.gStyle.SetOptStat(0) # To display the mean and RMS:   SetOptStat("mr")
 
 f_out = ROOT.TFile.Open(outdir + "ratio.root", "RECREATE")
-nom_ratio = make_LP_ratio(h_data, h_bkg, h_mc, pt_bins, outdir = outdir, save_plots = True)
+nom_ratio = LP_rw.make_LP_ratio(h_data, h_bkg, h_mc, pt_bins, outdir = outdir, save_plots = True)
 nom_ratio.SetName("ratio_nom")
 nom_ratio.Write()
 
@@ -256,7 +260,7 @@ if(do_sys_variations):
         if(sys_name in sig_sys): h_mc_sys = sig_sys_variations[sys_name]
         else: h_mc_sys = h_mc
 
-        sys_ratio = make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, pt_bins)
+        sys_ratio = LP_rw.make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, pt_bins)
         sys_ratio.SetName("ratio_" + sys_name)
         #sys_ratio.Print("range") 
         sys_ratio.Write()
@@ -270,11 +274,10 @@ if(do_plot):
     weights_rw = copy.deepcopy(weights_nom)
 
     LP_weights = []
-    LP_uncs = []
     for i,d in enumerate(sigs):
-        d_LP_weights, d_LP_uncs = d.reweight_LP(nom_ratio, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = CA_prefix)
+
+        d_LP_weights, _ = d.reweight_LP(LP_rw, nom_ratio, num_excjets = num_excjets, uncs = False, prefix = "")
         LP_weights.append(d_LP_weights)
-        LP_uncs.append(d_LP_uncs/ d_LP_weights)
 
         weights_rw[len(bkgs) + i] *= d_LP_weights
 
@@ -282,8 +285,6 @@ if(do_plot):
     make_histogram(LP_weights[0], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
          normalize=False, fname=outdir + "lundPlane_weights.png")
 
-    make_histogram(LP_uncs[0], "Fractional Uncertainties", 'b', 'Weight Fractional Uncertainty ', "Lund Plane Reweighting Factors Uncertainty", 20,
-         normalize=False, fname=outdir + "lundPlane_weights_unc.png", h_range = (0., 1.5))
 
     for l in obs:
         a = []

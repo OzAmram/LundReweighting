@@ -17,8 +17,8 @@ def get_dists(q_eta_phis, subjets_eta_phis):
 
 
 
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_sep29/TT.h5", "r")
-outdir = "bquark_check_feb13/"
+f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/TT.h5", "r")
+outdir = "bquark_check_april13/"
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 
 pt_max = 1000
@@ -97,8 +97,11 @@ pf_cands_top = d_ttbar_top_match.get_masked('jet1_PFCands').astype(np.float64)
 top_subjets = np.zeros((pf_cands_top.shape[0], 3, 4), dtype = np.float32)
 splittings = [None] * pf_cands_top.shape[0]
 
+
+rw = LundReweighter(jetR = jetR, charge_only = False)
+
 for i,pf_cand_top in enumerate(pf_cands_top):
-    top_subjets[i], splittings[i] = get_splittings(pf_cand_top, jetR = jetR, num_excjets = 3)
+    top_subjets[i], splittings[i] = rw.get_splittings(pf_cand_top, num_excjets = 3)
 
 top_q1_eta_phi = gen_parts_top[:,18:20]
 top_q2_eta_phi = gen_parts_top[:,22:24]
@@ -130,10 +133,10 @@ for i in range(len(top_subjets)):
     for j in range(len(top_subjets[i])):
         if(j == top_q1_which[i] or j == top_q2_which[i]): 
             #fill light quark LP
-            fill_lund_plane(h_qs, subjets = np.array(top_subjets[i]).reshape(-1), splittings = splittings[i], subjet_idx = j)
+            rw.fill_lund_plane(h_qs, subjets = np.array(top_subjets[i]).reshape(-1), splittings = splittings[i], subjet_idx = j)
         else: 
             #b quark LP
-            fill_lund_plane(h_bs, subjets = np.array(top_subjets[i]).reshape(-1), splittings = splittings[i], subjet_idx = j)
+            rw.fill_lund_plane(h_bs, subjets = np.array(top_subjets[i]).reshape(-1), splittings = splittings[i], subjet_idx = j)
 
 h_qs.Print()
 h_bs.Print()
@@ -181,7 +184,7 @@ for i in range(1,h_qs.GetNbinsX()+1):
 
 
     c3 = ROOT.TCanvas("c3", "", 1000, 1000)
-    h_ratio.Draw("colz")
+    h_ratio_proj.Draw("colz")
     c3.SetRightMargin(0.2)
     c3.Print(outdir + "lundPlane_b_light_ratio_bin%i.png" % i)
 

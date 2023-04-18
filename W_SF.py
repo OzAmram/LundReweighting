@@ -32,6 +32,7 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 f_ratio = ROOT.TFile.Open(options.fin)
 outdir = options.outdir
 prefix = ""
+drawSys = False
 
 
 
@@ -54,14 +55,14 @@ if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
 d_data = Dataset(f_data, is_data = True)
 
-d_tw = Dataset(f_tw, label = "tW", color = ROOT.kMagenta, jms_corr = jms_corr)
+d_tw = Dataset(f_tw, label = "tW", color = ROOT.kMagenta, jms_corr = jms_corr, dtype = -1)
 d_wjets = Dataset(f_wjets, label = "W+Jets + QCD", color = ROOT.kGray, jms_corr = jms_corr)
 d_diboson = Dataset(f_diboson, label = "Diboson", color = ROOT.kCyan, jms_corr = jms_corr)
 d_singletop = Dataset(f_singletop, label = "Single Top", color = ROOT.kMagenta+4, jms_corr = jms_corr)
 
 
-d_ttbar_w_match = Dataset(f_ttbar, label = "ttbar : W-matched", color = ROOT.kRed, jms_corr =jms_corr)
-d_ttbar_t_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr)
+d_ttbar_w_match = Dataset(f_ttbar, label = "ttbar : W-matched", color = ROOT.kRed, jms_corr =jms_corr, dtype = 2)
+d_ttbar_t_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr, dtype = 3)
 d_ttbar_nomatch = Dataset(f_ttbar, label = "ttbar : unmatched", color = ROOT.kGreen+3, jms_corr = jms_corr)
 
 ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]
@@ -77,7 +78,7 @@ d_ttbar_nomatch.apply_cut(nomatch_cut)
 
 
 sigs = [d_ttbar_w_match]
-bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_tw, d_diboson, d_wjets, d_singletop]
+bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_diboson, d_wjets, d_singletop, d_tw]
 
 
 
@@ -160,12 +161,10 @@ obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt", "DeepAK8_W_MD", "Dee
 
 colors = []
 weights_nom = []
-uncs_nom = []
 labels = []
 for d in (bkgs + sigs):
     colors.append(d.color)
     weights_nom.append(d.get_weights())
-    uncs_nom.append(np.zeros_like(weights_nom[-1]))
     labels.append(d.label)
 
 for l in obs:
@@ -185,69 +184,81 @@ for l in obs:
     else: 
         n_bins_ = n_bins
         h_range = None
-    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_nom, labels = labels, h_range = h_range, drawSys = False, stack = False,
+    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_nom, labels = labels, h_range = h_range, drawSys = False, stack = False, draw_chi2 = True,
             colors = colors, axis_label = l,  title = l + " : No Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_before.png' )
 
 weights_rw = copy.deepcopy(weights_nom)
-uncs_rw = copy.deepcopy(uncs_nom)
+
+#10% normalization unc on bkgs
+uncs = [0.1] * len(bkgs + sigs)
 
 
 h_ratio = f_ratio.Get("ratio_nom")
+f_ratio.cd('pt_extrap')
+rdir = ROOT.gDirectory
 
 #Noise used to generated smeared ratio's based on stat unc
 nToys = 100
 rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ()))
+pt_rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), 3))
 
 h_ratio = f_ratio.Get("ratio_nom")
 
-d = sigs[0]
+LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only)
 
+d_tw_LP_weights, _ = d_tw.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, uncs = False, prefix = "",)
+
+d_sig = sigs[0]
 print("Reweighting ", d.f)
 sig_idx = len(bkgs)
-d_LP_weights, d_LP_uncs, d_LP_smeared_weights = d.reweight_LP(h_ratio, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = prefix, 
-        rand_noise = rand_noise, charge_only = options.charge_only)
-LP_weights = d_LP_weights
-LP_uncs = d_LP_uncs/d_LP_weights
 
-#cap at 100% uncertainty
-d_LP_uncs = np.minimum(d_LP_uncs, d_LP_weights)
+subjets, splittings, bad_match = d_sig.get_matched_splittings(LP_rw, num_excjets = num_excjets)
+d_LP_weights, _, d_LP_smeared_weights, d_pt_smeared_weights = d_sig.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+        rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
+
+
+
+
 
 #apply weights, keep normalization fixed
 old_norm = np.sum(weights_rw[sig_idx])
 weights_rw[sig_idx] *= d_LP_weights
 new_norm = np.sum(weights_rw[sig_idx])
 weights_rw[sig_idx] *= old_norm / new_norm
-uncs_rw [sig_idx] = weights_nom[sig_idx] * d_LP_uncs * (old_norm / new_norm)
+
+
+tw_idx = len(bkgs)-1
+old_norm = np.sum(weights_rw[tw_idx])
+weights_rw[tw_idx] *= d_tw_LP_weights
+new_norm = np.sum(weights_rw[tw_idx])
+weights_rw[tw_idx] *= old_norm / new_norm
+
+
 LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom[sig_idx], -1) * (old_norm / new_norm))
+pt_smeared_weights = np.array(d_pt_smeared_weights * np.expand_dims(weights_nom[sig_idx], -1) * (old_norm / new_norm))
 
 
 sys_ratios = []
 sys_variations = dict()
 if(do_sys_variations):
     #sys_list = list(sys_weights_map.keys())
-    sys_list = []
-    sys_list.append("sys_tot_up")
-    sys_list.append("sys_tot_down")
+    sys_list = ['sys_tot_up', 'sys_tot_down']
     for sys in sys_list:
         if(sys == 'nom_weight'): continue
         sys_ratio = f_ratio.Get("ratio_" + sys)
         sys_ratio.Print()
+        sys_str = sys + "_"
 
-        #limit to 1 signal for now...
-        d = sigs[0]
-        sys_LP_weights, _ = d.reweight_LP(sys_ratio, jetR = jetR, num_excjets = num_excjets, uncs = False, prefix = prefix)
+        sys_LP_weights, _ = d_sig.reweight_LP(LP_rw, sys_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+                sys_str = sys_str, subjets = subjets, splittings = splittings)
         sys_weights = weights_nom[sig_idx] * sys_LP_weights
         rw = np.sum(weights_nom[sig_idx]) / np.sum(sys_weights)
         sys_weights *= rw
         sys_variations[sys] = sys_weights
 
 
-make_histogram(LP_weights[0], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
+make_histogram(d_LP_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
      normalize=False, fname=outdir + "lundPlane_weights.png")
-
-make_histogram(LP_uncs[0], "Fractional Uncertainties", 'b', 'Weight Fractional Uncertainty ', "Lund Plane Reweighting Factors Uncertainty", 20,
-     normalize=False, fname=outdir + "lundPlane_weights_unc.png", h_range = (0., 1.5))
-
 
 #compute 'Scalefactor'
 cut_tau21 = d_ttbar_w_match.tau21 < tau21_cut_val
@@ -260,7 +271,6 @@ cut_vals = [tau21_cut_val, DeepAK8_MD_cut_val, DeepAK8_cut_val]
 
 for idx,cut in enumerate(cuts):
 
-    print(cut.shape, weights_nom[sig_idx].shape, LP_smeared_weights[:,idx].shape)
     eff_nom = np.average(cut, weights = weights_nom[sig_idx])
     eff_rw = np.average(cut, weights = weights_rw[sig_idx])
     print("Running %s" % cut_names[idx])
@@ -269,14 +279,23 @@ for idx,cut in enumerate(cuts):
 
 
     eff_toys = []
+    pt_eff_toys = []
     for i in range(nToys):
         eff = np.average(cut, weights = LP_smeared_weights[:,i])
         eff_toys.append(eff)
+
+        eff1 = np.average(cut, weights = pt_smeared_weights[:,i])
+        pt_eff_toys.append(eff1)
 
     toys_mean = np.mean(eff_toys)
     toys_std = np.std(eff_toys)
 
     print("Toys avg %.3f, std dev %.3f" % (toys_mean, toys_std))
+
+    pt_toys_mean = np.mean(pt_eff_toys)
+    pt_toys_std = np.std(pt_eff_toys)
+
+    print("Pt variation toys avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
     #Add systematic differences in quadrature
     sys_unc_up = sys_unc_down = 0.
@@ -286,7 +305,7 @@ for idx,cut in enumerate(cuts):
         eff_sys_tot_down = np.average(cut, weights = sys_variations['sys_tot_down'])
         SF_sys_unc_up = (eff_sys_tot_up - eff_rw)/eff_nom
         SF_sys_unc_down = (eff_sys_tot_down - eff_rw)/eff_nom
-        SF_sys_unc = max(SF_sys_unc_up, SF_sys_unc_down)
+        SF_sys_unc = (SF_sys_unc_up + SF_sys_unc_down) / 2.0
 
         #for sys in sys_variations.keys():
         #    eff = np.average(cut, weights = sys_variations[sys])
@@ -300,16 +319,24 @@ for idx,cut in enumerate(cuts):
 
 
     SF = eff_rw / eff_nom
-    SF_stat_unc = toys_std / eff_nom
+    SF_stat_unc = abs(toys_mean - eff_rw)/eff_nom + toys_std /eff_nom
+    SF_pt_unc = abs(pt_toys_mean - eff_rw)/eff_nom + pt_toys_std /eff_nom
+
+
+    bad_matching_unc = np.mean(bad_match) * SF
 
     print(i, len(cut_names), len(cut_vals))
-    print("\n\nSF %s (cut val %.3f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) \n\n"  % (cut_names[idx], cut_vals[idx], SF, SF_stat_unc, SF_sys_unc))
+    print("\n\nSF %s (cut val %.3f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) +/- %.2f (matching) \n\n"  
+            % (cut_names[idx], cut_vals[idx], SF, SF_stat_unc, SF_sys_unc, SF_pt_unc, bad_matching_unc))
 
     #approximate uncertainty on the reweighting for the plots
-    overall_unc = (SF_stat_unc **2 + (0.5 * SF_sys_unc_up + 0.5 * SF_sys_unc_down)**2) **0.5 / SF
+    overall_unc = (SF_stat_unc **2 + SF_sys_unc**2 + SF_pt_unc**2 + bad_matching_unc**2) **0.5 / SF
     print("overall unc %.3f" % overall_unc)
 
-    uncs_rw[len(bkgs)] = overall_unc * weights_rw[len(bkgs)]
+    uncs[len(bkgs)] = overall_unc
+
+    #apply same unc to tW
+    uncs[len(bkgs)-1] = overall_unc
 
 
 f_ratio.Close()
@@ -331,7 +358,7 @@ for l in obs:
     else: 
         n_bins_ = n_bins
         h_range = None
-    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False, stack = False,
+    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, stack = False, uncs = uncs, drawSys = drawSys, draw_chi2 = True,
             colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
 
 

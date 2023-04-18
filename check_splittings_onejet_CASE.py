@@ -96,10 +96,7 @@ for i in range(n):
     dists[i] = get_subjet_dist(gen_parts_eta_phi[i], j_subjets[i][:,1:3])
     j_closest[i] = np.amin(dists[i], axis = -1)
     j_which[i] = np.argmin(dists[i], axis = -1)
-
-
-
-    is_bad.append(n_prongs_i < 2 or just_outside)
+    rs_bad.append(n_prongs_i < 2 or just_outside)
 
 
 
