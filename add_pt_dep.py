@@ -34,6 +34,7 @@ f_ratio.Write()
 
 
 
+write_out = False
 diffs = []
 x_bin1 = 2
 x_bin2 = 5
@@ -58,10 +59,10 @@ for h in [h_nom, h_up, h_down]:
     if(h is h_up): func_name_base += "sys_tot_up_"
     if(h is h_down): func_name_base += "sys_tot_down_"
 
-    for j in range(1,h.GetNbinsY()+1):
-        for k in range(1,h.GetNbinsZ()+1):
-    #for j in [11]:
-        #for k in [7]:
+    #for j in range(1,h.GetNbinsY()+1):
+        #for k in range(1,h.GetNbinsZ()+1):
+    for j in [11]:
+        for k in [7]:
             x = array('d')
             ex = array('d')
             y = array('d')
@@ -100,12 +101,15 @@ for h in [h_nom, h_up, h_down]:
                 chi2_prev = 999999
 
                 #keep adding params based on F-test
-                thresh = 0.01
+                thresh = 0.05
                 while(True):
 
                     func = create_func(order)
                     fit_res = g.Fit(func, "0 S +")
                     chi2_new = fit_res.Chi2()
+
+                    #corrs = fit_res.GetCorrelationMatrix()
+                    #corrs.Print()
 
                     F_num = max((chi2_prev - chi2_new), 0)
                     eps = 1e-8
@@ -124,25 +128,26 @@ for h in [h_nom, h_up, h_down]:
                         order -=1
                         break
 
-                func = g.GetFunction("f%i" % order)
-                f_ratio.cd("pt_extrap")
-                func.SetName(func_name_base + ("%i_%i" % (j,k)) )
-                func.Write()
+                if(write_out):
+                    func = g.GetFunction("f%i" % order)
+                    f_ratio.cd("pt_extrap")
+                    func.SetName(func_name_base + ("%i_%i" % (j,k)) )
+                    func.Write()
 
-                if(h is h_nom):
-                    fout  = options.outdir + "fit_%i_%i.png" % (j, k)
-                else:
-                    fout  = options.outdir + "fit_%s_%i_%i.png" % (func_name_base, j, k)
+                    if(h is h_nom):
+                        fout  = options.outdir + "fit_%i_%i.png" % (j, k)
+                    else:
+                        fout  = options.outdir + "fit_%s_%i_%i.png" % (func_name_base, j, k)
 
-                c = ROOT.TCanvas("c", "", 800, 800)
-                g.SetTitle("Fit Bin %i,%i" %(j, k))
-                g.GetYaxis().SetTitle("Correction Factor")
-                g.GetYaxis().CenterTitle()
-                g.GetXaxis().SetTitle("Subjet pT")
-                g.GetXaxis().CenterTitle()
-                g.Draw("AP")
-                func.Draw("same")
-                c.Print(fout)
+                    c = ROOT.TCanvas("c", "", 800, 800)
+                    g.SetTitle("Fit Bin %i,%i" %(j, k))
+                    g.GetYaxis().SetTitle("Correction Factor")
+                    g.GetYaxis().CenterTitle()
+                    g.GetXaxis().SetTitle("Subjet pT")
+                    g.GetXaxis().CenterTitle()
+                    g.Draw("AP")
+                    func.Draw("same")
+                    c.Print(fout)
 
 f_ratio.Write()
 f_ratio.Close()

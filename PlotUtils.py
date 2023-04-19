@@ -375,7 +375,7 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
 
     plt.xlim([low, high])
 
-    if(type(ratio_range) == list):
+    if(type(ratio_range) == list or type(ratio_range) == tuple):
         plt.ylim(ratio_range[0], ratio_range[1])
     else:
         if(ratio_range > 0):

@@ -215,7 +215,8 @@ class Dataset():
         self.tau43 = (feats[:,3] / (feats[:,2] + eps))
         if(feats.shape[1] > 7): self.DeepAK8_W_MD = feats[:,8]
         if(feats.shape[1] > 8): self.DeepAK8_W = feats[:,9]
-        self.mSoftDrop = kins[:,3] * self.jms_corr
+        if(self.dtype > 1): self.mSoftDrop = kins[:,3] * self.jms_corr
+        else: self.mSoftDrop = kins[:,5] * self.jms_corr
         self.pt = kins[:,0]
         self.nPF= feats[:,6]
 
@@ -318,7 +319,16 @@ class Dataset():
 
         if(self.dtype == 0 or self.dtype == 1): #CASE h5
             gen_parts = self.get_masked('gen_info')[:max_evts]
-            gen_parts_eta_phi = gen_parts[:,:,1:3]
+            n_evts = gen_parts.shape[0]
+            gen_parts_eta_phi_raw = gen_parts[:,:,1:3]
+            gen_pdg_id = np.abs(gen_parts[:,:,3])
+            #neutrino pdg ids are 12,14,16
+            is_lep = gen_pdg_id > 10
+            not_neutrinos = ((~np.isclose(gen_pdg_id, 12)) & (~np.isclose(gen_pdg_id, 14)) & (~np.isclose(gen_pdg_id, 16)))
+            
+            gen_parts_eta_phi = [gen_parts_eta_phi_raw[i][not_neutrinos[i]] for i in range(n_evts)]
+            #gen_parts_eta_phi = gen_parts_eta_phi[not_neutrinos].reshape(n_evts, -1, 2)
+            is_lep = is_lep[not_neutrinos]
 
 
         elif(self.dtype == 2 or self.dtype == 3):#W or t matched MC
@@ -423,33 +433,37 @@ class Dataset():
                 rw, unc, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, subjets = subjet, splittings = split,                                        
                         uncs = uncs, rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
 
-            rw = max(rw, 1e-8)
+            eps = 1e-6
+            rw = max(rw, eps)
             LP_weights.append(rw)
             if(rand_noise is not None):
                 LP_smeared_weights.append(smeared_rw)
             if(pt_rand_noise is not None):
                 pt_smeared_weights.append(pt_smeared_rw)
-            if(rw >= 1e-6 and uncs):
+            if(rw >= eps and uncs):
                 LP_uncs.append(unc)
             else:
                 LP_uncs.append(0.)
 
 
-        LP_weights = np.clip(np.array(LP_weights), 0., 10.)
         mean = np.mean(LP_weights)
         LP_weights /= mean
-
         LP_uncs /= mean
+
+        min_weight = 0.1
+        max_weight = 10.
+        LP_weights = np.clip(np.array(LP_weights), min_weight, max_weight)
+
         if(rand_noise is None):
             return LP_weights, LP_uncs
         else:
-            LP_smeared_weights = np.clip(np.array(LP_smeared_weights), 0., 10.)
             smear_means = np.mean(LP_smeared_weights, axis = 0)
             LP_smeared_weights /= smear_means
+            LP_smeared_weights = np.clip(np.array(LP_smeared_weights), min_weight, max_weight)
 
-            pt_smeared_weights = np.clip(np.array(pt_smeared_weights), 0., 10.)
             pt_smear_means = np.mean(pt_smeared_weights, axis = 0)
             pt_smeared_weights /= pt_smear_means
+            pt_smeared_weights = np.clip(np.array(pt_smeared_weights), min_weight, max_weight)
 
             return LP_weights, LP_uncs, LP_smeared_weights, pt_smeared_weights
         
@@ -581,14 +595,33 @@ class LundReweighter():
                     if(type(h) == ROOT.TH3F): h.Fill(jet_pt, np.log(self.dR/delta), np.log(kt), weights[h_idx])
                     else: h.Fill(np.log(self.dR/delta), np.log(kt), weights[h_idx])
         return subjets, splittings
+    
+    def lund_lane_idxs(self, h,  subjets = None,  splittings = None, subjet_idx = -1):
+        no_idx = (len(subjets) == 1)
+        subjets_reshape = np.array(subjets).reshape(-1)
+
+        idxs = []
+
+        for jet_i, delta, kt in splittings:
+            if(subjet_idx >= 0 and jet_i != subjet_idx): continue
+            jet_int = int(np.round(jet_i))
+            jet_pt = subjets_reshape[0] if no_idx else subjets_reshape[jet_int*4]
+            if(delta > 0. and kt > 0.):
+                if(type(h) == ROOT.TH3F): bin_idx = h.FindBin(jet_pt, np.log(self.dR/delta), np.log(kt))
+                else: bin_idx = h.FindBin(np.log(self.dR/delta), np.log(kt), weights[h_idx])
+
+                idxs.append(bin_idx)
+        return idxs
 
 
 
-    def reweight_pt_extrap(self, subjet_pt, h_jet, rw, unc, smeared_rw, pt_smeared_rw, pt_rand_noise = None, sys_str = ""):
+    def reweight_pt_extrap(self,  subjet_pt, h_jet, rw, unc, smeared_rw, pt_smeared_rw, pt_rand_noise = None, sys_str = ""):
         max_rw = 10.
-        eps = 1e-4
+        min_rw = 0.1
         #should only be in last pt bin ? 
         i = h_jet.GetNbinsX()
+
+        binx,biny,binz = array('i', [0]), array('i', [0]), array('i', [0])
 
         for j in range(1, h_jet.GetNbinsY() + 1):
             for k in range(1, h_jet.GetNbinsZ() + 1):
@@ -596,7 +629,7 @@ class LundReweighter():
                 if(n_cands > 0): 
                     f = self.pt_extrap_dir.Get("func_%s%i_%i" % (sys_str, j,k))
                     val = f.Eval(subjet_pt)
-                    val = np.clip(val, eps, max_rw)
+                    val = np.clip(val, min_rw, max_rw)
 
                     rw *= val ** n_cands
                     #keep noise smeared vals consistent
@@ -615,7 +648,7 @@ class LundReweighter():
                                 pars.append(pnew)
 
                             smeared_val = f.EvalPar(array('d', [subjet_pt]), pars)
-                            smeared_val = np.clip(smeared_val, eps, max_rw)
+                            smeared_val = np.clip(smeared_val, min_rw, max_rw)
                             pt_smeared_rw[n] *= smeared_val ** n_cands
 
 
@@ -624,7 +657,7 @@ class LundReweighter():
 
     def reweight(self, h_rw, h_jet, rw, unc, smeared_rw, pt_smeared_rw, rand_noise = None):
         max_rw = 10.
-        eps = 1e-4
+        min_rw = 0.1
         if(type(h_rw) == ROOT.TH3F):
             for i in range(1, h_jet.GetNbinsX() + 1):
                 for j in range(1, h_jet.GetNbinsY() + 1):
@@ -637,13 +670,13 @@ class LundReweighter():
                             if(val <= 1e-4 and err <= 1e-4):
                                 val = 1.0
                                 err = 1.0
-                            val = np.clip(val, eps, max_rw)
+                            val = np.clip(val, min_rw, max_rw)
                             if(unc is not None): 
                                 #uncertainty propagation
                                 unc = ( (n_cands * rw * val**(n_cands -1) * err)**2 + (val**n_cands * unc)**2) ** (0.5)
                             if(rand_noise is not None):
                                 smeared_vals = val + rand_noise[:,i-1,j-1,k-1] * err
-                                smeared_vals = np.clip(smeared_vals, eps, max_rw)
+                                smeared_vals = np.clip(smeared_vals, min_rw, max_rw)
                                 smeared_rw *= smeared_vals ** n_cands
 
                             rw *= val ** n_cands

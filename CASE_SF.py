@@ -23,7 +23,6 @@ label = "YtoHH"
 #label = "XtoYY"
 #label = "ZpToTpTp"
 
-#f_sig = h5py.File(, "r")
 tag_obs = 'tau43'
 score_thresh = 0.65
 #tag_obs = 'tau21'
@@ -37,11 +36,11 @@ j_idx = 0
 jetR = 1.0
 num_excjets = -1
 
-max_evts = 10000
-#max_evts = 50
+#max_evts = 5000
+max_evts = 500
 #max_evts = None
 
-d = Dataset(f_sig, label = label, color = ROOT.kRed)
+d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 0)
 is_lep = f_sig['event_info'][:,4]
 mjj = f_sig['jet_kinematics'][:,0]
 
@@ -66,19 +65,19 @@ d.compute_obs()
 obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt"]
 n_bins = 20
 
-for l in obs:
-
-    if(l == 'nPF'): 
-        h_range = (0.5,120.5)
-        n_bins_ = 40
-    else: 
-        n_bins_ = n_bins
-        h_range = None
-
-    make_histogram(getattr(d,l), l, 'b', l, l, n_bins_, h_range = h_range, normalize=True, fname=outdir + l + "_before.png")
-
-    #make_histogram(data = getattr(d, l), labels = labels, h_range = h_range, drawSys = False, stack = False,
-            #colors = colors, axis_label = l,  title = l + " : No Reweighting", num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_before.png' )
+#for l in obs:
+#
+#    if(l == 'nPF'): 
+#        h_range = (0.5,120.5)
+#        n_bins_ = 40
+#    else: 
+#        n_bins_ = n_bins
+#        h_range = None
+#
+#    make_histogram(getattr(d,l), l, 'b', l, l, n_bins_, h_range = h_range, normalize=True, fname=outdir + l + "_before.png")
+#
+#    #make_histogram(data = getattr(d, l), labels = labels, h_range = h_range, drawSys = False, stack = False,
+#            #colors = colors, axis_label = l,  title = l + " : No Reweighting", num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_before.png' )
 
 score = getattr(d, tag_obs)[:max_evts]
 
@@ -90,6 +89,7 @@ print("%i events" % score.shape[0])
 score_cut = score < score_thresh
 
 weights_nom = np.ones_like(score)
+
 
 weights_rw = copy.deepcopy(weights_nom)
 
@@ -131,6 +131,7 @@ d_LP_weights, d_LP_uncs, d_LP_smeared_weights, d_pt_smeared_weights = d.reweight
 
 
 LP_weights = d_LP_weights
+print(LP_weights[:10])
 
 
 #apply weights, keep normalization fixed
@@ -142,6 +143,10 @@ new_norm = np.sum(weights_rw)
 weights_rw *= old_norm / new_norm
 LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom, -1) * (old_norm / new_norm))
 pt_smeared_weights = np.array(d_pt_smeared_weights * np.expand_dims(weights_nom, -1) * (old_norm / new_norm))
+
+
+make_histogram(weights_rw, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
+     normalize=False, fname=outdir + "lundPlane_weights.png")
 
 
 sys_variations = dict()
@@ -165,7 +170,6 @@ if(not options.no_sys):
     b_light_ratio = f_ratio.Get("h_bl_ratio")
     bquark_rw, _ = d.reweight_LP(LP_rw, b_light_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
             max_evts = max_evts, sys_str = 'bquark', subjets = subjets, splittings = splittings)
-    print(bquark_rw[:10])
 
     up_bquark_weights = bquark_rw * weights_rw
     down_bquark_weights = (1./ bquark_rw) * weights_rw
@@ -179,8 +183,6 @@ if(not options.no_sys):
 
 
 
-#make_histogram(LP_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
-     #normalize=False, fname=outdir + "lundPlane_weights.png")
 
 #compute 'Scalefactor'
 
@@ -246,6 +248,7 @@ SF = eff_rw / eff_nom
 SF_stat_unc = abs(toys_mean - eff_rw)/eff_nom + toys_std /eff_nom
 SF_pt_unc = abs(pt_toys_mean - eff_rw)/eff_nom + pt_toys_std /eff_nom
 
+print(bad_match[:10])
 #fraction of evts with bad match, take as fractional unc on SF
 bad_matching_unc = np.mean(bad_match) * SF
 
@@ -258,16 +261,26 @@ overall_unc = (SF_stat_unc **2 + SF_sys_unc**2 + SF_pt_unc**2 + SF_bquark_unc**2
 print("overall unc %.3f" % overall_unc)
 
 
-#for l in obs:
-#
-#    if(l == 'nPF'): 
-#        h_range = (0.5,120.5)
-#        n_bins_ = 40
-#    else: 
-#        n_bins_ = n_bins
-#        h_range = None
-#
-#    make_multi_ratio_histogram([msd_sig ]*4, labels, colors, 'mSoftDrop', "mSoftDrop : Before vs. After Lund Plane Reweighting", n_bins,
-#         ratio_range = ratio_range, normalize=True, weights = weights, fname=outdir + "msd_before_vs_after.png")
-#
+
+weights = [  weights_nom, weights_rw, sys_variations['sys_tot_up'], sys_variations['sys_tot_down']]
+labels = ["Nom", "RW", "RW Sys. Up", "RW Sys. Down"]
+colors = ['gray','black', 'blue', 'red']
+ratio_range = [0.5, 1.5]
+
+
+for l in obs:
+
+    if(l == 'nPF'): 
+        h_range = (0.5,120.5)
+        n_bins_ = 40
+    else: 
+        n_bins_ = n_bins
+        h_range = None
+
+    x = getattr(d,l)[:max_evts]
+
+    print(x.shape, weights[0].shape)
+
+    make_multi_ratio_histogram([x]*4, labels, colors, l, "%s : Before vs. After Lund Plane Reweighting" % l, n_bins,
+         ratio_range = ratio_range, normalize=True, weights = weights, fname=outdir + "%s_before_vs_after.png" %l )
 
