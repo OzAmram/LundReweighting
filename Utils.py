@@ -215,8 +215,8 @@ class Dataset():
         self.tau43 = (feats[:,3] / (feats[:,2] + eps))
         if(feats.shape[1] > 7): self.DeepAK8_W_MD = feats[:,8]
         if(feats.shape[1] > 8): self.DeepAK8_W = feats[:,9]
-        if(self.dtype > 1): self.mSoftDrop = kins[:,3] * self.jms_corr
-        else: self.mSoftDrop = kins[:,5] * self.jms_corr
+        if(self.dtype == 1): self.mSoftDrop = kins[:,5] * self.jms_corr
+        else: self.mSoftDrop = kins[:,3] * self.jms_corr
         self.pt = kins[:,0]
         self.nPF= feats[:,6]
 
@@ -293,16 +293,16 @@ class Dataset():
 
 
 
-    def get_matched_splittings(self, LP_rw, num_excjets = 2, max_evts = None, which_j =1):
+    def get_matched_splittings(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1):
 
 
-        pf_cands = self.get_masked("jet%i_PFCands" % which_j).astype(np.float64)[:max_evts]
-        if(self.dtype == 0 or self.dtype ==1): 
-            if(which_j == 1): j_4vec = self.get_masked('jet_kinematics')[:max_evts][:,2:6].astype(np.float64)
-            else: j_4vec = self.get_masked('jet_kinematics')[:max_evts][:,6:10].astype(np.float64)
+        pf_cands = self.get_masked("jet%i_PFCands" % which_j).astype(np.float64)[min_evts:max_evts]
+        if(self.dtype ==1): 
+            if(which_j == 1): j_4vec = self.get_masked('jet_kinematics')[min_evts:max_evts][:,2:6].astype(np.float64)
+            else: j_4vec = self.get_masked('jet_kinematics')[min_evts:max_evts][:,6:10].astype(np.float64)
 
         else:
-            j_4vec = self.get_masked('jet_kinematics')[:max_evts][:,:4].astype(np.float64)
+            j_4vec = self.get_masked('jet_kinematics')[min_evts:max_evts][:,:4].astype(np.float64)
 
         num_excjets_l = [num_excjets]*len(pf_cands)
         bad_match = [False] * len(pf_cands)
@@ -317,8 +317,8 @@ class Dataset():
                 splittings.append(split)
             return subjets, splittings, bad_match
 
-        if(self.dtype == 0 or self.dtype == 1): #CASE h5
-            gen_parts = self.get_masked('gen_info')[:max_evts]
+        if(self.dtype == 1): #CASE h5
+            gen_parts = self.get_masked('gen_info')[min_evts:max_evts]
             n_evts = gen_parts.shape[0]
             gen_parts_eta_phi_raw = gen_parts[:,:,1:3]
             gen_pdg_id = np.abs(gen_parts[:,:,3])
@@ -331,8 +331,8 @@ class Dataset():
             is_lep = is_lep[not_neutrinos]
 
 
-        elif(self.dtype == 2 or self.dtype == 3):#W or t matched MC
-            gen_parts = self.get_masked('gen_parts')[:max_evts]
+        else:#W or t matched MC
+            gen_parts = self.get_masked('gen_parts')[min_evts:max_evts]
             q1_eta_phi = gen_parts[:,18:20]
             q2_eta_phi = gen_parts[:,22:24]
             b_eta_phi = gen_parts[:,26:28]
@@ -362,20 +362,18 @@ class Dataset():
         return subjets, splittings, bad_match
 
 
-    def reweight_LP(self, LP_rw, h_ratio, num_excjets = 2, uncs = False, max_evts =None, prefix = "", 
+    def reweight_LP(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None, prefix = "", 
             rand_noise = None,  pt_rand_noise = None, sys_str = "", subjets = None, splittings = None):
-    #always uncs for now
 
         LP_weights = []
-        LP_uncs = []
         LP_smeared_weights = []
         pt_smeared_weights = []
-        pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)[:max_evts]
+        pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)[min_evts:max_evts]
         if('bquark' in sys_str): 
-            if(self.dtype == 0):
-                gen_parts = self.get_masked('gen_info')[:max_evts]
+            if(self.dtype == 1):
+                gen_parts = self.get_masked('gen_info')[min_evts:max_evts]
             else: 
-                gen_parts = self.get_masked('gen_parts')[:max_evts]
+                gen_parts = self.get_masked('gen_parts')[min_evts:max_evts]
 
 
 
@@ -387,7 +385,7 @@ class Dataset():
                 subjets = self.get_masked(prefix + "_subjets")
 
             else:
-                subjets, splittings, matching = self.get_matched_splittings(LP_rw, num_excjets, max_evts)
+                subjets, splittings, matching = self.get_matched_splittings(LP_rw, num_excjets, min_evts = min_evts, max_evts =max_evts)
 
 
 
@@ -400,7 +398,7 @@ class Dataset():
 
             if(sys_str == 'bquark'):
                 deltaR_cut = 0.2
-                if(self.dtype == 0): #CASE h5 saves all gen decays with pdg ID
+                if(self.dtype == 1): #CASE h5 saves all gen decays with pdg ID
                     B_ID = 5 
                     #pick out subjets matched to a b quark
                     gen_bs = [j for j in range(len(gen_parts[i])) if abs(gen_parts[i,j,3]) == B_ID]
@@ -423,15 +421,15 @@ class Dataset():
                     #splittings save idx of associated subjet
                     b_split  = [split[j]  for j in range(len(split)) if split[j][0] in b_matches]
 
-                    rw, unc, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, 
+                    rw, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, 
                             subjets = b_subjet, splittings = b_split, sys_str = sys_str)
                 else: 
-                    rw = unc = 1.0
+                    rw = 1.0
 
 
             else:
-                rw, unc, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, subjets = subjet, splittings = split,                                        
-                        uncs = uncs, rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
+                rw, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, subjets = subjet, splittings = split,                                        
+                        rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
 
             eps = 1e-6
             rw = max(rw, eps)
@@ -440,22 +438,17 @@ class Dataset():
                 LP_smeared_weights.append(smeared_rw)
             if(pt_rand_noise is not None):
                 pt_smeared_weights.append(pt_smeared_rw)
-            if(rw >= eps and uncs):
-                LP_uncs.append(unc)
-            else:
-                LP_uncs.append(0.)
 
 
         mean = np.mean(LP_weights)
         LP_weights /= mean
-        LP_uncs /= mean
 
         min_weight = 0.1
         max_weight = 10.
         LP_weights = np.clip(np.array(LP_weights), min_weight, max_weight)
 
         if(rand_noise is None):
-            return LP_weights, LP_uncs
+            return LP_weights
         else:
             smear_means = np.mean(LP_smeared_weights, axis = 0)
             LP_smeared_weights /= smear_means
@@ -465,7 +458,7 @@ class Dataset():
             pt_smeared_weights /= pt_smear_means
             pt_smeared_weights = np.clip(np.array(pt_smeared_weights), min_weight, max_weight)
 
-            return LP_weights, LP_uncs, LP_smeared_weights, pt_smeared_weights
+            return LP_weights, LP_smeared_weights, pt_smeared_weights
         
 class LundReweighter():
 
@@ -596,122 +589,96 @@ class LundReweighter():
                     else: h.Fill(np.log(self.dR/delta), np.log(kt), weights[h_idx])
         return subjets, splittings
     
-    def lund_lane_idxs(self, h,  subjets = None,  splittings = None, subjet_idx = -1):
+    def get_lund_plane_idxs(self, h,  subjets = None,  splittings = None, subjet_idx = -1):
         no_idx = (len(subjets) == 1)
         subjets_reshape = np.array(subjets).reshape(-1)
 
         idxs = []
 
+        binx,biny,binz = array('i', [0]), array('i', [0]), array('i', [0])
+        xmax, ymax, zmax = h.GetNbinsX(), h.GetNbinsY(),h.GetNbinsZ()
         for jet_i, delta, kt in splittings:
             if(subjet_idx >= 0 and jet_i != subjet_idx): continue
             jet_int = int(np.round(jet_i))
             jet_pt = subjets_reshape[0] if no_idx else subjets_reshape[jet_int*4]
             if(delta > 0. and kt > 0.):
-                if(type(h) == ROOT.TH3F): bin_idx = h.FindBin(jet_pt, np.log(self.dR/delta), np.log(kt))
-                else: bin_idx = h.FindBin(np.log(self.dR/delta), np.log(kt), weights[h_idx])
+                bin_idx = h.FindBin(jet_pt, np.log(self.dR/delta), np.log(kt))
 
-                idxs.append(bin_idx)
+                h.GetBinXYZ(bin_idx, binx, biny, binz)
+                idxs.append((np.clip(binx[0], 1, xmax), np.clip(biny[0], 1, ymax), np.clip(binz[0], 1, zmax)))
         return idxs
 
 
 
-    def reweight_pt_extrap(self,  subjet_pt, h_jet, rw, unc, smeared_rw, pt_smeared_rw, pt_rand_noise = None, sys_str = ""):
+    def reweight_pt_extrap(self,  subjet_pt, lp_idxs, rw, smeared_rw, pt_smeared_rw, pt_rand_noise = None, sys_str = ""):
         max_rw = 10.
         min_rw = 0.1
         #should only be in last pt bin ? 
-        i = h_jet.GetNbinsX()
-
-        binx,biny,binz = array('i', [0]), array('i', [0]), array('i', [0])
-
-        for j in range(1, h_jet.GetNbinsY() + 1):
-            for k in range(1, h_jet.GetNbinsZ() + 1):
-                n_cands = h_jet.GetBinContent(i,j,k)
-                if(n_cands > 0): 
-                    f = self.pt_extrap_dir.Get("func_%s%i_%i" % (sys_str, j,k))
-                    val = f.Eval(subjet_pt)
-                    val = np.clip(val, min_rw, max_rw)
-
-                    rw *= val ** n_cands
-                    #keep noise smeared vals consistent
-                    if(smeared_rw is not None): smeared_rw *= val ** n_cands
-
-                    if(pt_rand_noise is not None):
-                        for n in range(pt_rand_noise.shape[0]):
-                        #up_down = [-1., 1.]
-                        #for n in range(2):
-                            pars = array('d')
-                            for p in range(f.GetNpar()):
-                                pnom = f.GetParameter(p)
-                                perr = f.GetParError(p)
-                                #pnew = pnom + perr * up_down[n]
-                                pnew = pnom + perr * pt_rand_noise[n, j-1, k-1, p]
-                                pars.append(pnew)
-
-                            smeared_val = f.EvalPar(array('d', [subjet_pt]), pars)
-                            smeared_val = np.clip(smeared_val, min_rw, max_rw)
-                            pt_smeared_rw[n] *= smeared_val ** n_cands
 
 
-        return rw, unc, smeared_rw, pt_smeared_rw
+        for (i,j,k) in lp_idxs:
+
+            f = self.pt_extrap_dir.Get("func_%s%i_%i" % (sys_str, j,k))
+            val = f.Eval(subjet_pt)
+            val = np.clip(val, min_rw, max_rw)
+
+            rw *= val 
+            #keep noise smeared vals consistent
+            if(smeared_rw is not None): smeared_rw *= val
+
+            if(pt_rand_noise is not None):
+                for n in range(pt_rand_noise.shape[0]):
+                #up_down = [-1., 1.]
+                #for n in range(2):
+                    pars = array('d')
+                    for p in range(f.GetNpar()):
+                        pnom = f.GetParameter(p)
+                        perr = f.GetParError(p)
+                        #pnew = pnom + perr * up_down[n]
+                        pnew = pnom + perr * pt_rand_noise[n, j-1, k-1, p]
+                        pars.append(pnew)
+
+                    smeared_val = f.EvalPar(array('d', [subjet_pt]), pars)
+                    smeared_val = np.clip(smeared_val, min_rw, max_rw)
+                    pt_smeared_rw[n] *= smeared_val
 
 
-    def reweight(self, h_rw, h_jet, rw, unc, smeared_rw, pt_smeared_rw, rand_noise = None):
+        return rw, smeared_rw, pt_smeared_rw
+
+
+    def reweight(self, h_rw, lp_idxs, rw, smeared_rw, pt_smeared_rw, rand_noise = None):
         max_rw = 10.
         min_rw = 0.1
-        if(type(h_rw) == ROOT.TH3F):
-            for i in range(1, h_jet.GetNbinsX() + 1):
-                for j in range(1, h_jet.GetNbinsY() + 1):
-                    for k in range(1, h_jet.GetNbinsZ() + 1):
-                        n_cands = h_jet.GetBinContent(i,j,k)
-                        if(n_cands > 0): 
-                            #print("Rw %.3f, cont %.3f, i %i j %i k %i n %i" % (rw, h_rw.GetBinContent(i,j,k), i,j,k, n_cands))
-                            val = h_rw.GetBinContent(i,j,k)
-                            err = h_rw.GetBinError(i,j,k)
-                            if(val <= 1e-4 and err <= 1e-4):
-                                val = 1.0
-                                err = 1.0
-                            val = np.clip(val, min_rw, max_rw)
-                            if(unc is not None): 
-                                #uncertainty propagation
-                                unc = ( (n_cands * rw * val**(n_cands -1) * err)**2 + (val**n_cands * unc)**2) ** (0.5)
-                            if(rand_noise is not None):
-                                smeared_vals = val + rand_noise[:,i-1,j-1,k-1] * err
-                                smeared_vals = np.clip(smeared_vals, min_rw, max_rw)
-                                smeared_rw *= smeared_vals ** n_cands
 
-                            rw *= val ** n_cands
-                            #keep pt smearing vals consistent
-                            if(pt_smeared_rw is not None): pt_smeared_rw *= val ** n_cands
+        for (i,j,k) in lp_idxs:
+            #print("Rw %.3f, cont %.3f, i %i j %i k %i n %i" % (rw, h_rw.GetBinContent(i,j,k), i,j,k, n_cands))
+            val = h_rw.GetBinContent(i,j,k)
+            err = h_rw.GetBinError(i,j,k)
+            if(val <= 1e-4 and err <= 1e-4):
+                val = 1.0
+                err = 1.0
+            val = np.clip(val, min_rw, max_rw)
+            if(rand_noise is not None):
+                smeared_vals = val + rand_noise[:,i-1,j-1,k-1] * err
+                smeared_vals = np.clip(smeared_vals, min_rw, max_rw)
+                smeared_rw *= smeared_vals
 
-        else:
-            for i in range(1, h_jet.GetNbinsX() + 1):
-                for j in range(1, h_jet.GetNbinsY() + 1):
-                    n_cands = h_jet.GetBinContent(i,j)
-                    if(n_cands > 0): 
-                        val = h_rw.GetBinContent(i,j)
-                        if(unc is not None): 
-                            err = h_rw.GetBinError(i,j)
-                            #uncertainty propagation
-                            unc = ( (n_cands * rw * val**(n_cands -1) * err)**2 + (val**n_cands * unc)**2) ** (0.5)
-                        rw *= val ** n_cands
-        return rw, unc, smeared_rw, pt_smeared_rw
+            rw *= val
+            #keep pt smearing vals consistent
+            if(pt_smeared_rw is not None): pt_smeared_rw *= val
+
+        return rw, smeared_rw, pt_smeared_rw
 
 
 
-    def reweight_lund_plane(self, h_rw, pf_cands = None, splittings = None, subjets = None, num_excjets = -1, weight = 1., 
-                            uncs = False, rand_noise = None, pt_rand_noise = None,  sys_str = ""):
-
-        global h_dummy
-        if(h_dummy is None): h_dummy = h_rw.Clone("dummy")
-        h_dummy.Reset()
+    def reweight_lund_plane(self, h_rw, pf_cands = None, splittings = None, subjets = None, num_excjets = -1, 
+                            rand_noise = None, pt_rand_noise = None,  sys_str = ""):
 
         if(subjets is None or splittings is None):
             subjets, splittings = self.get_splittings(pf_cands, num_excjets = num_excjets )
 
 
         rw = 1.0
-        if(uncs): unc = 0.0
-        else: unc = None
 
         pt_smeared_rw = smeared_rw = None
 
@@ -723,14 +690,13 @@ class LundReweighter():
         for i in range(len(subjets)):
 
             if(len(splittings) > 0):
-                self.fill_lund_plane(h_dummy, pf_cands = pf_cands, subjet_idx = i, splittings = splittings, subjets = [subjets[i]], num_excjets = num_excjets, weight = weight)
+                lp_idxs = self.get_lund_plane_idxs(h_rw, subjet_idx = i, splittings = splittings, subjets = [subjets[i]])
 
                 if(self.pt_extrap_dir is None or subjets[i][0] < self.pt_extrap_val or 'bquark' in sys_str):
-                    rw, unc, smeared_rw, pt_smeared_rw = self.reweight(h_rw, h_dummy, rw, unc, smeared_rw, pt_smeared_rw, rand_noise = rand_noise)
+                    rw, smeared_rw, pt_smeared_rw = self.reweight(h_rw, lp_idxs, rw, smeared_rw, pt_smeared_rw, rand_noise = rand_noise)
                 else:
-                    rw, unc, smeared_rw, pt_smeared_rw = self.reweight_pt_extrap(subjets[i][0], h_dummy, rw, unc, smeared_rw, pt_smeared_rw, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
+                    rw, smeared_rw, pt_smeared_rw = self.reweight_pt_extrap(subjets[i][0], lp_idxs, rw, smeared_rw, pt_smeared_rw, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
 
-            h_dummy.Reset()
 
         #h_jet.Scale(1./h_jet.Integral())
         #h_jet.Multiply(h_rw)
@@ -741,7 +707,7 @@ class LundReweighter():
 
         #h_jet.Print("range")
         
-        return rw, unc, smeared_rw, pt_smeared_rw
+        return rw, smeared_rw, pt_smeared_rw
 
 
     def make_LP_ratio(self, h_data, h_bkg, h_mc, pt_bins, outdir = "", save_plots = False):

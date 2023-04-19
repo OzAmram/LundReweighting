@@ -154,12 +154,10 @@ obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt"]
 
 colors = []
 weights_nom = []
-uncs_nom = []
 labels = []
 for d in (bkgs + sigs):
     colors.append(d.color)
     weights_nom.append(d.get_weights())
-    uncs_nom.append(np.zeros_like(weights_nom[-1]))
     labels.append(d.label)
 
 for l in obs:
@@ -185,7 +183,6 @@ for l in obs:
 
 
 weights_rw = copy.deepcopy(weights_nom)
-uncs_rw = copy.deepcopy(uncs_nom)
 
 h_ratio = f_ratio.Get("ratio_nom")
 f_ratio.cd('pt_extrap')
@@ -205,7 +202,7 @@ d_sig = sigs[0]
 sig_idx = len(bkgs)
 print("Reweighting ", d.f )
 subjets, splittings, bad_match = d_sig.get_matched_splittings(LP_rw, num_excjets = num_excjets)
-d_LP_weights, _, d_LP_smeared_weights, d_pt_smeared_weights = d_sig.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+d_LP_weights, d_LP_smeared_weights, d_pt_smeared_weights = d_sig.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets,  prefix = "", 
         rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
 
 LP_weights = d_LP_weights
@@ -232,7 +229,7 @@ if(do_sys_variations):
         sys_ratio.Print()
         sys_str = sys + "_"
 
-        sys_LP_weights, _ = d_sig.reweight_LP(LP_rw, sys_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+        sys_LP_weights = d_sig.reweight_LP(LP_rw, sys_ratio, num_excjets = num_excjets, prefix = "", 
                 sys_str = sys_str, subjets = subjets, splittings = splittings)
 
         sys_weights = weights_nom[sig_idx] * sys_LP_weights
@@ -241,7 +238,7 @@ if(do_sys_variations):
         sys_variations[sys] = sys_weights
 
     b_light_ratio = f_ratio.Get("h_bl_ratio")
-    bquark_rw, _ = d.reweight_LP(LP_rw, b_light_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+    bquark_rw = d.reweight_LP(LP_rw, b_light_ratio, num_excjets = num_excjets, prefix = "", 
             max_evts = max_evts, sys_str = 'bquark', subjets = subjets, splittings = splittings)
 
     up_bquark_weights = bquark_rw * weights_rw[sig_idx]
@@ -321,6 +318,7 @@ f_ratio.Close()
 overall_unc = (SF_stat_unc **2 + SF_sys_unc**2 + SF_pt_unc**2 + SF_bquark_unc**2 + bad_matching_unc**2) **0.5 / SF
 print("overall unc %.3f" % overall_unc)
 
+uncs_rw = [np.zeros_like(rw) for rw in weights_rw]
 uncs_rw[len(bkgs)] = overall_unc * weights_rw[len(bkgs)]
 
 

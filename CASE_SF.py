@@ -40,7 +40,7 @@ num_excjets = -1
 max_evts = 500
 #max_evts = None
 
-d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 0)
+d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 1)
 is_lep = f_sig['event_info'][:,4]
 mjj = f_sig['jet_kinematics'][:,0]
 
@@ -122,8 +122,8 @@ print("Fraction of subjets with pt > 350 : %.3f" % (np.mean(j_subjet_pts > 350.)
 
 
 
-d_LP_weights, d_LP_uncs, d_LP_smeared_weights, d_pt_smeared_weights = d.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, 
-        max_evts = max_evts, uncs = False, prefix = "", rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
+d_LP_weights, d_LP_smeared_weights, d_pt_smeared_weights = d.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, 
+        max_evts = max_evts, prefix = "", rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
 
 
 
@@ -159,7 +159,7 @@ if(not options.no_sys):
         sys_str = sys + "_"
 
 
-        sys_LP_weights, _ = d.reweight_LP(LP_rw, sys_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+        sys_LP_weights = d.reweight_LP(LP_rw, sys_ratio, num_excjets = num_excjets, prefix = "", 
                 max_evts = max_evts, sys_str = sys_str, subjets = subjets, splittings = splittings)
         sys_weights = weights_nom * sys_LP_weights
         rw = np.sum(weights_nom) / np.sum(sys_weights)
@@ -168,7 +168,7 @@ if(not options.no_sys):
 
     #vary weights up/down for b-quark subjets by ratio of b-quark to light quark LP
     b_light_ratio = f_ratio.Get("h_bl_ratio")
-    bquark_rw, _ = d.reweight_LP(LP_rw, b_light_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+    bquark_rw = d.reweight_LP(LP_rw, b_light_ratio, num_excjets = num_excjets, prefix = "", 
             max_evts = max_evts, sys_str = 'bquark', subjets = subjets, splittings = splittings)
 
     up_bquark_weights = bquark_rw * weights_rw

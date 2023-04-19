@@ -49,6 +49,7 @@ jms_corr = 0.95
 
 m_cut_min = 60.
 m_cut_max = 110.
+#m_cut_max = 65.
 pt_cut = 225.
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
@@ -206,14 +207,14 @@ h_ratio = f_ratio.Get("ratio_nom")
 
 LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only)
 
-d_tw_LP_weights, _ = d_tw.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, uncs = False, prefix = "",)
+d_tw_LP_weights = d_tw.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets,  prefix = "",)
 
 d_sig = sigs[0]
 print("Reweighting ", d.f)
 sig_idx = len(bkgs)
 
 subjets, splittings, bad_match = d_sig.get_matched_splittings(LP_rw, num_excjets = num_excjets)
-d_LP_weights, _, d_LP_smeared_weights, d_pt_smeared_weights = d_sig.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+d_LP_weights, d_LP_smeared_weights, d_pt_smeared_weights = d_sig.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, prefix = "", 
         rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
 
 
@@ -249,7 +250,7 @@ if(do_sys_variations):
         sys_ratio.Print()
         sys_str = sys + "_"
 
-        sys_LP_weights, _ = d_sig.reweight_LP(LP_rw, sys_ratio, num_excjets = num_excjets, uncs = False, prefix = "", 
+        sys_LP_weights = d_sig.reweight_LP(LP_rw, sys_ratio, num_excjets = num_excjets, prefix = "", 
                 sys_str = sys_str, subjets = subjets, splittings = splittings)
         sys_weights = weights_nom[sig_idx] * sys_LP_weights
         rw = np.sum(weights_nom[sig_idx]) / np.sum(sys_weights)
@@ -325,7 +326,6 @@ for idx,cut in enumerate(cuts):
 
     bad_matching_unc = np.mean(bad_match) * SF
 
-    print(i, len(cut_names), len(cut_vals))
     print("\n\nSF %s (cut val %.3f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) +/- %.2f (matching) \n\n"  
             % (cut_names[idx], cut_vals[idx], SF, SF_stat_unc, SF_sys_unc, SF_pt_unc, bad_matching_unc))
 
