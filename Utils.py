@@ -73,6 +73,7 @@ def input_options():
     parser.add_argument("-o", "--outdir", default='test/', help="Output directory")
     parser.add_argument("--charge_only", default=False, action='store_true', help="Only charged particles in Lund Plane")
     parser.add_argument("--no_sys", default=False, action='store_true', help="No systematics")
+    parser.add_argument("--max_evts", default=-1, type = int, help="Max number of evts to reweight")
     return parser
 
 
@@ -363,7 +364,7 @@ class Dataset():
 
 
     def reweight_LP(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None, prefix = "", 
-            rand_noise = None,  pt_rand_noise = None, sys_str = "", subjets = None, splittings = None):
+            rand_noise = None,  pt_rand_noise = None, sys_str = "", subjets = None, splittings = None, norm = True):
 
         LP_weights = []
         LP_smeared_weights = []
@@ -439,24 +440,29 @@ class Dataset():
             if(pt_rand_noise is not None):
                 pt_smeared_weights.append(pt_smeared_rw)
 
-
-        mean = np.mean(LP_weights)
-        LP_weights /= mean
-
         min_weight = 0.1
         max_weight = 10.
-        LP_weights = np.clip(np.array(LP_weights), min_weight, max_weight)
+
+        if(norm):
+            LP_weights = np.clip(np.array(LP_weights), 0., max_weight)
+            mean = np.mean(LP_weights)
+            LP_weights /= mean
+
+            LP_weights = np.clip(np.array(LP_weights), min_weight, max_weight)
 
         if(rand_noise is None):
             return LP_weights
         else:
-            smear_means = np.mean(LP_smeared_weights, axis = 0)
-            LP_smeared_weights /= smear_means
-            LP_smeared_weights = np.clip(np.array(LP_smeared_weights), min_weight, max_weight)
+            if(norm):
+                LP_smeared_weights = np.clip(np.array(LP_smeared_weights), 0., max_weight)
+                smear_means = np.mean(LP_smeared_weights, axis = 0)
+                LP_smeared_weights /= smear_means
+                LP_smeared_weights = np.clip(np.array(LP_smeared_weights), min_weight, max_weight)
 
-            pt_smear_means = np.mean(pt_smeared_weights, axis = 0)
-            pt_smeared_weights /= pt_smear_means
-            pt_smeared_weights = np.clip(np.array(pt_smeared_weights), min_weight, max_weight)
+                pt_smeared_weights = np.clip(np.array(pt_smeared_weights), 0., max_weight)
+                pt_smear_means = np.mean(pt_smeared_weights, axis = 0)
+                pt_smeared_weights /= pt_smear_means
+                pt_smeared_weights = np.clip(np.array(pt_smeared_weights), min_weight, max_weight)
 
             return LP_weights, LP_smeared_weights, pt_smeared_weights
         

@@ -13,20 +13,21 @@ outdir = options.outdir
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 jet_str = 'CA'
 
-fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5"
+#fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/ZpToTpTp_Zp5000_Tp400_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5"
+fname = "test_signal_CASE.h5"
 
 
 
-label = "YtoHH"
-#label = "XtoYY"
+#label = "YtoHH"
+label = "XtoYY"
 #label = "ZpToTpTp"
 
-tag_obs = 'tau43'
-score_thresh = 0.65
-#tag_obs = 'tau21'
-#score_thresh = 0.34
+#tag_obs = 'tau43'
+#score_thresh = 0.65
+tag_obs = 'tau21'
+score_thresh = 0.34
 
 
 f_ratio = ROOT.TFile.Open(options.fin)
@@ -37,7 +38,7 @@ jetR = 1.0
 num_excjets = -1
 
 #max_evts = 5000
-max_evts = 500
+max_evts = 2000
 #max_evts = None
 
 d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 1)
@@ -143,6 +144,9 @@ new_norm = np.sum(weights_rw)
 weights_rw *= old_norm / new_norm
 LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom, -1) * (old_norm / new_norm))
 pt_smeared_weights = np.array(d_pt_smeared_weights * np.expand_dims(weights_nom, -1) * (old_norm / new_norm))
+
+
+print("MEAN weight", np.mean(weights_rw))
 
 
 make_histogram(weights_rw, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
