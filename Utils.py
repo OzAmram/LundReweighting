@@ -69,11 +69,14 @@ def input_options():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--fin", default='', help="Input file")
+    parser.add_argument("--fout", default='', help="Output file")
     parser.add_argument("-r", "--f_ratio", default='', help="Input ratio file")
     parser.add_argument("-o", "--outdir", default='test/', help="Output directory")
     parser.add_argument("--charge_only", default=False, action='store_true', help="Only charged particles in Lund Plane")
     parser.add_argument("--no_sys", default=False, action='store_true', help="No systematics")
     parser.add_argument("--max_evts", default=-1, type = int, help="Max number of evts to reweight")
+    parser.add_argument("--num_jobs", default=1, type = int, help="Max number of evts to reweight")
+    parser.add_argument("--job_idx", default=0, type = int, help="Max number of evts to reweight")
     return parser
 
 
@@ -135,8 +138,13 @@ def ang_dist(phi1, phi2):
     phi1 = phi1 % (2. * np.pi)
     phi2 = phi2 % (2. * np.pi)
     dphi = phi1 - phi2
-    dphi[dphi < -np.pi] += 2.*np.pi
-    dphi[dphi > np.pi] -= 2.*np.pi
+    if(len(dphi.shape) > 0):
+        dphi[dphi < -np.pi] += 2.*np.pi
+        dphi[dphi > np.pi] -= 2.*np.pi
+    else:
+        if(dphi < -np.pi): dphi += 2.*np.pi
+        if(dphi > np.pi): dphi -= 2.*np.pi
+
     return dphi
 
 def get_subjet_dist(q_eta_phis, subjets_eta_phis):
@@ -157,6 +165,12 @@ def get_dists(q_eta_phis, subjets_eta_phis):
 def get_dRs(gen_eta_phi, j_4vec):
     dR = np.sqrt(np.square(gen_eta_phi[:,0] - j_4vec[1]) + 
             np.square(ang_dist(gen_eta_phi[:,1], j_4vec[2] )))
+    return dR
+
+
+def deltaR(v1, v2):
+    dR = np.sqrt(np.square(v1[1] - v2[1]) + 
+            np.square(ang_dist(v1[2], v2[2] )))
     return dR
 
 class Dataset():
@@ -196,6 +210,7 @@ class Dataset():
         self.sys_key = sys_key
 
     def get_weights(self):
+        max_weight = 100.
         if(self.is_data): return np.ones(self.n())
         weights = self.get_masked('norm_weights') * self.norm_factor
         if(len(self.sys_key) > 0):
@@ -205,6 +220,7 @@ class Dataset():
             np.clip(reweighting, 0., 10.0)
             reweighting /= np.mean(reweighting)
             weights *=  reweighting
+        weights = np.clip(weights, -max_weight, max_weight)
         return weights
 
     def compute_obs(self):
@@ -224,16 +240,30 @@ class Dataset():
 
 
 
-    def fill_LP(self, LP_rw, h, num_excjets = 2, prefix = "2prong", sys_variations = None):
+    def fill_LP(self, LP_rw, h, num_excjets = 2, prefix = "2prong", sys_variations = None, rescale_subjets = "vec"):
+
 
         pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
         splittings = subjets =  split = subjet = None
-        if(prefix + "_splittings" in self.f.keys()):
-            splittings = self.get_masked(prefix + "_splittings")
-            subjets = self.get_masked(prefix + "_subjets")
+
+
 
         jet_kinematics = self.get_masked("jet_kinematics")
         nom_weights = self.get_weights()
+
+        rescale_vals = [1.] * len(pf_cands)
+        if(rescale_subjets == "jec"):
+            rescale_vals = self.get_masked("jet1_JME_vars")[:,-1]
+        elif(rescale_subjets == "vec"):
+            if(self.dtype ==1): 
+                if(which_j == 1): j_4vec = self.get_masked('jet_kinematics')[:,2:6].astype(np.float64)
+                else: j_4vec = self.get_masked('jet_kinematics')[:,6:10].astype(np.float64)
+
+            else:
+                j_4vec = self.get_masked('jet_kinematics')[:,:4].astype(np.float64)
+
+            rescale_vals = j_4vec[:, 0]
+
 
         hists = [h]
         weights = [nom_weights]
@@ -267,12 +297,32 @@ class Dataset():
                 split = splittings[i]
                 subjet = subjets[i]
 
+
             subjet, _ = LP_rw.fill_lund_plane(hists, pf_cands = pf_cand, subjets = subjet, splittings = split, 
-                    num_excjets = num_excjets, weight = weights[:,i])
+                    num_excjets = num_excjets, weight = weights[:,i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
             subjets.append(subjet)
 
         return subjets
             
+
+    def get_pt_response(self, gen_parts, subjets):
+        deltaR_cut = 0.2
+        gen_parts_eta_phi = gen_parts[:, 1:3]
+        subjets = np.array(subjets)
+        dists = get_subjet_dist(gen_parts_eta_phi, subjets[:,1:3])
+
+        j_closest = np.amin(dists, axis = -1)
+        j_which = np.argmin(dists, axis = -1)
+        matches = j_which[j_closest < deltaR_cut]
+
+        #check all quarks within 0.2 of subjet and no two quarks matched to same subjet
+        no_match = np.sum(j_closest < deltaR_cut) != len(subjets)
+        repeats = matches.shape[0] != np.unique(matches).shape[0]
+        bad_match = no_match or repeats
+
+        responses = subjets[:,0] / gen_parts[j_which,0]
+        return responses
+
 
     def check_bad_subjet_matching(self, gen_parts_eta_phi, subjets):
         if(gen_parts_eta_phi is None): return False
@@ -290,11 +340,11 @@ class Dataset():
         bad_match = no_match or repeats
 
         #print(bad_match, no_match, repeats, j_closest, j_which)
-        return bad_match
+        return bad_match, j_closest
 
 
 
-    def get_matched_splittings(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1):
+    def get_matched_splittings(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1, return_dRs = False, rescale_subjets = "vec"):
 
 
         pf_cands = self.get_masked("jet%i_PFCands" % which_j).astype(np.float64)[min_evts:max_evts]
@@ -305,15 +355,23 @@ class Dataset():
         else:
             j_4vec = self.get_masked('jet_kinematics')[min_evts:max_evts][:,:4].astype(np.float64)
 
+        rescale_vals = [1.] * len(j_4vec)
+        if(rescale_subjets == "jec"):
+            rescale_vals = self.get_masked("jet%i_JME_vars" % which_j)[min_evts:max_evts, 12]
+        elif(rescale_subjets == "vec"):
+            rescale_vals = j_4vec[:,0]
+
+
         num_excjets_l = [num_excjets]*len(pf_cands)
         bad_match = [False] * len(pf_cands)
         subjets = []
         splittings = []
+        all_dRs = []
 
         if(num_excjets > 0 and self.dtype < 0): 
             #No gen info
             for i in range(len(pf_cands)):
-                subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i])
+                subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
                 subjets.append(subjet)
                 splittings.append(split)
             return subjets, splittings, bad_match
@@ -348,19 +406,21 @@ class Dataset():
 
             num_excjets_l[i] = max(n_prongs_i,1) if num_excjets <= 0 else num_excjets
 
-            subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i])
+            subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
 
             #check if quarks near boundary of jet
-            bad_match[i] = (np.sum((dRs > 0.7) & (dRs < 0.9)) > 0) or (n_prongs_i < 2)
+            bad_match[i] = (np.sum((dRs > 0.7) & (dRs < 0.9)) > 0) #or (n_prongs_i < 2)
 
             #check subjets matched to quarks
-            bad_match[i] = bad_match[i] or self.check_bad_subjet_matching(gen_parts_eta_phi[i], subjet)
-
+            subjet_bad_match, subjet_dRs = self.check_bad_subjet_matching(gen_parts_eta_phi[i], subjet)
+            bad_match[i]  = bad_match[i] or subjet_bad_match
             subjets.append(subjet)
             splittings.append(split)
+            if(return_dRs): all_dRs.append(subjet_dRs)
             
 
-        return subjets, splittings, bad_match
+        if(return_dRs): return subjets, splittings, bad_match, all_dRs
+        else: return subjets, splittings, bad_match
 
 
     def reweight_LP(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None, prefix = "", 
@@ -481,7 +541,7 @@ class LundReweighter():
         print(self.__dict__)
 
 
-    def get_splittings(self, pf_cands, num_excjets = -1):
+    def get_splittings(self, pf_cands, num_excjets = -1, rescale_subjets = "", rescale_val = 1.0):
         pjs = []
         pfs_cut = []
         for i,c in enumerate(pf_cands):
@@ -505,7 +565,7 @@ class LundReweighter():
                 nMax = min(len(js), self.maxJets)
                 js = js[:nMax]
         else:
-            js = list(fj.sorted_by_pt(cs.exclusive_jets_up_to(num_excjets)))
+            js = list(fj.sorted_by_pt(cs.exclusive_jets_up_to(int(num_excjets))))
 
             #for kt jets, recluster to get CA splittings
             if (jet_algo is fj.kt_algorithm):
@@ -544,11 +604,13 @@ class LundReweighter():
         subjets = []
         splittings = []
         #print("%i subjets " % len(js))
+        total_jet = fj.PseudoJet()
         for i, j in enumerate(js):
             #print("sj %i" % i)
             pseudojet = j
             jet_pt = j.pt()
             subjets.append([j.pt(), j.eta(), j.phi(), j.m()])
+            total_jet += j
             while True:
                 j1 = fj.PseudoJet()
                 j2 = fj.PseudoJet()
@@ -563,10 +625,22 @@ class LundReweighter():
                     pseudojet = j1
                 else:
                     break
+    
+
+        #Rescale subjet momenta
+        if(rescale_subjets == "jec"):
+            for i in range(len(subjets)):
+                subjets[i][0] *= rescale_val
+        elif(rescale_subjets == "vec"):
+            rescale_val = rescale_val / total_jet.pt()
+            for i in range(len(subjets)):
+                subjets[i][0] *= rescale_val
+
         return subjets, splittings
 
 
-    def fill_lund_plane(self, h, pf_cands = None, subjets = None,  splittings = None, num_excjets = -1, weight = 1., subjet_idx = -1):
+    def fill_lund_plane(self, h, pf_cands = None, subjets = None,  splittings = None, num_excjets = -1, weight = 1., subjet_idx = -1,
+            rescale_subjets = "vec", rescale_val = 1.0):
 
         if(type(h) != list):
             hists = [h]
@@ -579,8 +653,10 @@ class LundReweighter():
             #    exit(1)
 
         if(subjets is None or splittings is None):
-            subjets, splittings = self.get_splittings(pf_cands, num_excjets = num_excjets)
+            subjets, splittings = self.get_splittings(pf_cands, num_excjets = num_excjets, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
             if(len(subjets) == 0): subjets = [[0,0,0,0]]
+
+
 
         no_idx = (len(subjets) == 1)
         subjets_reshape = np.array(subjets).reshape(-1)
@@ -611,7 +687,7 @@ class LundReweighter():
                 bin_idx = h.FindBin(jet_pt, np.log(self.dR/delta), np.log(kt))
 
                 h.GetBinXYZ(bin_idx, binx, biny, binz)
-                idxs.append((np.clip(binx[0], 1, xmax), np.clip(biny[0], 1, ymax), np.clip(binz[0], 1, zmax)))
+                idxs.append((int(np.clip(binx[0], 1, xmax)), int(np.clip(biny[0], 1, ymax)), int(np.clip(binz[0], 1, zmax))))
         return idxs
 
 
@@ -647,6 +723,8 @@ class LundReweighter():
                     smeared_val = f.EvalPar(array('d', [subjet_pt]), pars)
                     smeared_val = np.clip(smeared_val, min_rw, max_rw)
                     pt_smeared_rw[n] *= smeared_val
+            del f
+
 
 
         return rw, smeared_rw, pt_smeared_rw
@@ -663,6 +741,7 @@ class LundReweighter():
             if(val <= 1e-4 and err <= 1e-4):
                 val = 1.0
                 err = 1.0
+                #print("EMPTY BIN")
             val = np.clip(val, min_rw, max_rw)
             if(rand_noise is not None):
                 smeared_vals = val + rand_noise[:,i-1,j-1,k-1] * err
@@ -678,10 +757,10 @@ class LundReweighter():
 
 
     def reweight_lund_plane(self, h_rw, pf_cands = None, splittings = None, subjets = None, num_excjets = -1, 
-                            rand_noise = None, pt_rand_noise = None,  sys_str = ""):
+                            rand_noise = None, pt_rand_noise = None,  sys_str = "", rescale_subjets = "vec", rescale_val = 1.0):
 
         if(subjets is None or splittings is None):
-            subjets, splittings = self.get_splittings(pf_cands, num_excjets = num_excjets )
+            subjets, splittings = self.get_splittings(pf_cands, num_excjets = num_excjets, rescale_subjets = rescale_subjets, rescale_val = rescale_val )
 
 
         rw = 1.0
@@ -826,7 +905,6 @@ class LundReweighter():
 
 
 
-
 def matched(c,cj):
     eps = 1e-4
     return (abs(c[0] - cj.px()) < eps) and (abs(c[1] - cj.py()) < eps) and (abs(c[2] - cj.pz()) < eps)
@@ -837,4 +915,17 @@ def find_matching_pf(cj_list, cj):
         if(matched(c, cj)): 
             return c
     return None
+
+def add_dset(f, key, data):
+    if(key in f.keys()):
+        prev_size = f[key].shape[0]
+        f[key].resize(( prev_size + data.shape[0]), axis=0)
+        f[key][prev_size:] = data
+    else:
+        if(len(data) > 1):
+            shape = list(data.shape)
+            shape[0] = None
+            f.create_dataset(key, data = data, chunks = True, maxshape = shape)
+        else:
+            f.create_dataset(key, data = data)
 

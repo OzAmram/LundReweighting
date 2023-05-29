@@ -2,6 +2,10 @@ from Utils import *
 import os
 
 
+parser = input_options()
+options = parser.parse_args()
+
+print(options)
 
 
 #NON UL (2018B only)
@@ -13,7 +17,7 @@ import os
 #UL
 lumi = 59.74
 
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/"
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
 
 f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
 f_ttbar = h5py.File(f_dir + "TT.h5", "r")
@@ -24,21 +28,22 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
-outdir = "ttbar_UL_feb20_W_rw/"
+outdir = options.outdir
 sys = ""
 #CA_prefix = "2prong"
 CA_prefix = ""
 charge_only = False
 
 
-do_sys_variations = True
+do_sys_variations = not options.no_sys
 do_plot = True
 
 norm = True
 
-jms_corr = 0.95
+jms_corr = 1.0
 
 m_cut_min = 60.
+#m_cut_max = 81.
 m_cut_max = 110.
 pt_cut = 225.
 #m_cut_min = 79.
@@ -215,18 +220,23 @@ if(do_plot):
 
 
 
+LP_rw = LundReweighter(jetR = jetR, charge_only = options.charge_only)
 
-d_data.subjets = d_data.fill_LP(h_data,  jetR = jetR, num_excjets = num_excjets, prefix = CA_prefix, charge_only = charge_only)
+d_data.subjets = d_data.fill_LP(LP_rw, h_data,  num_excjets = num_excjets, prefix = CA_prefix, rescale_subjets = "vec" )
 
 for d in sigs:
-    d.subjets = d.fill_LP(h_mc,  jetR = jetR, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix, charge_only = charge_only)
+    d.subjets = d.fill_LP(LP_rw, h_mc,  num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec" )
 
 for d in bkgs:
-    d.subjets = d.fill_LP(h_bkg, jetR = jetR, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix, charge_only = charge_only)
+    d.subjets = d.fill_LP(LP_rw, h_bkg, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec")
 
 
 for d in ([d_data] + sigs + bkgs): 
-    d.subjet_pt = [sj[0] for sj in d.subjets]
+    d.subjet_pt = []
+    for sjs in d.subjets:
+        sj_pts = []
+        for sj in sjs: sj_pts.append(sj[0])
+        d.subjet_pt.append(sj_pts)
 
 obs.append("subjet_pt")
 
@@ -239,7 +249,7 @@ ROOT.gROOT.SetStyle('Default')
 ROOT.gStyle.SetOptStat(0) # To display the mean and RMS:   SetOptStat("mr")
 
 f_out = ROOT.TFile.Open(outdir + "ratio.root", "RECREATE")
-nom_ratio = make_LP_ratio(h_data, h_bkg, h_mc, pt_bins, outdir = outdir, save_plots = True)
+nom_ratio = LP_rw.make_LP_ratio(h_data, h_bkg, h_mc, pt_bins, outdir = outdir, save_plots = True)
 nom_ratio.SetName("ratio_nom")
 nom_ratio.Write()
 
@@ -254,7 +264,7 @@ if(do_sys_variations):
         if(sys_name in sig_sys): h_mc_sys = sig_sys_variations[sys_name]
         else: h_mc_sys = h_mc
 
-        sys_ratio = make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, pt_bins)
+        sys_ratio = LP_rw.make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, pt_bins)
         sys_ratio.SetName("ratio_" + sys_name)
         #sys_ratio.Print("range") 
         sys_ratio.Write()
@@ -267,11 +277,9 @@ if(do_plot):
     weights_rw = copy.deepcopy(weights_nom)
 
     LP_weights = []
-    LP_uncs = []
     for i,d in enumerate(sigs):
-        d_LP_weights, d_LP_uncs = d.reweight_LP(nom_ratio, jetR = jetR, num_excjets = num_excjets, uncs = True, prefix = CA_prefix)
+        d_LP_weights  = d.reweight_LP(LP_rw, nom_ratio,  num_excjets = num_excjets, prefix = CA_prefix)
         LP_weights.append(d_LP_weights)
-        LP_uncs.append(d_LP_uncs/ d_LP_weights)
 
         weights_rw[len(bkgs) + i] *= d_LP_weights
 
@@ -279,13 +287,11 @@ if(do_plot):
     make_histogram(LP_weights[0], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
          normalize=False, fname=outdir + "lundPlane_weights.png")
 
-    make_histogram(LP_uncs[0], "Fractional Uncertainties", 'b', 'Weight Fractional Uncertainty ', "Lund Plane Reweighting Factors Uncertainty", 20,
-         normalize=False, fname=outdir + "lundPlane_weights_unc.png", h_range = (0., 1.5))
-
     for l in obs:
         a = []
-        for d in (bkgs + sigs):
+        for i,d in enumerate(bkgs + sigs):
             a.append(getattr(d, l))
+
         if(l == 'mSoftDrop'): 
             h_range = (m_cut_min, m_cut_max)
             n_bins_ = n_bins
@@ -301,6 +307,7 @@ if(do_plot):
         else: 
             n_bins_ = n_bins
             h_range = None
+
         make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False, stack = False,
                 colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
 

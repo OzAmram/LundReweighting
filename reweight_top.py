@@ -10,7 +10,7 @@ print(options)
 
 
 lumi = 59.74
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/"
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
 
 f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
 f_ttbar = h5py.File(f_dir + "TT.h5", "r")
@@ -23,15 +23,14 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
-outdir = "ttbar_UL_top_rw_april10/"
-do_sys_variations = True
-CA_prefix = ""
+outdir = options.outdir
+do_sys_variations = not options.no_sys
 sys = ""
 
 max_evts = -1
 
 norm = True
-jms_corr = 0.95
+jms_corr = 1.0
 
 m_cut_min = 125.
 m_cut_max = 225.
@@ -41,7 +40,7 @@ jetR = 1.0
 n_pt_bins = 6
 num_excjets = 3
 pt_bins = array('f', [0., 50., 100., 175., 250., 350., 99999.])
-do_plot = False
+do_plot = True
 
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
@@ -211,33 +210,26 @@ if(do_plot):
 
 LP_rw = LundReweighter(jetR = jetR, charge_only = options.charge_only)
 
-d_data.subjets = d_data.fill_LP(LP_rw, h_data, num_excjets = num_excjets, prefix = "")
+d_data.subjets = d_data.fill_LP(LP_rw, h_data, num_excjets = num_excjets, prefix = "", rescale_subjets = "vec")
 
 for d in sigs:
-    d.subjets = d.fill_LP(LP_rw, h_mc,  num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = "")
+    d.subjets = d.fill_LP(LP_rw, h_mc,  num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = "", rescale_subjets = "vec")
 
 for d in bkgs:
-    d.subjets = d.fill_LP(LP_rw, h_bkg, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = "")
+    d.subjets = d.fill_LP(LP_rw, h_bkg, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = "", rescale_subjets = "vec")
 
 
 
 #subjet pt plot
-mc_subjet_pts = []
-for d in ([d_data] + bkgs + sigs): 
-    if(len(d.subjets) > 0):
-        a = np.array(d.subjets)
-        d.subjet_pt = a[:,:,0]
-        if(d is not d_data): mc_subjet_pts.append(a[:,:,0])
-    else:
-        d.subjet_pt = []
-        mc_subjet_pts.append([])
-
-for i in range(len(mc_subjet_pts)):
-    print(len(mc_subjet_pts[i]), len(weights_nom[i]))
-make_multi_sum_ratio_histogram(data = d.subjet_pt, entries = mc_subjet_pts, weights = weights_nom, labels = labels, h_range = (0, 800.), drawSys = False, stack = False,
-        colors = colors, axis_label = "Subjet pT",  title = "", num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + 'subjet_pt_cmp.png' )
+for d in ([d_data] + sigs + bkgs): 
+    d.subjet_pt = []
+    for sjs in d.subjets:
+        sj_pts = []
+        for sj in sjs: sj_pts.append(sj[0])
+        d.subjet_pt.append(sj_pts)
 
 
+obs.append("subjet_pt")
 
 default = ROOT.TStyle("Default","Default Style");
 default.cd()
@@ -276,7 +268,7 @@ if(do_plot):
     LP_weights = []
     for i,d in enumerate(sigs):
 
-        d_LP_weights, _ = d.reweight_LP(LP_rw, nom_ratio, num_excjets = num_excjets, uncs = False, prefix = "")
+        d_LP_weights = d.reweight_LP(LP_rw, nom_ratio, num_excjets = num_excjets, prefix = "")
         LP_weights.append(d_LP_weights)
 
         weights_rw[len(bkgs) + i] *= d_LP_weights

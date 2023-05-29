@@ -7,7 +7,7 @@ from sklearn.metrics import roc_curve,auc
 import scipy.stats
 import numpy as np
 import ROOT
-import tdrstyle
+import CMS_lumi, tdrstyle
 import copy
 from array import array
 
@@ -209,17 +209,21 @@ def make_sic_curve(classifiers, y_true, colors = None, logy=False, labels = None
         plt.savefig(fname, bbox_inches = 'tight')
         print("Saving file to %s " % fname)
 
+
+        
+
 def make_histogram(entries, labels, colors, xaxis_label="", title ="", num_bins = 10, logy = False, normalize = False, stacked = False, h_type = 'step', 
-        h_range = None, fontsize = 24, fname="", yaxis_label = "", ymax = -1):
+        h_range = None, fontsize = 24, fname="", yaxis_label = "", ymax = -1, mean_std = False):
     alpha = 1.
     if(stacked): 
         h_type = 'barstacked'
         alpha = 0.2
-    fig = plt.figure(figsize=fig_size)
+    fig, ax = plt.subplots(figsize=fig_size)
     ns, bins, patches = plt.hist(entries, bins=num_bins, range=h_range, color=colors, alpha=alpha,label=labels, density = normalize, histtype=h_type)
     plt.xlabel(xaxis_label, fontsize =fontsize)
     plt.tick_params(axis='x', labelsize=fontsize)
     plt.tick_params(axis='y', labelsize=fontsize)
+
 
     if(logy): plt.yscale('log')
     elif(ymax > 0):
@@ -233,6 +237,12 @@ def make_histogram(entries, labels, colors, xaxis_label="", title ="", num_bins 
         plt.tick_params(axis='y', labelsize=fontsize)
     plt.title(title, fontsize=fontsize)
     plt.legend(loc='upper right', fontsize = fontsize)
+
+    if(mean_std):
+        mean = np.mean(entries)
+        std = np.std(entries)
+        plt.text(0.6, 0.83, "Mean %.2f, Std. Dev. %.2f" % (mean, std), fontsize = 16, transform = ax.transAxes)
+
     if(fname != ""): 
         plt.savefig(fname, bbox_inches = 'tight')
         print("saving fig %s" %fname)
@@ -383,6 +393,7 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
 
     plt.grid(axis='y')
 
+
     if(fname != ""): 
         plt.savefig(fname)
         print("saving fig %s" %fname)
@@ -390,7 +401,7 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
     return ns, bins, ratios, frac_unc
 
 def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[], drawSys = False,
-        draw_chi2 = False, stack = True, logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=1, ratio_range = None, NDiv = 205, prelim = False):  
+        draw_chi2 = False, stack = True, logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=-1, ratio_range = None, NDiv = 205, prelim = False):  
 
     # histlist is just the generic list but if bkglist is specified (non-empty)
     # then this function will stack the backgrounds and compare against histlist as if 
@@ -508,9 +519,9 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 if not logy: 
                     y_end = 0.88
                     y_size = 0.2 + 0.025*(len(bkglist[0])+len(signals))
-                    x_size = 0.65
+                    x_size = 0.48
                     if(leg_align_right):
-                        x_start = 0.25
+                        x_start = 0.41
                     else:
                         x_start = 0.2
 
@@ -571,7 +582,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
 
                 # Set y max of all hists to be the same to accomodate the tallest
-                max_scaling = 3.0
+                max_scaling = 2.5
 
                 yMax = histList[0].GetMaximum()
                 maxHist = histList[0]
@@ -589,13 +600,13 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 
                 mLS = 0.07
                 mTS = 0.1
-                TOffset = 1.
+                TOffset = 0.8
                 # Now draw the main pad
                 data_leg_title = hist.GetTitle()
                 if len(titles) > 0:
                     hist.SetTitle(titles[hist_index])
                 hist.GetYaxis().SetTitleOffset(TOffset)
-                hist.GetXaxis().SetTitleOffset(1.2)
+                hist.GetXaxis().SetTitleOffset(TOffset)
                 hist.GetYaxis().SetTitle('Events / bin')
                 hist.GetYaxis().SetLabelSize(mLS)
                 hist.GetYaxis().SetTitleSize(mTS)
@@ -697,9 +708,9 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
                 LS = mLS * 0.7/0.3
                 #title size given as fraction of pad width, scale up to have same size as main pad
-                YTS =  mTS * 0.7/0.3
+                YTS =  0.8 * mTS * 0.7/0.3
                 XTS =  mTS * 0.7/0.3
-                lTOffset = TOffset * 0.27 / 0.7
+                lTOffset = TOffset * 0.3 / 0.7
 
 
                 ratio.SetMarkerStyle(8)
@@ -756,23 +767,34 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     x_start = np.amin(xs) + 0.75 * (np.amax(xs) - np.amin(xs))
                     x_stop = np.amax(xs)
 
-                    pave = ROOT.TPaveText(x_start, 0.8 * ratio_range[1], x_stop, ratio_range[1])
-                    pave.AddText("chi2 / ndof = %.1f / %i" % (chi2, ndof))
-                    pave.SetBorderSize(1)
+                    pave = ROOT.TPaveText(x_start, 0.75 * ratio_range[1], x_stop, 0.97 * ratio_range[1])
+                    pave.AddText("#chi^{2} / ndof = %.1f / %i" % (chi2, ndof))
+                    pave.SetFillColor(ROOT.kWhite)
+                    #pave.SetBorderSize(1)
+                    pave.SetBorderSize(0)
                     pave.Draw()
 
                 if logy == True:
                     mains[hist_index].SetLogy()
 
-                #if(prelim): 
-                #    print("Prelim")
-                #    CMS_lumi.writeExtraText = True
-                #else: CMS_lumi.writeExtraText = False
-                #if(CMS_align_right): CMS_loc = 33
-                #else: CMS_loc = 11
-                #CMS_lumi.CMS_lumi(mains[hist_index], year, CMS_loc)
+                if(prelim): 
+                    print("Prelim")
+                    CMS_lumi.writeExtraText = True
+                else: CMS_lumi.writeExtraText = False
+                if(CMS_align_right): CMS_loc = 33
+                else: CMS_loc = 11
+                CMS_lumi.CMS_lumi(mains[hist_index], year, CMS_loc)
 
+    print("Creating " + fname)
     myCan.Print(fname)
+    fname_root = fname.split(".")[-2] + ".root"
+    print("Saving ROOT: " + fname_root)
+    f = ROOT.TFile.Open(fname_root, "RECREATE")
+    myCan.Write()
+    f.Close()
+
+
+
 
 
         
@@ -890,8 +912,12 @@ def get_eff_unc(data = None, weight = None, name = "h", num_bins = 1000, unc = N
 
 
 
-def make_root_hist(data = None, weight = None, name = "h", num_bins = 1, bin_low = 0, bin_high = 1, unc = None):
-    h = ROOT.TH1F(name, "", num_bins, bin_low, bin_high)
+def make_root_hist(data = None, weight = None, name = "h", bins = None, num_bins = 1, bin_low = 0, bin_high = 1, unc = None):
+
+    if(bins is None):
+        bins = array('f', np.linspace(bin_low, bin_high, num_bins+1))
+
+    h = ROOT.TH1F(name, "", num_bins, bins)
     h.Sumw2()
 
     for i,e in enumerate(data):
@@ -965,7 +991,7 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, u
         
 
     return makeCan("temp", fname, [h_data], bkglist = [hists], totlist = [h_tot], colors = colors, bkgNames = labels, titles = [title], logy = logy, xtitle = axis_label,
-        drawSys = drawSys, ratio_range = ratio_range, stack = stack, draw_chi2 = draw_chi2)
+        drawSys = drawSys, ratio_range = ratio_range, stack = stack, draw_chi2 = draw_chi2, prelim = True)
 
 
 def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, h_range = None, 

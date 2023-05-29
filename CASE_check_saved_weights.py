@@ -11,7 +11,8 @@ outdir = options.outdir
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 jet_str = 'CA'
 
-fname = "test_signal_CASE.h5"
+#fname = "test_signal_CASE.h5"
+fname = "/eos/uscms/store/user/oamram/case/sig_files/LundRW/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 label = "XtoYY"
 
 f_sig = h5py.File(fname, "r")
@@ -31,8 +32,8 @@ score_thresh = 0.34
 
 
 #Only consider limited sample of events for simplicity
-max_evts = 2000
-#max_evts = None
+#max_evts = 2000
+max_evts = None
 
 
 score = getattr(d, tag_obs)[:max_evts]
@@ -46,6 +47,8 @@ weights_rw = copy.deepcopy(weights_nom)
 
 #get saved lund weight info
 weights_rw = d.f['lund_weights'][:max_evts]
+print("Mean RW", np.mean(weights_rw))
+print("First weights", weights_rw[:10])
 
 #stat and pt extrapolation toy weights
 weights_stat = d.f['lund_weights_stat_var'][:max_evts]

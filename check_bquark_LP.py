@@ -1,6 +1,7 @@
 from Utils import *
 import os
 
+
 def ang_dist(phi1, phi2):
     phi1 = phi1 % (2. * np.pi)
     phi2 = phi2 % (2. * np.pi)
@@ -14,11 +15,15 @@ def get_dists(q_eta_phis, subjets_eta_phis):
     return np.sqrt(np.square(subjets_eta_phis[:,:,0] - q_eta_phis[:,:,0]) + 
             np.square(ang_dist(subjets_eta_phis[:,:,1], q_eta_phis[:,:,1] )))
 
+parser = input_options()
+options = parser.parse_args()
+
+print(options)
 
 
 
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/TT.h5", "r")
-outdir = "bquark_check_april13/"
+outdir = options.outdir
+f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/TT.h5", "r")
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 
 pt_max = 1000
@@ -63,7 +68,7 @@ jetR = 1.0
 
 max_evts = 10000
 
-jms_corr = 0.95
+jms_corr = 1.0
 
 m_cut_top_min = 125.
 m_cut_top_max = 225.
@@ -100,8 +105,10 @@ splittings = [None] * pf_cands_top.shape[0]
 
 rw = LundReweighter(jetR = jetR, charge_only = False)
 
+top_pt = d_ttbar_top_match.get_masked('jet_kinematics')[:,0]
+
 for i,pf_cand_top in enumerate(pf_cands_top):
-    top_subjets[i], splittings[i] = rw.get_splittings(pf_cand_top, num_excjets = 3)
+    top_subjets[i], splittings[i] = rw.get_splittings(pf_cand_top, num_excjets = 3, rescale_subjets = "vec", rescale_val = top_pt[i])
 
 top_q1_eta_phi = gen_parts_top[:,18:20]
 top_q2_eta_phi = gen_parts_top[:,22:24]
@@ -130,6 +137,7 @@ top_all_far = (top_q1_close > deltaR_cut) | (top_q2_close > deltaR_cut) | (top_b
 
 for i in range(len(top_subjets)):
     if(top_qs_samejet[i] or top_all_far[i]): continue
+
     for j in range(len(top_subjets[i])):
         if(j == top_q1_which[i] or j == top_q2_which[i]): 
             #fill light quark LP
@@ -142,7 +150,7 @@ h_qs.Print()
 h_bs.Print()
 
 
-f_out = ROOT.TFile.Open(outdir + "ratio.root", "RECREATE")
+f_out = ROOT.TFile.Open(outdir + "ratio.root", "UPDATE")
 
 for i in range(1,h_qs.GetNbinsX()+1):
     diffs = []
@@ -160,6 +168,8 @@ for i in range(1,h_qs.GetNbinsX()+1):
     h_qs_proj.SetTitle("MC Light Quarks Pt %i-%i (N = %.0f)" % (pt_bins[i-1], pt_bins[i], h_qs_proj.Integral()))
     h_bs_proj.SetTitle("MC b Quarks Pt %i-%i (N = %.0f)" % (pt_bins[i-1], pt_bins[i], h_bs_proj.Integral()))
 
+
+    print(h_qs_proj.Integral(), h_bs_proj.Integral())
 
     h_qs_proj.Scale(1./h_qs_proj.Integral())
     h_bs_proj.Scale(1./h_bs_proj.Integral())
@@ -204,5 +214,7 @@ for i in range(1,h_qs.GetNbinsX()+1):
     print("Pt bin %i, avg diff %.2f" % (i, np.mean(diffs)))
 
 h_ratio.Write()
+f_out.Print()
+f_out.ls()
 f_out.Close()
 

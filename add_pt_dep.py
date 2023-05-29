@@ -34,7 +34,7 @@ f_ratio.Write()
 
 
 
-write_out = False
+write_out = True
 diffs = []
 x_bin1 = 2
 x_bin2 = 5
@@ -59,10 +59,10 @@ for h in [h_nom, h_up, h_down]:
     if(h is h_up): func_name_base += "sys_tot_up_"
     if(h is h_down): func_name_base += "sys_tot_down_"
 
-    #for j in range(1,h.GetNbinsY()+1):
-        #for k in range(1,h.GetNbinsZ()+1):
-    for j in [11]:
-        for k in [7]:
+    for j in range(1,h.GetNbinsY()+1):
+        for k in range(1,h.GetNbinsZ()+1):
+    #for j in [11]:
+        #for k in [7]:
             x = array('d')
             ex = array('d')
             y = array('d')

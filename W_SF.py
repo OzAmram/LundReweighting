@@ -6,6 +6,9 @@ options = parser.parse_args()
 
 print(options)
 
+ROOT.TGaxis.SetMaxDigits(3);
+
+
 
 #NON UL (2018B only)
 #lumi = 6.90
@@ -15,7 +18,7 @@ print(options)
 #
 #UL
 lumi = 59.74
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_jan31/"
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
 
 f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
 f_ttbar = h5py.File(f_dir + "TT.h5", "r")
@@ -35,6 +38,7 @@ prefix = ""
 drawSys = False
 
 
+ratio_range = [0.2, 1.8]
 
 #tau21_cut = 0.2700 # med
 tau21_cut_val = 0.3452 # loose
@@ -45,10 +49,14 @@ do_sys_variations = not (options.no_sys)
 
 norm = True
 
-jms_corr = 0.95
+#jms_corr = 0.95
+
+jms_corr = 1.0
 
 m_cut_min = 60.
 m_cut_max = 110.
+#m_cut_min = 50.
+#m_cut_max = 250.
 #m_cut_max = 65.
 pt_cut = 225.
 
@@ -56,15 +64,16 @@ if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
 d_data = Dataset(f_data, is_data = True)
 
-d_tw = Dataset(f_tw, label = "tW", color = ROOT.kMagenta, jms_corr = jms_corr, dtype = -1)
-d_wjets = Dataset(f_wjets, label = "W+Jets + QCD", color = ROOT.kGray, jms_corr = jms_corr)
+d_tw = Dataset(f_tw, label = "tW", color = ROOT.kYellow-7, jms_corr = jms_corr, dtype = -1)
+d_wjets = Dataset(f_wjets, label = "W+Jets + QCD", color = ROOT.kOrange-3, jms_corr = jms_corr)
 d_diboson = Dataset(f_diboson, label = "Diboson", color = ROOT.kCyan, jms_corr = jms_corr)
-d_singletop = Dataset(f_singletop, label = "Single Top", color = ROOT.kMagenta+4, jms_corr = jms_corr)
+d_singletop = Dataset(f_singletop, label = "Single Top", color = ROOT.kMagenta-1, jms_corr = jms_corr)
 
 
-d_ttbar_w_match = Dataset(f_ttbar, label = "ttbar : W-matched", color = ROOT.kRed, jms_corr =jms_corr, dtype = 2)
-d_ttbar_t_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr, dtype = 3)
-d_ttbar_nomatch = Dataset(f_ttbar, label = "ttbar : unmatched", color = ROOT.kGreen+3, jms_corr = jms_corr)
+d_ttbar_w_match = Dataset(f_ttbar, label = "t#bar{t} : W-matched", color = ROOT.kRed-7, jms_corr =jms_corr, dtype = 2)
+d_ttbar_t_match = Dataset(f_ttbar, label = "t#bar{t} : t-matched ", color = ROOT.kBlue-7, jms_corr = jms_corr, dtype = 3)
+d_ttbar_nomatch = Dataset(f_ttbar, label = "t#bar{t} : unmatched", color = ROOT.kGreen-6, jms_corr = jms_corr)
+
 
 ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]
 
@@ -79,7 +88,8 @@ d_ttbar_nomatch.apply_cut(nomatch_cut)
 
 
 sigs = [d_ttbar_w_match]
-bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_diboson, d_wjets, d_singletop, d_tw]
+bkgs = [d_diboson, d_singletop, d_wjets,  d_ttbar_t_match, d_ttbar_nomatch, d_tw]
+tw_idx = len(bkgs)-1
 
 
 
@@ -160,6 +170,18 @@ if(norm):
 
 obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt", "DeepAK8_W_MD", "DeepAK8_W"]
 
+obs_attrs = {
+        'mSoftDrop' : (m_cut_min, m_cut_max, n_bins, "m_{SD}"),
+        'tau21' : (0.05, 0.8, 20, "#tau_{21}"),
+        'tau32' : (0.4, 1.0, 20, "#tau_{32}"),
+        'tau43' : (0.6, 1.0, 20, "#tau_{43}"),
+        'nPF' : (20.5, 80.5, 30, "Num. PF Cands."),
+        'pt' : (pt_cut, 1200., 20, "p_{T}"),
+        'DeepAK8_W' : (0., 1., 20, "DeepAK8 (W vs. QCD)"),
+        'DeepAK8_W_MD' : (0., 1., 20, "DeepAK8-MD (W vs. QCD)"),
+        }
+
+
 colors = []
 weights_nom = []
 labels = []
@@ -172,21 +194,12 @@ for l in obs:
     a = []
     for d in (bkgs + sigs):
         a.append(getattr(d, l))
+    a_data = getattr(d_data, l)
 
-    if(l == 'mSoftDrop'): 
-        h_range = (m_cut_min, m_cut_max)
-        n_bins_ = n_bins
-    elif(l == 'nPF'): 
-        h_range = (0.5,120.5)
-        n_bins_ = 40
-    elif(l == 'pt'): 
-        h_range = (pt_cut, 800.)
-        n_bins_ = n_bins
-    else: 
-        n_bins_ = n_bins
-        h_range = None
-    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_nom, labels = labels, h_range = h_range, drawSys = False, stack = False, draw_chi2 = True,
-            colors = colors, axis_label = l,  title = l + " : No Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_before.png' )
+    low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
+
+    make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_nom, labels = labels, h_range = (low, high), drawSys = False, stack = True, draw_chi2 = True,
+            colors = colors, axis_label = label,  title = l + " : No Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_before.png' )
 
 weights_rw = copy.deepcopy(weights_nom)
 
@@ -213,12 +226,43 @@ d_sig = sigs[0]
 print("Reweighting ", d.f)
 sig_idx = len(bkgs)
 
-subjets, splittings, bad_match = d_sig.get_matched_splittings(LP_rw, num_excjets = num_excjets)
+subjets, splittings, bad_match, deltaRs = d_sig.get_matched_splittings(LP_rw, num_excjets = num_excjets, return_dRs = True)
+
+subjet_responses = []
+jet_responses = []
+
+gen_parts_raw = d_sig.get_masked('gen_parts')[:]
+top = gen_parts_raw[:,1:5]
+antitop = gen_parts_raw[:,5:9]
+W = gen_parts_raw[:,9:13]
+antiW = gen_parts_raw[:,13:17]
+q1 = gen_parts_raw[:,17:20]
+q2 = gen_parts_raw[:,21:24]
+b = gen_parts_raw[:,25:28]
+gen_parts = np.stack([q1, q2], axis = 1)
+
+j_4vec = d_sig.get_masked('jet_kinematics')[:,:4].astype(np.float64)
+
+for i,sjs in enumerate(subjets):
+    if(bad_match[i]): continue
+
+    if(deltaR(W[i], j_4vec[i]) < deltaR(antiW[i], j_4vec[i])):
+        jet_responses.append(j_4vec[i][0] / W[i][0])
+    else:
+        jet_responses.append(j_4vec[i][0] / antiW[i][0])
+
+    subjet_responses.append(d_sig.get_pt_response(gen_parts[i], subjets[i]))
+
+make_histogram(np.array(subjet_responses).reshape(-1), "W subjets", 'b', 'Subjet pt / gen pt', "Subjet pt response ", 20 , h_range = (0.5, 1.5),
+     normalize=True, fname=outdir + "subjet_response.png", mean_std = True)
+
+
+make_histogram(np.array(jet_responses).reshape(-1), "W jets", 'b', 'Jet pt / gen pt', "Jet pt response ", 20 , h_range = (0.5, 1.5),
+     normalize=True, fname=outdir + "jet_response.png", mean_std = True)
+
+
 d_LP_weights, d_LP_smeared_weights, d_pt_smeared_weights = d_sig.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, prefix = "", 
         rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
-
-
-
 
 
 #apply weights, keep normalization fixed
@@ -228,7 +272,6 @@ new_norm = np.sum(weights_rw[sig_idx])
 weights_rw[sig_idx] *= old_norm / new_norm
 
 
-tw_idx = len(bkgs)-1
 old_norm = np.sum(weights_rw[tw_idx])
 weights_rw[tw_idx] *= d_tw_LP_weights
 new_norm = np.sum(weights_rw[tw_idx])
@@ -260,6 +303,26 @@ if(do_sys_variations):
 
 make_histogram(d_LP_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
      normalize=False, fname=outdir + "lundPlane_weights.png")
+
+#Save subjet pts and deltaR
+subjet_pts =  []
+deltaRs = np.reshape(deltaRs, -1)
+
+for i,sjs in enumerate(subjets):
+    for sj in sjs:
+        subjet_pts.append(sj[0])
+    
+num_bins = 40
+pt_bins = array('d', np.linspace(0., 800., num_bins + 1))
+dR_bins = array('d', np.linspace(0., 0.8, num_bins + 1))
+
+h_subjet_pts = make_root_hist(data = subjet_pts, name = 'h_W_subjetpt', num_bins = num_bins, bins = pt_bins)
+h_dRs = make_root_hist(data = deltaRs, name = 'h_W_dRs', num_bins = num_bins, bins = dR_bins)
+f_ptout = ROOT.TFile.Open(outdir + "subjet_pt_dR.root", "RECREATE")
+h_subjet_pts.Write()
+h_dRs.Write()
+f_ptout.Close()
+
 
 #compute 'Scalefactor'
 cut_tau21 = d_ttbar_w_match.tau21 < tau21_cut_val
@@ -299,7 +362,7 @@ for idx,cut in enumerate(cuts):
     print("Pt variation toys avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
     #Add systematic differences in quadrature
-    sys_unc_up = sys_unc_down = 0.
+    SF_sys_unc = 0.
     if(do_sys_variations):
 
         eff_sys_tot_up = np.average(cut, weights = sys_variations['sys_tot_up'])
@@ -346,20 +409,11 @@ for l in obs:
     a = []
     for d in (bkgs + sigs):
         a.append(getattr(d, l))
-    if(l == 'mSoftDrop'): 
-        h_range = (m_cut_min, m_cut_max)
-        n_bins_ = n_bins
-    elif(l == 'nPF'): 
-        h_range = (0.5,120.5)
-        n_bins_ = 40
-    elif(l == 'pt'): 
-        h_range = (pt_cut, 800.)
-        n_bins_ = n_bins
-    else: 
-        n_bins_ = n_bins
-        h_range = None
-    make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, stack = False, uncs = uncs, drawSys = drawSys, draw_chi2 = True,
-            colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
+    a_data = getattr(d_data, l)
+
+    low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
+    make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_rw, labels = labels, h_range = (low, high), stack = True, uncs = uncs, drawSys = drawSys, draw_chi2 = True,
+            colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_after.png' )
 
 
 

@@ -13,21 +13,24 @@ outdir = options.outdir
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 jet_str = 'CA'
 
-#fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5"
+fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/ZpToTpTp_Zp5000_Tp400_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5"
-fname = "test_signal_CASE.h5"
+#fname = "test_signal_CASE.h5"
 
 
 
-#label = "YtoHH"
-label = "XtoYY"
+label = "YtoHH"
+h_label = label
+#label = "XtoYY"
+#h_label = 'XYY'
 #label = "ZpToTpTp"
+#h_label = 'Zp'
 
-#tag_obs = 'tau43'
-#score_thresh = 0.65
-tag_obs = 'tau21'
-score_thresh = 0.34
+tag_obs = 'tau43'
+score_thresh = 0.65
+#tag_obs = 'tau21'
+#score_thresh = 0.34
 
 
 f_ratio = ROOT.TFile.Open(options.fin)
@@ -37,8 +40,8 @@ j_idx = 0
 jetR = 1.0
 num_excjets = -1
 
-#max_evts = 5000
-max_evts = 2000
+max_evts = 10000
+#max_evts = 2000
 #max_evts = None
 
 d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 1)
@@ -108,18 +111,7 @@ pt_rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsY(), h_ratio.Get
 LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only)
 
 
-subjets, splittings, bad_match = d.get_matched_splittings(LP_rw, num_excjets = num_excjets, max_evts = max_evts)
-
-
-j_subjet_pts = []
-for i in range(len(subjets)):
-    j_subjet_pts.append(np.array(subjets[i])[:,0].reshape(-1))
-
-j_subjet_pts = np.concatenate(j_subjet_pts, axis = 0)
-make_histogram([j_subjet_pts], ["Subjets"], colors = ['blue'], xaxis_label = 'Subjet pt (GeV)', 
-                title = "%s : subjet pt " % (label), num_bins = 40, normalize = True, fname = options.outdir + label + "_subjet_pt.png")
-
-print("Fraction of subjets with pt > 350 : %.3f" % (np.mean(j_subjet_pts > 350.)))
+subjets, splittings, bad_match, deltaRs = d.get_matched_splittings(LP_rw, num_excjets = num_excjets, max_evts = max_evts, return_dRs = True)
 
 
 
@@ -184,6 +176,30 @@ if(not options.no_sys):
     sys_variations['bquark_up'] = up_bquark_weights
     sys_variations['bquark_down'] = down_bquark_weights
 
+
+#Save subjet pts and deltaR
+subjet_pts =  []
+deltaRs = np.reshape(deltaRs, -1)
+
+for i,sjs in enumerate(subjets):
+    for sj in sjs:
+        subjet_pts.append(sj[0])
+    
+num_bins = 40
+pt_bins = array('d', np.linspace(0., 800., num_bins + 1))
+dR_bins = array('d', np.linspace(0., 0.8, num_bins + 1))
+
+h_subjet_pts = make_root_hist(data = subjet_pts, name = 'h_%s_subjetpt' %h_label, num_bins = num_bins, bins = pt_bins)
+h_dRs = make_root_hist(data = deltaRs, name = 'h_%s_dRs' %h_label, num_bins = num_bins, bins = dR_bins)
+f_ptout = ROOT.TFile.Open(outdir + "subjet_pt_dR.root", "RECREATE")
+h_subjet_pts.Write()
+h_dRs.Write()
+f_ptout.Close()
+
+make_histogram([subjet_pts], ["Subjets"], colors = ['blue'], xaxis_label = 'Subjet pt (GeV)', 
+                title = "%s : subjet pt " % (label), num_bins = 40, normalize = True, fname = options.outdir + label + "_subjet_pt.png")
+
+print("Fraction of subjets with pt > 350 : %.3f" % (np.mean(subjet_pts > 350.)))
 
 
 
