@@ -11,6 +11,7 @@ print(options)
 
 #UL
 lumi = 59.74
+year = 2018
 f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
 
 f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
@@ -185,15 +186,21 @@ for l in obs:
     low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
 
     make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_nom, labels = labels, uncs = None, h_range = (low, high), drawSys = False, stack = True, draw_chi2 = True,
-            colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_before.png' )
+            year = year, colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_before.png' )
 
 
 
 weights_rw = copy.deepcopy(weights_nom)
 
 h_ratio = f_ratio.Get("ratio_nom")
-f_ratio.cd('pt_extrap')
-rdir = ROOT.gDirectory
+
+if('pt_extrap' in f_ratio.GetListOfKeys() and not options.no_pt_extrap):
+    rdir = f_ratio.GetDirectory("pt_extrap")
+    rdir.cd()
+
+else: 
+    print("NO Pt extrapolation")
+    rdir = None
 
 nToys = 100
 
@@ -283,9 +290,13 @@ if(do_sys_variations):
         sys_weights *= rw
         sys_variations[sys] = sys_weights
 
-    b_light_ratio = f_ratio.Get("h_bl_ratio")
-    bquark_rw = d.reweight_LP(LP_rw, b_light_ratio, num_excjets = num_excjets, prefix = "", 
-            max_evts = max_evts, sys_str = 'bquark', subjets = subjets, splittings = splittings)
+    if(f_ratio.GetListOfKeys().Contains("h_bl_ratio")):
+        b_light_ratio = f_ratio.Get("h_bl_ratio")
+        bquark_rw = d.reweight_LP(LP_rw, b_light_ratio, num_excjets = num_excjets, prefix = "", 
+                max_evts = max_evts, sys_str = 'bquark', subjets = subjets, splittings = splittings)
+    else:
+        print("bl ratio not found. skipping b quark uncs.")
+        bquark_rw = np.ones_like(weights_rw[sig_idx])
 
     up_bquark_weights = bquark_rw * weights_rw[sig_idx]
     down_bquark_weights = (1./ bquark_rw) * weights_rw[sig_idx]
@@ -300,7 +311,8 @@ if(do_sys_variations):
 
 
 
-make_histogram(LP_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
+clip_weights = np.clip(LP_weights, 0., 5.)
+make_histogram(clip_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 5.0),
      normalize=False, fname=outdir + "lundPlane_weights.png")
 
 
@@ -325,6 +337,9 @@ f_ptout = ROOT.TFile.Open(outdir + "subjet_pt_dR.root", "RECREATE")
 h_subjet_pts.Write()
 h_dRs.Write()
 f_ptout.Close()
+
+
+print("Fraction of subjets with pt > 350 : %.3f" % (np.mean( np.array(subjet_pts).reshape(-1) > 350.)))
 
 
 #compute 'Scalefactor'
@@ -404,7 +419,7 @@ for l in obs:
     low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
 
     make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_rw, labels = labels, uncs = uncs_rw, h_range = (low, high), drawSys = False, stack = True, draw_chi2 = True,
-            colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_after.png' )
+            year = year, colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_after.png' )
 
 
 

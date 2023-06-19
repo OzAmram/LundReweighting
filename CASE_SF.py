@@ -22,10 +22,10 @@ fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/YtoHH_Htott
 
 label = "YtoHH"
 h_label = label
-#label = "XtoYY"
-#h_label = 'XYY'
 #label = "ZpToTpTp"
 #h_label = 'Zp'
+#label = "XtoYY"
+#h_label = 'XYY'
 
 tag_obs = 'tau43'
 score_thresh = 0.65
@@ -40,8 +40,8 @@ j_idx = 0
 jetR = 1.0
 num_excjets = -1
 
-max_evts = 10000
-#max_evts = 2000
+max_evts = 20000
+#max_evts = 100
 #max_evts = None
 
 d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 1)
@@ -114,7 +114,6 @@ LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.
 subjets, splittings, bad_match, deltaRs = d.get_matched_splittings(LP_rw, num_excjets = num_excjets, max_evts = max_evts, return_dRs = True)
 
 
-
 d_LP_weights, d_LP_smeared_weights, d_pt_smeared_weights = d.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, 
         max_evts = max_evts, prefix = "", rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
 
@@ -141,8 +140,17 @@ pt_smeared_weights = np.array(d_pt_smeared_weights * np.expand_dims(weights_nom,
 print("MEAN weight", np.mean(weights_rw))
 
 
-make_histogram(weights_rw, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
+make_histogram(weights_rw, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 40 , h_range = (0., LP_rw.max_rw + 0.1),
      normalize=False, fname=outdir + "lundPlane_weights.png")
+
+
+frac_low_edge = np.mean( weights_rw < np.amin(weights_rw) * 1.01)
+frac_high_edge = np.mean( weights_rw > np.amax(weights_rw) * 0.99)
+
+print(np.amin(weights_rw), np.amax(weights_rw))
+print(weights_rw[:10])
+
+print("Frac of weights low edge %.3f, high edge %.3f" % (frac_low_edge, frac_high_edge))
 
 
 sys_variations = dict()
@@ -184,6 +192,27 @@ deltaRs = np.reshape(deltaRs, -1)
 for i,sjs in enumerate(subjets):
     for sj in sjs:
         subjet_pts.append(sj[0])
+
+#n_splits = []
+#for splits in splittings:
+#    count_jet_idx = 0
+#    n_split = 0
+#    for jet_idx,delta,kt in splits:
+#        if(jet_idx == count_jet_idx):
+#            n_split += 1
+#        else:
+#            n_splits.append(n_split)
+#            count_jet_idx = jet_idx
+#            n_split = 1
+#    n_splits.append(n_split)
+#
+#print(n_splits[:5])
+        
+
+#subjet_pts = np.array(subjet_pts).reshape(-1)
+#n_splits = np.array(n_splits).reshape(-1)
+#print(subjet_pts.shape, n_splits.shape)
+#make_scatter_plot(subjet_pts, n_splits, "b", ["subjet pt", "num splittings"], fname = options.outdir + "subjet_pt_vs_nsplit.png")
     
 num_bins = 40
 pt_bins = array('d', np.linspace(0., 800., num_bins + 1))
@@ -199,7 +228,9 @@ f_ptout.Close()
 make_histogram([subjet_pts], ["Subjets"], colors = ['blue'], xaxis_label = 'Subjet pt (GeV)', 
                 title = "%s : subjet pt " % (label), num_bins = 40, normalize = True, fname = options.outdir + label + "_subjet_pt.png")
 
-print("Fraction of subjets with pt > 350 : %.3f" % (np.mean(subjet_pts > 350.)))
+subjet_pts = np.array(subjet_pts).reshape(-1)
+print(np.amin(subjet_pts))
+print("Fraction of subjets with pt > 350 : %.3f" % (np.mean( subjet_pts > 350.)))
 
 
 

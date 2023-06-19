@@ -910,6 +910,15 @@ def get_eff_unc(data = None, weight = None, name = "h", num_bins = 1000, unc = N
     eff_unc_down = eff_nom - cut_down / tot_down
     return eff_nom, eff_unc_up, eff_unc_down
 
+def fill_hist(h, data, weight):
+
+    for i,e in enumerate(data):
+        if(weight is not None): w = weight[i]
+        else: w = 1.
+
+        if(hasattr(e, "__len__")): 
+            for en in e: h.Fill(en, w)
+        else: h.Fill(e, w)
 
 
 def make_root_hist(data = None, weight = None, name = "h", bins = None, num_bins = 1, bin_low = 0, bin_high = 1, unc = None):
@@ -920,13 +929,8 @@ def make_root_hist(data = None, weight = None, name = "h", bins = None, num_bins
     h = ROOT.TH1F(name, "", num_bins, bins)
     h.Sumw2()
 
-    for i,e in enumerate(data):
-        if(weight is not None): w = weight[i]
-        else: w = 1.
+    fill_hist(h, data, weight)
 
-        if(hasattr(e, "__len__")): 
-            for en in e: h.Fill(en, w)
-        else: h.Fill(e, w)
 
     if(unc is not None and type(unc) == float):
         #single fractional unc
@@ -964,7 +968,7 @@ def make_root_hist(data = None, weight = None, name = "h", bins = None, num_bins
 
 
 def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, uncs = None, colors = None, axis_label = None, title = None, num_bins = None, drawSys = False, stack = True,
-    draw_chi2 = False, normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
+    draw_chi2 = False, normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5, year = -1):
     if(h_range == None):
         low = np.amin(entries[0])
         high = np.amax(entries[0])
@@ -991,7 +995,7 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, u
         
 
     return makeCan("temp", fname, [h_data], bkglist = [hists], totlist = [h_tot], colors = colors, bkgNames = labels, titles = [title], logy = logy, xtitle = axis_label,
-        drawSys = drawSys, ratio_range = ratio_range, stack = stack, draw_chi2 = draw_chi2, prelim = True)
+        drawSys = drawSys, ratio_range = ratio_range, stack = stack, draw_chi2 = draw_chi2, prelim = True, year = year)
 
 
 def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, h_range = None, 

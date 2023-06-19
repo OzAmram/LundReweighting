@@ -36,20 +36,18 @@ charge_only = False
 
 
 do_sys_variations = not options.no_sys
-do_plot = True
+do_plot = False
 
 norm = True
 
 jms_corr = 1.0
 
 m_cut_min = 60.
-#m_cut_max = 81.
 m_cut_max = 110.
-pt_cut = 225.
-#m_cut_min = 79.
+#m_cut_min = 80.
 #m_cut_max = 81.
+pt_cut = 225.
 
-#jetR = 0.4
 jetR = 1.0
 n_pt_bins = 6
 num_excjets = 2
@@ -90,13 +88,6 @@ sigs = [d_ttbar_w_match]
 bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_tw, d_diboson, d_wjets, d_singletop]
 
 
-if(len(sys) != 0):
-    for d in sigs: 
-        d.apply_sys(sys)
-        d.sys_power = 2.0
-
-
-
 
 pt_max = 1000
 
@@ -124,6 +115,11 @@ ratio_range = [0.5, 1.5]
 h_mc = ROOT.TH3F("mc_nom", "Lund Plane MC", n_pt_bins, pt_bins, n_bins_LP,  dr_bins, n_bins_LP, kt_bins) 
 h_bkg = ROOT.TH3F("bkg_nom", "Lund Plane Bkg", n_pt_bins, pt_bins, n_bins_LP,  dr_bins, n_bins_LP, kt_bins) 
 h_data = ROOT.TH3F("data", "Lund Plane Data", n_pt_bins, pt_bins, n_bins_LP, dr_bins, n_bins_LP, kt_bins) 
+
+h_data_subjets = ROOT.TH1F("data_subjet_pts", "data subjet pts", n_pt_bins, pt_bins)
+h_bkg_subjets = ROOT.TH1F("bkg_subjet_pts", "bkg subjet pts", n_pt_bins, pt_bins)
+h_mc_subjets = ROOT.TH1F("mc_subjet_pts", "mc subjet pts", n_pt_bins, pt_bins)
+
 
 h_mc.GetZaxis().SetTitle(z_label)
 h_mc.GetYaxis().SetTitle(y_label)
@@ -233,15 +229,20 @@ for d in bkgs:
 
 for d in ([d_data] + sigs + bkgs): 
     d.subjet_pt = []
-    for sjs in d.subjets:
+    if(d is d_data): h_subjets = h_data_subjets
+    elif(d in sigs): h_subjets = h_mc_subjets
+    elif(d in bkgs): h_subjets = h_bkg_subjets
+
+    weights = d.get_weights()
+
+    for idx,sjs in enumerate(d.subjets):
         sj_pts = []
-        for sj in sjs: sj_pts.append(sj[0])
+        for sj in sjs: 
+            sj_pts.append(sj[0])
+            h_subjets.Fill(sj[0], weights[idx])
         d.subjet_pt.append(sj_pts)
 
 obs.append("subjet_pt")
-
-
-
 
 default = ROOT.TStyle("Default","Default Style");
 default.cd()
@@ -249,22 +250,50 @@ ROOT.gROOT.SetStyle('Default')
 ROOT.gStyle.SetOptStat(0) # To display the mean and RMS:   SetOptStat("mr")
 
 f_out = ROOT.TFile.Open(outdir + "ratio.root", "RECREATE")
-nom_ratio = LP_rw.make_LP_ratio(h_data, h_bkg, h_mc, pt_bins, outdir = outdir, save_plots = True)
+nom_ratio = LP_rw.make_LP_ratio(h_data, h_bkg,  h_mc,  h_data_subjets, h_bkg_subjets, h_mc_subjets, pt_bins = pt_bins, outdir = outdir, save_plots = True)
 nom_ratio.SetName("ratio_nom")
 nom_ratio.Write()
+h_mc.Write()
+h_bkg.Write()
+h_data.Write()
 
 if(do_sys_variations):
     keys = sys_weights_map.keys()
     keys.remove("nom_weight")
     for i,sys_name in enumerate(keys):
         print(sys_name)
+        h_bkg_subjets_sys = h_bkg_subjets.Clone(sys_name + "_bkg_ptnorm")
+        h_bkg_subjets_sys.Reset()
+        h_mc_subjets_sys = h_mc_subjets.Clone(sys_name + "_mc_ptnorm")
+        h_mc_subjets_sys.Reset()
+
+        sys_idx = sys_weights_map[sys_name]
+
+        #compute pt distributions for this sys
+        for d in bkgs:
+            if(sys_name == 'bkg_norm_up'): weights_sys = d.get_weights() * (1. + d.norm_unc)
+            elif(sys_name == 'bkg_norm_down'): weights_sys = d.get_weights()  * (1. - d.norm_unc)
+            else:  
+                all_sys_weights = d.get_masked('sys_weights')
+                weights_sys = d.get_weights() * all_sys_weights[:, sys_idx]
+            fill_hist(h_bkg_subjets_sys, d.subjet_pt, weights_sys)
+
+        if('bkg_norm' in sys_name): h_mc_subjets_sys = h_mc_subjets.Clone("nom_clone")
+        else:
+            for d in sigs:
+                all_sys_weights = d.get_masked('sys_weights')
+                weights_sys = d.get_weights() * all_sys_weights[:, sys_idx]
+                fill_hist(h_mc_subjets_sys, d.subjet_pt, weights_sys)
+
+
+
         h_bkg_sys = bkg_sys_variations[sys_name]
 
         #Some systematics only for bkgs not signal (want denom of ratio to be consistent)
         if(sys_name in sig_sys): h_mc_sys = sig_sys_variations[sys_name]
         else: h_mc_sys = h_mc
 
-        sys_ratio = LP_rw.make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, pt_bins)
+        sys_ratio = LP_rw.make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, h_data_subjets, h_bkg_subjets_sys, h_mc_subjets_sys, pt_bins = pt_bins)
         sys_ratio.SetName("ratio_" + sys_name)
         #sys_ratio.Print("range") 
         sys_ratio.Write()

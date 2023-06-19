@@ -151,27 +151,32 @@ h_bs.Print()
 
 
 f_out = ROOT.TFile.Open(outdir + "ratio.root", "UPDATE")
+w_qs = f_out.Get("mc_nom")
 
 for i in range(1,h_qs.GetNbinsX()+1):
-    diffs = []
     h_qs_clone1 = h_qs.Clone("h_bkg_clone%i" %i)
+    h_qs_W_clone1 = w_qs.Clone("h_w_clone%i" %i)
     h_bs_clone1 = h_bs.Clone("h_mc_clone%i"% i)
 
     h_qs_clone1.GetXaxis().SetRange(i,i)
+    h_qs_W_clone1.GetXaxis().SetRange(i,i)
     h_bs_clone1.GetXaxis().SetRange(i,i)
 
 
     h_qs_proj = h_qs_clone1.Project3D("zy")
+    h_qs_W_proj = h_qs_W_clone1.Project3D("zy")
     h_bs_proj = h_bs_clone1.Project3D("zy")
 
 
     h_qs_proj.SetTitle("MC Light Quarks Pt %i-%i (N = %.0f)" % (pt_bins[i-1], pt_bins[i], h_qs_proj.Integral()))
+    h_qs_W_proj.SetTitle("MC Light Quarks (from W) Pt %i-%i (N = %.0f)" % (pt_bins[i-1], pt_bins[i], h_qs_proj.Integral()))
     h_bs_proj.SetTitle("MC b Quarks Pt %i-%i (N = %.0f)" % (pt_bins[i-1], pt_bins[i], h_bs_proj.Integral()))
 
 
     print(h_qs_proj.Integral(), h_bs_proj.Integral())
 
     h_qs_proj.Scale(1./h_qs_proj.Integral())
+    h_qs_W_proj.Scale(1./h_qs_W_proj.Integral())
     h_bs_proj.Scale(1./h_bs_proj.Integral())
 
     h_ratio_proj = h_bs_proj.Clone("h_ratio%i" % i)
@@ -179,13 +184,29 @@ for i in range(1,h_qs.GetNbinsX()+1):
     h_ratio_proj.SetTitle("Ratio b/light Pt %i-%i " % (pt_bins[i-1], pt_bins[i]) )
     cleanup_ratio(h_ratio_proj, h_min =0., h_max = 2.0)
 
-    copy_proj(i, h_ratio_proj, h_ratio)
+
+    h_ratio2_proj = h_bs_proj.Clone("h_ratio%i_v2" % i)
+    h_ratio2_proj.Divide(h_qs_W_proj)
+    h_ratio2_proj.SetTitle("Ratio b/light (from W) Pt %i-%i " % (pt_bins[i-1], pt_bins[i]) )
+    cleanup_ratio(h_ratio2_proj, h_min =0., h_max = 2.0)
+
+
+    #copy_proj(i, h_ratio_proj, h_ratio)
+    #use light quarks from W
+    copy_proj(i, h_ratio2_proj, h_ratio)
 
 
     c1 = ROOT.TCanvas("c1", "", 1000, 1000)
     h_qs_proj.Draw("colz")
     c1.SetRightMargin(0.2)
     c1.Print(outdir + "lundPlane_light_quarks_bin%i.png" % i)
+
+    c1 = ROOT.TCanvas("c1", "", 1000, 1000)
+    h_qs_W_proj.Draw("colz")
+    c1.SetRightMargin(0.2)
+    c1.Print(outdir + "lundPlane_light_quarks_fromW_bin%i.png" % i)
+
+
 
     c2 = ROOT.TCanvas("c2", "", 1000, 1000)
     h_bs_proj.Draw("colz")
@@ -194,27 +215,37 @@ for i in range(1,h_qs.GetNbinsX()+1):
 
 
     c3 = ROOT.TCanvas("c3", "", 1000, 1000)
-    h_ratio_proj.Draw("colz")
+    h_ratio2_proj.Draw("colz")
     c3.SetRightMargin(0.2)
     c3.Print(outdir + "lundPlane_b_light_ratio_bin%i.png" % i)
 
 
 
+    diffs = []
+    w_diffs = []
     for j in range(h_qs_proj.GetNbinsX()+1):
         for k in range(h_qs_proj.GetNbinsY()+1):
             c1 = h_qs_proj.GetBinContent(j,k)
+            cw = h_qs_W_proj.GetBinContent(j,k)
             c2 = h_bs_proj.GetBinContent(j,k)
 
+            ew = h_qs_W_proj.GetBinError(j,k)
             e1 = h_qs_proj.GetBinError(j,k)
             e2 = h_bs_proj.GetBinError(j,k)
 
             if(  c1 > 1e-6 and c2 > 1e-6 and  (e1/c1) < 0.2 and (e2/c2) < 0.2):
-                frac_diff = 2. * abs(c1 - c2)/(c1 + c2)
+                frac_diff = abs(c1 - c2)/(c1 + c2)
+                frac_diff = np.clip(frac_diff, 0.001, 100)
                 diffs.append(frac_diff)
+
+            if(  c1 > 1e-6 and cw > 1e-6 and  (e1/c1) < 0.1 and (ew/cw) < 0.1):
+                frac_diff_w = abs(c1 - cw)/(c1 + cw)
+                w_diffs.append(frac_diff_w)
+
     print("Pt bin %i, avg diff %.2f" % (i, np.mean(diffs)))
+    print("Pt bin %i, avg W diff %.4f" % (i, np.mean(w_diffs)))
 
 h_ratio.Write()
 f_out.Print()
-f_out.ls()
 f_out.Close()
 

@@ -10,7 +10,7 @@ print(options)
 if(not os.path.exists(options.outdir)): os.system("mkdir %s" % options.outdir)
 jet_str = 'CA'
 
-f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/CASE_signals/Wkk_M3000_R170_2018_UL.h5", "r")
+f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/Lund_signals/Wkk_M3000_R170_2018_UL.h5", "r")
 #f_sig = h5py.File("/uscms_data/d3/oamram/CMSSW_12_4_0/src/CASE/CASEUtils/H5_maker/Wkk_M3500_test.h5", "r")
 f_ratio = ROOT.TFile.Open(options.fin)
 label = "Radion"
@@ -43,8 +43,8 @@ j2_pt = f_sig['jet_kinematics'][:,6]
 max_pt = np.maximum(j1_pt, j2_pt)
 min_pt = np.minimum(j1_pt, j2_pt)
 
-cut = (is_lep < 0.5)
-#cut = (is_lep < 0.5) & (mjj > 0.8*sig_mass) & (mjj < 1.2*sig_mass)
+#cut = (is_lep < 0.5)
+cut = (is_lep < 0.5) & (mjj > 0.8*sig_mass) & (mjj < 1.2*sig_mass)
 #cut = (mjj > 0.8*sig_mass) & (mjj < 1.2*sig_mass)
 print(np.mean(cut))
 #jet mass window

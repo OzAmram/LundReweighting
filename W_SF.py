@@ -18,6 +18,7 @@ ROOT.TGaxis.SetMaxDigits(3);
 #
 #UL
 lumi = 59.74
+year = 2018
 f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
 
 f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
@@ -53,10 +54,10 @@ norm = True
 
 jms_corr = 1.0
 
-m_cut_min = 60.
-m_cut_max = 110.
-#m_cut_min = 50.
-#m_cut_max = 250.
+#m_cut_min = 60.
+#m_cut_max = 110.
+m_cut_min = 50.
+m_cut_max = 250.
 #m_cut_max = 65.
 pt_cut = 225.
 
@@ -199,7 +200,8 @@ for l in obs:
     low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
 
     make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_nom, labels = labels, h_range = (low, high), drawSys = False, stack = True, draw_chi2 = True,
-            colors = colors, axis_label = label,  title = l + " : No Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_before.png' )
+            year = year, colors = colors, axis_label = label,  title = l + " : No Reweighting", 
+            num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_before.png' )
 
 weights_rw = copy.deepcopy(weights_nom)
 
@@ -208,8 +210,14 @@ uncs = [0.1] * len(bkgs + sigs)
 
 
 h_ratio = f_ratio.Get("ratio_nom")
-f_ratio.cd('pt_extrap')
-rdir = ROOT.gDirectory
+
+if('pt_extrap' in f_ratio.GetListOfKeys()):
+    rdir = f_ratio.GetDirectory("pt_extrap")
+    rdir.cd()
+
+else: 
+    print("NO Pt extrapolation")
+    rdir = None
 
 #Noise used to generated smeared ratio's based on stat unc
 nToys = 100
@@ -301,7 +309,8 @@ if(do_sys_variations):
         sys_variations[sys] = sys_weights
 
 
-make_histogram(d_LP_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
+clip_weights = np.clip(d_LP_weights, 0., 5.)
+make_histogram(clip_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 5.0),
      normalize=False, fname=outdir + "lundPlane_weights.png")
 
 #Save subjet pts and deltaR
@@ -413,7 +422,8 @@ for l in obs:
 
     low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
     make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_rw, labels = labels, h_range = (low, high), stack = True, uncs = uncs, drawSys = drawSys, draw_chi2 = True,
-            colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_after.png' )
+            year = year, colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, 
+            normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_after.png' )
 
 
 

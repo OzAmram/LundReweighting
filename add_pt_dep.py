@@ -3,13 +3,16 @@ import os
 import numpy as np
 from array import array
 
-def create_func(order):
+def transform(val):
+    return 1./ val
+
+def create_func(order, label = ""):
     expr = ""
     for i in range(order + 1):
         expr += "[%i]  * x ^ (%i) " % (i,i)
         if(i < order): expr += "+ "
     print(expr)
-    f = ROOT.TF1("f%i"%order, expr)
+    f = ROOT.TF1("%s_%i"% (label, order), expr)
     #f.SetParameter(0, 1.0)
     return f
 
@@ -38,7 +41,7 @@ write_out = True
 diffs = []
 x_bin1 = 2
 x_bin2 = 5
-base_order = 1
+base_order = 0
 
 for j in range(1,h_nom.GetNbinsY()+1):
     for k in range(1,h_nom.GetNbinsZ()+1):
@@ -53,6 +56,8 @@ for j in range(1,h_nom.GetNbinsY()+1):
 print("AVERAGE DIFF: %.3f" % np.mean(diffs))
 ROOT.gStyle.SetOptFit(1110)
 
+order_dict = {0:0, 1:0, 2:0, 3:0, 4:0}
+
 for h in [h_nom, h_up, h_down]:
 
     func_name_base = "func_"
@@ -61,10 +66,11 @@ for h in [h_nom, h_up, h_down]:
 
     for j in range(1,h.GetNbinsY()+1):
         for k in range(1,h.GetNbinsZ()+1):
-    #for j in [11]:
-        #for k in [7]:
+    #for j in [5]:
+        #for k in [8]:
             x = array('d')
-            ex = array('d')
+            ex_up = array('d')
+            ex_down = array('d')
             y = array('d')
             ey = array('d')
             nbin = 0
@@ -89,23 +95,35 @@ for h in [h_nom, h_up, h_down]:
                     width = 50
 
 
-                x.append(center)
-                ex.append(width)
+                x_val = transform(center)
+                xmin = transform(max(center - width/2., 5.))
+                xmax = transform(center + width/2.)
+                x_err_up = abs(x_val - xmax)
+                x_err_down = abs(x_val - xmin)
+
+                if(xmin > xmax): x_err_up, x_err_down = x_err_down, x_err_up
+
+                x.append(x_val)
+                ex_up.append(x_err_up)
+                ex_down.append(x_err_down)
                 y.append(c1)
                 ey.append(e1)
 
             if(len(x) > 1):
 
-                g = ROOT.TGraphErrors(len(x), x, y, ex, ey)
+                g = ROOT.TGraphAsymmErrors(len(x), x, y, ex_down, ex_up, ey, ey)
                 order = base_order
                 chi2_prev = 999999
 
                 #keep adding params based on F-test
                 thresh = 0.05
-                while(True):
+                fit_label = "%s_bin%i_%i" %  (h.GetName(), j,k)
 
-                    func = create_func(order)
-                    fit_res = g.Fit(func, "0 S +")
+                while(True):
+                    g_clone = g.Clone(g.GetName() + "clone")
+
+                    func = create_func(order, fit_label)
+                    fit_res = g_clone.Fit(func, "0 S +")
                     chi2_new = fit_res.Chi2()
 
                     #corrs = fit_res.GetCorrelationMatrix()
@@ -117,19 +135,32 @@ for h in [h_nom, h_up, h_down]:
                     F = F_num / (F_denom + eps)
                     F_prob = 1. - ROOT.TMath.FDistI(F, 1, nbin - order)
 
-                    print(order, chi2_prev, chi2_new, F_prob)
+                    print(nbin, order, chi2_prev, chi2_new, F_prob)
 
-                    if( (nbin - order) <= 1 or chi2_new / (nbin - order) < 1.1):
-                        break
-                    elif(order == base_order or (F_prob < thresh)):
-                        order +=1
-                        chi2_prev = chi2_new
+                    if(order == base_order or (F_prob < thresh)):
+                        #This order is preferred
+                        if( (nbin - order) <= 1 or chi2_new / (nbin - order) < 1.1):
+                            #stop now
+                            break
+
+                        else:
+                            #try higher order
+                            order +=1
+                            chi2_prev = chi2_new
                     else:
+                        #this order not preferred, go back one
                         order -=1
                         break
 
+
+                if(h is h_nom and nbin > 2):
+                    order_dict [order] += 1
+
+
                 if(write_out):
-                    func = g.GetFunction("f%i" % order)
+                    func = create_func(order, fit_label)
+                    fit_res = g.Fit(func, "0 S +")
+
                     f_ratio.cd("pt_extrap")
                     func.SetName(func_name_base + ("%i_%i" % (j,k)) )
                     func.Write()
@@ -137,17 +168,21 @@ for h in [h_nom, h_up, h_down]:
                     if(h is h_nom):
                         fout  = options.outdir + "fit_%i_%i.png" % (j, k)
                     else:
+                        continue
                         fout  = options.outdir + "fit_%s_%i_%i.png" % (func_name_base, j, k)
 
                     c = ROOT.TCanvas("c", "", 800, 800)
                     g.SetTitle("Fit Bin %i,%i" %(j, k))
                     g.GetYaxis().SetTitle("Correction Factor")
                     g.GetYaxis().CenterTitle()
-                    g.GetXaxis().SetTitle("Subjet pT")
+                    g.GetXaxis().SetTitle("1 / Subjet pT")
                     g.GetXaxis().CenterTitle()
+                    g.GetXaxis().SetRangeUser(0., 0.1)
                     g.Draw("AP")
                     func.Draw("same")
                     c.Print(fout)
 
+print("Summary of functional orders:")
+print(order_dict)
 f_ratio.Write()
 f_ratio.Close()

@@ -73,6 +73,7 @@ def input_options():
     parser.add_argument("-r", "--f_ratio", default='', help="Input ratio file")
     parser.add_argument("-o", "--outdir", default='test/', help="Output directory")
     parser.add_argument("--charge_only", default=False, action='store_true', help="Only charged particles in Lund Plane")
+    parser.add_argument("--no_pt_extrap", default=False, action='store_true', help="Only charged particles in Lund Plane")
     parser.add_argument("--no_sys", default=False, action='store_true', help="No systematics")
     parser.add_argument("--max_evts", default=-1, type = int, help="Max number of evts to reweight")
     parser.add_argument("--num_jobs", default=1, type = int, help="Max number of evts to reweight")
@@ -500,29 +501,26 @@ class Dataset():
             if(pt_rand_noise is not None):
                 pt_smeared_weights.append(pt_smeared_rw)
 
-        min_weight = 0.1
-        max_weight = 10.
 
         if(norm):
-            LP_weights = np.clip(np.array(LP_weights), 0., max_weight)
-            mean = np.mean(LP_weights)
-            LP_weights /= mean
-
-            LP_weights = np.clip(np.array(LP_weights), min_weight, max_weight)
+            LP_weights = np.clip(np.array(LP_weights), 0., LP_rw.max_rw)
+            LP_weights /= np.mean(LP_weights)
+            LP_weights = np.clip(np.array(LP_weights), LP_rw.min_rw, LP_rw.max_rw)
+            LP_weights /= np.mean(LP_weights)
 
         if(rand_noise is None):
             return LP_weights
         else:
             if(norm):
-                LP_smeared_weights = np.clip(np.array(LP_smeared_weights), 0., max_weight)
-                smear_means = np.mean(LP_smeared_weights, axis = 0)
-                LP_smeared_weights /= smear_means
-                LP_smeared_weights = np.clip(np.array(LP_smeared_weights), min_weight, max_weight)
+                LP_smeared_weights = np.clip(np.array(LP_smeared_weights), 0., LP_rw.max_rw)
+                LP_smeared_weights /= np.mean(LP_smeared_weights, axis = 0)
+                LP_smeared_weights = np.clip(np.array(LP_smeared_weights), LP_rw.min_rw, LP_rw.max_rw)
+                LP_smeared_weights /= np.mean(LP_smeared_weights, axis = 0)
 
-                pt_smeared_weights = np.clip(np.array(pt_smeared_weights), 0., max_weight)
-                pt_smear_means = np.mean(pt_smeared_weights, axis = 0)
-                pt_smeared_weights /= pt_smear_means
-                pt_smeared_weights = np.clip(np.array(pt_smeared_weights), min_weight, max_weight)
+                pt_smeared_weights = np.clip(np.array(pt_smeared_weights), 0., LP_rw.max_rw)
+                pt_smeared_weights /= np.mean(pt_smeared_weights, axis = 0)
+                pt_smeared_weights = np.clip(np.array(pt_smeared_weights), LP_rw.min_rw, LP_rw.max_rw)
+                pt_smeared_weights /= np.mean(pt_smeared_weights, axis = 0)
 
             return LP_weights, LP_smeared_weights, pt_smeared_weights
         
@@ -538,6 +536,10 @@ class LundReweighter():
         self.pt_extrap_val = pt_extrap_val
         self.pf_pt_min = pf_pt_min
         self.charge_only = charge_only
+        self.max_rw = 5.
+        self.min_rw = 0.2
+        self.func_dict = {}
+
         print(self.__dict__)
 
 
@@ -693,16 +695,20 @@ class LundReweighter():
 
 
     def reweight_pt_extrap(self,  subjet_pt, lp_idxs, rw, smeared_rw, pt_smeared_rw, pt_rand_noise = None, sys_str = ""):
-        max_rw = 10.
-        min_rw = 0.1
         #should only be in last pt bin ? 
 
 
         for (i,j,k) in lp_idxs:
 
-            f = self.pt_extrap_dir.Get("func_%s%i_%i" % (sys_str, j,k))
-            val = f.Eval(subjet_pt)
-            val = np.clip(val, min_rw, max_rw)
+            f_str = "func_%s%i_%i" % (sys_str, j,k)
+            if(f_str in self.func_dict.keys()):
+                f = self.func_dict[f_str]
+            else:
+                f = self.pt_extrap_dir.Get(f_str)
+                self.func_dict[f_str] = f
+            #val = f.Eval(subjet_pt)
+            val = f.Eval(1./subjet_pt)
+            val = np.clip(val, self.min_rw, self.max_rw)
 
             rw *= val 
             #keep noise smeared vals consistent
@@ -716,14 +722,12 @@ class LundReweighter():
                     for p in range(f.GetNpar()):
                         pnom = f.GetParameter(p)
                         perr = f.GetParError(p)
-                        #pnew = pnom + perr * up_down[n]
                         pnew = pnom + perr * pt_rand_noise[n, j-1, k-1, p]
                         pars.append(pnew)
 
-                    smeared_val = f.EvalPar(array('d', [subjet_pt]), pars)
-                    smeared_val = np.clip(smeared_val, min_rw, max_rw)
+                    smeared_val = f.EvalPar(array('d', [1./subjet_pt]), pars)
+                    smeared_val = np.clip(smeared_val, self.min_rw, self.max_rw)
                     pt_smeared_rw[n] *= smeared_val
-            del f
 
 
 
@@ -731,26 +735,27 @@ class LundReweighter():
 
 
     def reweight(self, h_rw, lp_idxs, rw, smeared_rw, pt_smeared_rw, rand_noise = None):
-        max_rw = 10.
-        min_rw = 0.1
 
         for (i,j,k) in lp_idxs:
             #print("Rw %.3f, cont %.3f, i %i j %i k %i n %i" % (rw, h_rw.GetBinContent(i,j,k), i,j,k, n_cands))
             val = h_rw.GetBinContent(i,j,k)
             err = h_rw.GetBinError(i,j,k)
+
             if(val <= 1e-4 and err <= 1e-4):
                 val = 1.0
                 err = 1.0
                 #print("EMPTY BIN")
-            val = np.clip(val, min_rw, max_rw)
-            if(rand_noise is not None):
-                smeared_vals = val + rand_noise[:,i-1,j-1,k-1] * err
-                smeared_vals = np.clip(smeared_vals, min_rw, max_rw)
-                smeared_rw *= smeared_vals
 
+            val = np.clip(val, self.min_rw, self.max_rw)
             rw *= val
             #keep pt smearing vals consistent
             if(pt_smeared_rw is not None): pt_smeared_rw *= val
+
+            if(rand_noise is not None):
+                smeared_vals = val + rand_noise[:,i-1,j-1,k-1] * err
+                smeared_vals = np.clip(smeared_vals, self.min_rw, self.max_rw)
+                smeared_rw *= smeared_vals
+
 
         return rw, smeared_rw, pt_smeared_rw
 
@@ -795,12 +800,14 @@ class LundReweighter():
         return rw, smeared_rw, pt_smeared_rw
 
 
-    def make_LP_ratio(self, h_data, h_bkg, h_mc, pt_bins, outdir = "", save_plots = False):
+    def make_LP_ratio(self, h_data, h_bkg, h_mc,  h_data_subjet_pt = None, h_bkg_subjet_pt = None, h_mc_subjet_pt = None, pt_bins = None, outdir = "", save_plots = False):
 
 
         h_data.Print()
         h_bkg.Print()
         h_mc.Print()
+
+        do_jet_pt_norm  = (h_data_subjet_pt is not None) and (h_mc_subjet_pt is not None) and (h_bkg_subjet_pt is not None)
 
         cleanup_hist(h_mc)
         cleanup_hist(h_bkg)
@@ -808,19 +815,39 @@ class LundReweighter():
         h_bkg_clone = h_bkg.Clone(h_bkg.GetName() + "_clone")
         h_mc_clone = h_mc.Clone(h_mc.GetName() + "_clone")
 
-        data_norm = h_data.Integral()
-        est = h_bkg_clone.Integral() + h_mc_clone.Integral()
 
-
-        h_bkg_clone.Scale(data_norm / est)
-        h_mc_clone.Scale(data_norm / est)
 
         h_ratio = h_data.Clone(h_mc_clone.GetName() + "_ratio")
         h_ratio.SetTitle("(Data - Bkg ) / TTbar MC")
 
+        data_norm = h_data.Integral()
+        est = h_bkg_clone.Integral() + h_mc_clone.Integral()
+
+
+        if(do_jet_pt_norm):
+
+            h_data_subjet_pt.Print()
+            h_bkg_subjet_pt.Print()
+            h_mc_subjet_pt.Print()
+
+            h_data_subjet_pt_clone = h_data_subjet_pt.Clone(h_data_subjet_pt.GetName() + "_clone")
+            h_bkg_subjet_pt_clone = h_bkg_subjet_pt.Clone(h_bkg_subjet_pt.GetName() + "_clone")
+            h_mc_subjet_pt_clone = h_mc_subjet_pt.Clone(h_mc_subjet_pt.GetName() + "_clone")
+            
+            data_norm = h_data_subjet_pt.Integral()
+            est = h_bkg_subjet_pt_clone.Integral() + h_mc_subjet_pt_clone.Integral()
+
+            h_mc_subjet_pt_clone.Scale(data_norm / est)
+            h_bkg_subjet_pt_clone.Scale(data_norm / est)
+
+
+        h_bkg_clone.Scale(data_norm / est)
+        h_mc_clone.Scale(data_norm / est)
+            
         h_data_sub = h_data.Clone("h_data_sub")
         h_data_sub.Add(h_bkg_clone, -1.)
         h_data_sub.Print()
+
 
 
         cleanup_hist(h_data_sub)
@@ -840,12 +867,24 @@ class LundReweighter():
             h_bkg_proj = h_bkg_clone1.Project3D("zy")
             h_data_proj = h_data_clone1.Project3D("zy")
 
+            #normalize by number of subjets rather than number of splittings
+            if(do_jet_pt_norm):
+                mc_norm = h_mc_subjet_pt_clone.GetBinContent(i)
+                bkg_norm = h_bkg_subjet_pt_clone.GetBinContent(i)
+                data_norm = h_data_subjet_pt_clone.GetBinContent(i) - bkg_norm
+            else:
+                data_norm = h_data_proj.Integral()
+                bkg_norm = h_bkg_proj.Integral()
+                mc_norm = h_mc_proj.Integral()
 
-            h_bkg_proj.Scale(1./h_bkg_proj.Integral())
+            print(mc_norm, bkg_norm, data_norm)
 
-            data_norm = h_data_proj.Integral()
+
+            h_bkg_proj.Scale(1./bkg_norm)
+
             h_data_proj.Scale(1./data_norm)
-            h_mc_proj.Scale(1./h_mc_proj.Integral())
+            h_mc_proj.Scale(1./mc_norm)
+
 
             h_ratio_proj = h_data_proj.Clone("h_ratio_proj%i" %i)
             h_ratio_proj.Divide(h_mc_proj)
