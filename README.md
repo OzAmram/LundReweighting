@@ -4,7 +4,8 @@ Most of this is personal code used to derive the Lund Plane ratio, plots and res
 JME-23-001.
 Files with `CASE` in them are for the application of the reweighting to the
 CASE anomaly search (EXO-22-026). 
-The code is based on the CASE [h5 file format](https://github.com/case-team/CASEUtils/tree/master/H5_maker)
+All of this code is based on running on files using the CASE [h5 file format](https://github.com/case-team/CASEUtils/tree/master/H5_maker)
+You can look at `W_SF`, `top_SF` or `CASE_SF` for examples of how a scale factor and uncertainties can be computed. 
 
 For those seeking to just use the Lund Plane ratio for their analysis,
 I recomend to use the functions provided in the `LundReweighter` file,
