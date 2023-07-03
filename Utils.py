@@ -73,54 +73,7 @@ def input_options():
     return parser
 
 
-def cleanup_hist(h):
-    if(type(h) == ROOT.TH3F):
-        for i in range(h.GetNbinsX()+1):
-            for j in range(h.GetNbinsY()+1):
-                for k in range(h.GetNbinsZ()+1):
-                    c = h.GetBinContent(i,j,k)
-                    if( c < 0): 
-                        h.SetBinContent(i,j,k, 0.)
-                        h.SetBinError(i,j,k, 0.)
-    elif(type(h) == ROOT.TH2F):
-        for i in range(h.GetNbinsX()+1):
-            for j in range(h.GetNbinsY()+1):
-                c = h.GetBinContent(i,j)
-                if( c < 0): 
-                    h.SetBinContent(i,j, 0.)
-                    h.SetBinError(i,j, 0.)
 
-
-
-def copy_proj(bin_i, h_ratio_proj, h_ratio):
-    for j in range(h_ratio.GetNbinsY()):
-        for k in range(h_ratio.GetNbinsZ()):
-            h_ratio.SetBinContent(bin_i,j,k, h_ratio_proj.GetBinContent(j,k))
-            h_ratio.SetBinError(bin_i,j,k, h_ratio_proj.GetBinError(j,k))
-    return
-
-def get_unc_hist(h):
-    h_unc = h.Clone(h.GetName() + "_unc")
-    for i in range(1, h.GetNbinsX() + 1):
-        for j in range(1, h.GetNbinsY() + 1):
-            err = h.GetBinError(i,j)
-            cont = h.GetBinContent(i,j)
-
-            if(cont > 0):
-                h_unc.SetBinContent(i,j, err/cont)
-                h_unc.SetBinError(i,j, 0.)
-            else:
-                h_unc.SetBinContent(i,j, 0.)
-    return h_unc
-
-
-def cleanup_ratio(h, h_min = 0., h_max = 2.):
-    for i in range(1, h.GetNbinsX() + 1):
-        for j in range(1, h.GetNbinsY() + 1):
-            cont = h.GetBinContent(i,j)
-            cont = max(h_min, min(cont, h_max))
-            h.SetBinContent(i,j,cont)
-    #h.GetZAxis().SetRangeUser(h_min, h_max);
 
 def convert_4vec(vec):
     rvec = ROOT.Math.PtEtaPhiMVector(vec[0], vec[1], vec[2], vec[3])
@@ -203,7 +156,7 @@ class Dataset():
         self.sys_key = sys_key
 
     def get_weights(self):
-        max_weight = 100.
+        max_weight = 50.
         if(self.is_data): return np.ones(self.n())
         weights = self.get_masked('norm_weights') * self.norm_factor
         if(len(self.sys_key) > 0):

@@ -10,11 +10,19 @@ tdrstyle.setTDRStyle()
 print(options)
 
 #UL
-lumi = 59.74
-year = 2018
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
+#lumi = 59.74
+#year = 2018
+#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
 
-f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
+#lumi = 41.42
+#year = 2017
+#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
+
+year = 2016
+lumi = 16.8 + 19.5
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+
+f_data = h5py.File(f_dir + "SingleMu_merge.h5", "r")
 f_ttbar = h5py.File(f_dir + "TT.h5", "r")
 f_wjets = h5py.File(f_dir + "QCD_WJets.h5", "r")
 f_diboson = h5py.File(f_dir + "diboson.h5", "r")
@@ -58,7 +66,7 @@ d_singletop = Dataset(f_singletop, label = "Single Top", color = ROOT.kMagenta-1
 
 
 d_ttbar_w_match = Dataset(f_ttbar, label = "t#bar{t} : W-matched", color = ROOT.kRed-7, jms_corr =jms_corr, dtype = 2)
-d_ttbar_t_match = Dataset(f_ttbar, label = "t#bar{t} : t-matched ", color = ROOT.kBlue-7, jms_corr = jms_corr, dtype = 3)
+d_ttbar_t_match = Dataset(f_ttbar, label = "t#bar{t} : t-matched", color = ROOT.kBlue-7, jms_corr = jms_corr, dtype = 3)
 d_ttbar_nomatch = Dataset(f_ttbar, label = "t#bar{t} : unmatched", color = ROOT.kGreen-6, jms_corr = jms_corr)
 
 ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]

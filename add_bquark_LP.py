@@ -23,7 +23,8 @@ print(options)
 
 
 outdir = options.outdir
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/TT.h5", "r")
+#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/TT.h5", "r")
+f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/TT.h5", "r")
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 
 pt_max = 1000

@@ -9,10 +9,14 @@ print(options)
 
 
 
-lumi = 59.74
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
+#UL
+#lumi = 59.74
+#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/"
 
-f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
+lumi = 41.42
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
+
+f_data = h5py.File(f_dir + "SingleMu_merge.h5", "r")
 f_ttbar = h5py.File(f_dir + "TT.h5", "r")
 f_wjets = h5py.File(f_dir + "QCD_WJets.h5", "r")
 f_diboson = h5py.File(f_dir + "diboson.h5", "r")

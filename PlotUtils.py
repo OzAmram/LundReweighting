@@ -400,8 +400,23 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
 
     return ns, bins, ratios, frac_unc
 
+def get_chi2(ratio):
+    ys = ratio.GetY()
+    xs = ratio.GetX()
+    e_low = ratio.GetEYlow()
+    e_high = ratio.GetEYhigh()
+    ndof = len(ys)
+
+    chi2 = 0.
+    for i,y in enumerate(ys):
+        e = e_low[i] if y > 1 else e_high[i]
+        chi2 += ((1. - y)/ e)**2;
+    return chi2
+
 def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[], drawSys = False,
-        draw_chi2 = False, stack = True, logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=-1, ratio_range = None, NDiv = 205, prelim = False):  
+        draw_chi2 = False, stack = True, outlines = [], logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=-1, ratio_range = None, NDiv = 205, prelim = False):  
+
+    sig_color = ROOT.kOrange - 7
 
     # histlist is just the generic list but if bkglist is specified (non-empty)
     # then this function will stack the backgrounds and compare against histlist as if 
@@ -519,9 +534,9 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 if not logy: 
                     y_end = 0.88
                     y_size = 0.2 + 0.025*(len(bkglist[0])+len(signals))
-                    x_size = 0.48
+                    x_size = 0.53
                     if(leg_align_right):
-                        x_start = 0.41
+                        x_start = 0.4
                     else:
                         x_start = 0.2
 
@@ -632,8 +647,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
                 # Do the signals
                 if len(signals) > 0: 
-                    signals[hist_index].SetLineColor(ROOT.kBlue)
-                    signals[hist_index].SetLineWidth(2)
+                    signals[hist_index].SetLineColor(sig_color)
+                    signals[hist_index].SetLineWidth(4)
                     if logy == True:
                         signals[hist_index].SetMinimum(1e-3)
                     if signalNames == []: this_sig_name = signals[hist_index].GetName().split('_')[0]
@@ -676,20 +691,18 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
 
                 ratio, ratio_sys_unc = makeRatio(hist,totlist[hist_index])
+                ratio_signal = False
+                if(len(signals) > 0):
+                    ratio_signal = True
+                    ratio_sig, _ = makeRatio(hist, signals[hist_index])
+                    ratio_sig.SetLineColor(sig_color)
+                    ratio_sig.SetMarkerColor(sig_color)
 
-                chi2 = 0.
+                chi2 = chi2_sig = 0.
 
-                ys = ratio.GetY()
-                xs = ratio.GetX()
-                e_low = ratio.GetEYlow()
-                e_high = ratio.GetEYhigh()
-                ndof = len(ys)
+                chi2 = get_chi2(ratio)
+                if(len(signals) > 0): chi2_sig = get_chi2(ratio_sig)
 
-
-                if(draw_chi2):
-                    for i,y in enumerate(ys):
-                        e = e_low[i] if y > 1 else e_high[i]
-                        chi2 += ((1. - y)/ e)**2;
                 #print("Chi2/nbin for chan %s is %.1f/%i" % (titles[hist_index], chi2, pull.GetNbinsX()))
 
                 #if(drawSys):
@@ -755,6 +768,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 else:
                     ratio.Draw('Ap0e0Z same')
 
+                if(ratio_signal):
+                    ratio_sig.Draw("p0e0Z same")
 
                 
                 line = ROOT.TLine(hist.GetXaxis().GetXmin(), 1.0, hist.GetXaxis().GetXmax(), 1.0)
@@ -763,16 +778,35 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
                 if(draw_chi2):
                     subs[hist_index].cd()
-                    xscale = (np.amax(xs) - np.amin(xs))
-                    x_start = np.amin(xs) + 0.75 * (np.amax(xs) - np.amin(xs))
-                    x_stop = np.amax(xs)
+                    xs = ratio.GetX()
 
-                    pave = ROOT.TPaveText(x_start, 0.75 * ratio_range[1], x_stop, 0.97 * ratio_range[1])
+                    xscale = (np.amax(xs) - np.amin(xs))
+                    x_start = np.amin(xs) + 0.22 * xscale
+                    x_stop = x_start + 0.25* xscale
+
+                    ndof = len(xs)
+
+
+                    pave = ROOT.TPaveText(x_start, 0.75 * ratio_range[1], x_stop, 0.98*ratio_range[1])
                     pave.AddText("#chi^{2} / ndof = %.1f / %i" % (chi2, ndof))
+                    pave.SetFillColor(ROOT.kWhite)
                     pave.SetFillColor(ROOT.kWhite)
                     #pave.SetBorderSize(1)
                     pave.SetBorderSize(0)
                     pave.Draw()
+
+                    if(ratio_signal):
+                        x_start = np.amin(xs) + 0.53 * xscale
+                        x_stop = x_start + 0.25 * xscale
+
+                        pave2 = ROOT.TPaveText(x_start, 0.75 * ratio_range[1], x_stop, 0.98*ratio_range[1])
+                        pave2.AddText("#chi^{2} / ndof = %.1f / %i" % (chi2_sig, ndof))
+                        pave2.SetTextColor(sig_color)
+                        pave2.SetFillColor(ROOT.kWhite)
+                        #pav2e.SetBorderSize(1)
+                        pave2.SetBorderSize(0)
+                        pave2.Draw()
+
 
                 if logy == True:
                     mains[hist_index].SetLogy()
@@ -787,11 +821,6 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
     print("Creating " + fname)
     myCan.Print(fname)
-    fname_root = fname.split(".")[-2] + ".root"
-    print("Saving ROOT: " + fname_root)
-    f = ROOT.TFile.Open(fname_root, "RECREATE")
-    myCan.Write()
-    f.Close()
 
 
 
@@ -992,6 +1021,16 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, u
     for h in hists: h_tot.Add(h)
     if(not stack): 
         h_tot.SetLineColor(ROOT.kBlue)
+
+
+    fname_root = fname.split(".")[-2] + ".root"
+    print("Saving ROOT: " + fname_root)
+    f = ROOT.TFile.Open(fname_root, "RECREATE")
+    for h in hists:
+        h.Write()
+        h_tot.Write()
+        h_data.Write()
+    f.Close()
         
 
     return makeCan("temp", fname, [h_data], bkglist = [hists], totlist = [h_tot], colors = colors, bkgNames = labels, titles = [title], logy = logy, xtitle = axis_label,

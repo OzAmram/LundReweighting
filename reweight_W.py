@@ -7,19 +7,17 @@ options = parser.parse_args()
 
 print(options)
 
-
-#NON UL (2018B only)
-#lumi = 6.90
-#f_data = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/SingleMu_2018C.h5", "r")
-#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/TTToSemiLep_2018.h5", "r")
-#f_bkg = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/CASEUtils/H5_maker/ttbar_output_files_v2/QCD_WJets_merged.h5", "r")
-#
 #UL
-lumi = 59.74
+#lumi = 59.74
+#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/"
 
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
+lumi = 41.42
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
 
-f_data = h5py.File(f_dir + "SingleMu_2018_merge.h5", "r")
+#lumi = 16.8 + 19.5
+#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+
+f_data = h5py.File(f_dir + "SingleMu_merge.h5", "r")
 f_ttbar = h5py.File(f_dir + "TT.h5", "r")
 f_wjets = h5py.File(f_dir + "QCD_WJets.h5", "r")
 f_diboson = h5py.File(f_dir + "diboson.h5", "r")

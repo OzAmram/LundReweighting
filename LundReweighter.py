@@ -8,6 +8,52 @@ import ROOT
 from array import array
 import copy
 
+def cleanup_hist(h):
+    if(type(h) == ROOT.TH3F):
+        for i in range(h.GetNbinsX()+1):
+            for j in range(h.GetNbinsY()+1):
+                for k in range(h.GetNbinsZ()+1):
+                    c = h.GetBinContent(i,j,k)
+                    if( c < 0): 
+                        h.SetBinContent(i,j,k, 0.)
+                        h.SetBinError(i,j,k, 0.)
+    elif(type(h) == ROOT.TH2F):
+        for i in range(h.GetNbinsX()+1):
+            for j in range(h.GetNbinsY()+1):
+                c = h.GetBinContent(i,j)
+                if( c < 0): 
+                    h.SetBinContent(i,j, 0.)
+                    h.SetBinError(i,j, 0.)
+
+def cleanup_ratio(h, h_min = 0., h_max = 2.):
+    for i in range(1, h.GetNbinsX() + 1):
+        for j in range(1, h.GetNbinsY() + 1):
+            cont = h.GetBinContent(i,j)
+            cont = max(h_min, min(cont, h_max))
+            h.SetBinContent(i,j,cont)
+    #h.GetZAxis().SetRangeUser(h_min, h_max);
+
+def copy_proj(bin_i, h_ratio_proj, h_ratio):
+    for j in range(h_ratio.GetNbinsY()):
+        for k in range(h_ratio.GetNbinsZ()):
+            h_ratio.SetBinContent(bin_i,j,k, h_ratio_proj.GetBinContent(j,k))
+            h_ratio.SetBinError(bin_i,j,k, h_ratio_proj.GetBinError(j,k))
+    return
+
+def get_unc_hist(h):
+    h_unc = h.Clone(h.GetName() + "_unc")
+    for i in range(1, h.GetNbinsX() + 1):
+        for j in range(1, h.GetNbinsY() + 1):
+            err = h.GetBinError(i,j)
+            cont = h.GetBinContent(i,j)
+
+            if(cont > 0):
+                h_unc.SetBinContent(i,j, err/cont)
+                h_unc.SetBinError(i,j, 0.)
+            else:
+                h_unc.SetBinContent(i,j, 0.)
+    return h_unc
+
 class LundReweighter():
 
     def __init__(self, jetR = -1, maxJets = -1, dR = 0.8, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False) :
@@ -257,7 +303,7 @@ class LundReweighter():
 
 
     def reweight_lund_plane(self, h_rw, pf_cands = None, splittings = None, subjets = None, num_excjets = -1, 
-                            rand_noise = None, pt_rand_noise = None,  sys_str = "", rescale_subjets = "vec", rescale_val = 1.0):
+                            rand_noise = None, pt_rand_noise = None,  sys_str = "", rescale_subjets = "", rescale_val = 1.0):
         """ Main function to compute reweighting factors. Can take in already computed subjets + splittings or recluster 
         itself using the PF candidates and the num_excjets args
 
@@ -279,6 +325,11 @@ class LundReweighter():
                                     'jec' multiplies each subjet by the value of rescale_val (ie a jec value). 
 
         rescale_val (optional): Value used in subjet scaling.
+
+
+        Returns : 
+        A tuple
+        (Event reweighting factor, reweighting factors from statistical variation toys,  reweighting factor from pt extrapolation toys)
 
 
 
@@ -458,9 +509,12 @@ class LundReweighter():
         Also clip outlier weights so to not be dominated by statistical fluctuations. """
 
         lund_weights = np.clip(lund_weights, 0., w_max)
-        lund_weights /= np.mean(lund_weights)
+        if(len(lund_weights.shape) > 1): lund_weights /= np.mean(lund_weights, axis = 0, keepdims=True)
+        else: lund_weights /= np.mean(lund_weights)
+
         lund_weights  = np.clip(lund_weights, w_min, w_max)
-        lund_weights /= np.mean(lund_weights)
+        if(len(lund_weights.shape) > 1): lund_weights /= np.mean(lund_weights, axis = 0, keepdims=True)
+        else: lund_weights /= np.mean(lund_weights)
 
         return lund_weights
 
@@ -478,3 +532,6 @@ def find_matching_pf(cj_list, cj):
         if(matched(c, cj)): 
             return c
     return None
+
+
+
