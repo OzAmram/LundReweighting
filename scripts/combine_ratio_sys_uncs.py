@@ -1,5 +1,7 @@
+import sys, os
+sys.path.insert(0, '')
+sys.path.append("../")
 from Utils import *
-import os
 
 def get_diff(h_nom, h):
     diffs = []

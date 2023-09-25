@@ -1,4 +1,4 @@
-from LundReweighter import *
+from .LundReweighter import *
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(False)

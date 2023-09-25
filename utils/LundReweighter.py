@@ -3,7 +3,7 @@ import argparse
 import fastjet as fj
 import numpy as np
 import sys
-from PlotUtils import *
+from .PlotUtils import *
 import ROOT
 from array import array
 import copy

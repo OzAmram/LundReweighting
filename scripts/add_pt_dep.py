@@ -1,5 +1,7 @@
+import sys, os
+sys.path.insert(0, '')
+sys.path.append("../")
 from Utils import *
-import os
 import numpy as np
 from array import array
 

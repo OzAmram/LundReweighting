@@ -1,5 +1,7 @@
-from Utils import *
-import os
+import sys, os
+sys.path.insert(0, '')
+sys.path.append("../")
+from utils.Utils import *
 """ An example how to use the Lund Plane reweighting  code """
 
 parser = input_options()
