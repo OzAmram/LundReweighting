@@ -43,20 +43,10 @@ x_bin1 = 2
 x_bin2 = 5
 base_order = 0
 
-for j in range(1,h_nom.GetNbinsY()+1):
-    for k in range(1,h_nom.GetNbinsZ()+1):
-        c1 = h_nom.GetBinContent(x_bin1,j,k)
-        c2 = h_nom.GetBinContent(x_bin2,j,k)
-        e1 = h_nom.GetBinError(x_bin1,j,k)
-        e2 = h_nom.GetBinError(x_bin2,j,k)
-        if(  c1 > 1e-6 and c2 > 1e-6 and  abs(e1/c1) < 0.5 and (e2/c2) < 0.5):
-            frac_diff = 2. * abs(c1 - c2)/(c1 + c2)
-            diffs.append(frac_diff)
-
-print("AVERAGE DIFF: %.3f" % np.mean(diffs))
 ROOT.gStyle.SetOptFit(1110)
-
 order_dict = {0:0, 1:0, 2:0, 3:0, 4:0}
+
+ratio_max = 20.0
 
 for h in [h_nom, h_up, h_down]:
 
@@ -79,6 +69,9 @@ for h in [h_nom, h_up, h_down]:
 
                 c1 = h.GetBinContent(i,j,k)
                 e1 = h.GetBinError(i,j,k)
+
+                c1 = min(c1, ratio_max)
+                e1 = min(e1, ratio_max)
 
                 #unmeasured bins get ratio of 1 with 100% unc
                 if( c1 < eps):
@@ -135,11 +128,14 @@ for h in [h_nom, h_up, h_down]:
                     F = F_num / (F_denom + eps)
                     F_prob = 1. - ROOT.TMath.FDistI(F, 1, nbin - order)
 
-                    print(nbin, order, chi2_prev, chi2_new, F_prob)
+                    chi2_prob = ROOT.Math.chisquared_cdf_c(chi2_new, nbin - order)
+                    print(nbin, order, chi2_prev, chi2_new, F_prob, chi2_prob)
 
                     if(order == base_order or (F_prob < thresh)):
                         #This order is preferred
-                        if( (nbin - order) <= 1 or chi2_new / (nbin - order) < 1.1):
+                        #if( (nbin - order) <= 1 or chi2_new / (nbin - order) < 1.1):
+                        if( (nbin - order) <= 1 or chi2_prob > 0.3):
+                        #if( (nbin - order) <= 1):
                             #stop now
                             break
 

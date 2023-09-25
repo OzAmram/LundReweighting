@@ -10,17 +10,22 @@ tdrstyle.setTDRStyle()
 print(options)
 
 #UL
-#lumi = 59.74
-#year = 2018
-#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_may22/"
+if(options.year == 2018):
+    lumi = 59.74
+    year = 2018
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/"
 
-#lumi = 41.42
-#year = 2017
-#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
+elif(options.year == 2017):
+    lumi = 41.42
+    year = 2017
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
 
-year = 2016
-lumi = 16.8 + 19.5
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+elif(options.year == 2016):
+    year = 2016
+    lumi = 16.8 + 19.5
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+else:
+    exit(1)
 
 f_data = h5py.File(f_dir + "SingleMu_merge.h5", "r")
 f_ttbar = h5py.File(f_dir + "TT.h5", "r")
@@ -169,12 +174,12 @@ obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt"]
 
 
 obs_attrs = {
-        'mSoftDrop' : (m_cut_min, m_cut_max, n_bins, "m_{SD}"),
-        'tau21' : (0.05, 0.8, 20, "#tau_{21}"),
-        'tau32' : (0.2, 1.0, 20, "#tau_{32}"),
-        'tau43' : (0.6, 1.0, 20, "#tau_{43}"),
-        'nPF' : (20.5, 120.5, 25, "Num. PF Cands."),
-        'pt' : (pt_cut, 1200., 20, "p_{T}"),
+        'mSoftDrop' : (125, 225, 25, "m_{SD} [GeV]", "Events / 4 GeV"),
+        'tau21' : (0.05, 0.8, 15, "#tau_{21}", "Events / 0.05" ),
+        'tau32' : (0.2, 0.95, 15, "#tau_{32}", "Events / 0.05"),
+        'tau43' : (0.6, 0.96, 18, "#tau_{43}", "Events / 0.02"),
+        'nPF' : (20.5, 120.5, 25, "Num. PF Cands.", "Events / 4"),
+        'pt' : (500, 1200., 20, "p_{T}", ""),
         }
 
 colors = []
@@ -191,7 +196,7 @@ for l in obs:
         a.append(getattr(d, l))
     a_data = getattr(d_data, l)
 
-    low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
+    low,high, nbins_, label, ylabel, = obs_attrs.get(l, (None, None, 20, l, ""))
 
     make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_nom, labels = labels, uncs = None, h_range = (low, high), drawSys = False, stack = True, draw_chi2 = True,
             year = year, colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_before.png' )
@@ -424,7 +429,7 @@ for l in obs:
         a.append(getattr(d, l))
     a_data = getattr(d_data, l)
 
-    low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
+    low,high, nbins_, label, ylabel = obs_attrs.get(l, (None, None, 20, l, ""))
 
     make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_rw, labels = labels, uncs = uncs_rw, h_range = (low, high), drawSys = False, stack = True, draw_chi2 = True,
             year = year, colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_after.png' )

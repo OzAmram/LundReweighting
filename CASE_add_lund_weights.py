@@ -151,8 +151,8 @@ def run():
         stop_idx = global_start_idx + min(nevts_batch, (i+1)*batch_size)
         print('start, stop', start_idx, stop_idx)
 
-        subjets1, splittings1, bad_match1 = d.get_matched_splittings(LP_rw, num_excjets = num_excjets, which_j = 1, min_evts = start_idx, max_evts = stop_idx)
-        subjets2, splittings2, bad_match2 = d.get_matched_splittings(LP_rw, num_excjets = num_excjets, which_j = 2, min_evts = start_idx, max_evts = stop_idx)
+        subjets1, splittings1, bad_match1,_ = d.get_matched_splittings(LP_rw, num_excjets = num_excjets, which_j = 1, min_evts = start_idx, max_evts = stop_idx)
+        subjets2, splittings2, bad_match2,_ = d.get_matched_splittings(LP_rw, num_excjets = num_excjets, which_j = 2, min_evts = start_idx, max_evts = stop_idx)
 
 
 

@@ -26,8 +26,8 @@ def cleanup_hist(h):
                     h.SetBinError(i,j, 0.)
 
 def cleanup_ratio(h, h_min = 0., h_max = 2.):
-    for i in range(1, h.GetNbinsX() + 1):
-        for j in range(1, h.GetNbinsY() + 1):
+    for i in range(0, h.GetNbinsX() + 2):
+        for j in range(0, h.GetNbinsY() + 2):
             cont = h.GetBinContent(i,j)
             cont = max(h_min, min(cont, h_max))
             h.SetBinContent(i,j,cont)
@@ -54,6 +54,31 @@ def get_unc_hist(h):
                 h_unc.SetBinContent(i,j, 0.)
     return h_unc
 
+def ang_dist(phi1, phi2):
+    phi1 = phi1 % (2. * np.pi)
+    phi2 = phi2 % (2. * np.pi)
+    dphi = phi1 - phi2
+    if(len(dphi.shape) > 0):
+        dphi[dphi < -np.pi] += 2.*np.pi
+        dphi[dphi > np.pi] -= 2.*np.pi
+    else:
+        if(dphi < -np.pi): dphi += 2.*np.pi
+        if(dphi > np.pi): dphi -= 2.*np.pi
+
+    return dphi
+
+def get_dRs(gen_eta_phi, j_4vec):
+    dR = np.sqrt(np.square(gen_eta_phi[:,0] - j_4vec[1]) + 
+            np.square(ang_dist(gen_eta_phi[:,1], j_4vec[2] )))
+    return dR
+
+def get_subjet_dist(q_eta_phis, subjets_eta_phis):
+    q_eta_phis = np.expand_dims(q_eta_phis, 0)
+    subjets_eta_phis = np.expand_dims(subjets_eta_phis, 1)
+    return np.sqrt(np.square(subjets_eta_phis[:,:,0] - q_eta_phis[:,:,0]) + 
+            np.square(ang_dist(subjets_eta_phis[:,:,1], q_eta_phis[:,:,1] )))
+
+
 class LundReweighter():
 
     def __init__(self, jetR = -1, maxJets = -1, dR = 0.8, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False) :
@@ -70,7 +95,57 @@ class LundReweighter():
         self.min_rw = 0.2
         self.func_dict = {}
 
-        print(self.__dict__)
+
+
+    def check_bad_subjet_matching(self, gen_parts_eta_phi, subjets):
+        # check if subjets fail matching criteria
+        if(gen_parts_eta_phi is None): return False
+
+        deltaR_cut = 0.2
+        dists = get_subjet_dist(gen_parts_eta_phi, np.array(subjets)[:,1:3])
+        j_closest = np.amin(dists, axis = -1)
+        j_which = np.argmin(dists, axis = -1)
+        matches = j_which[j_closest < deltaR_cut]
+
+        #check all quarks within 0.2 of subjet and no two quarks matched to same subjet
+        no_match = np.sum(j_closest < deltaR_cut) != len(subjets)
+        repeats = matches.shape[0] != np.unique(matches).shape[0]
+        bad_match = no_match or repeats
+
+        return bad_match, j_closest
+
+    def get_splittings_and_matching(self, pf_cands, gen_particles_eta_phi, ak8_jet, rescale_subjets = "", rescale_val = 1.0):
+        """Given a list of pf_candidates (px, py,pz,E), and gen_particles (eta, phi), and an AK8 jet 4 vector (pt, eta,phi, M) 
+        Recluster into a number of subjets based on the number of gen-level quarks inside the AK8 jet
+        Also returns the fraction of bad matches.
+        The momentum of these subjets is scaled based on the rescale_subjets and rescale_val args.
+
+        rescale_subjets (optional): Method to rescale the momentum of the subjets ('jec' or 'vec'). 
+                                    'vec' ensures the pt vector sum of the subjets adds up to rescale_val (ie total AK8 jet pt).  
+                                    'jec' multiplies each subjet by the value of rescale_val (ie a jec value). 
+
+        rescale_val (optional): Value used in subjet scaling.
+        """
+
+        bad_match = False
+
+        dRs = get_dRs(gen_particles_eta_phi, ak8_jet)
+        #ensure at least 1 prong or reclustering will crash
+        n_prongs = max(1, np.sum(dRs < 0.8))
+
+
+        subjet, split = self.get_splittings(pf_cands, num_excjets = n_prongs, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
+
+        #check if quarks near boundary of jet
+        bad_match = (np.sum((dRs > 0.7) & (dRs < 0.9)) > 0)
+
+        #check subjets matched to quarks
+        subjet_bad_match, subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, subjet)
+        bad_match  = bad_match or subjet_bad_match
+
+        return subjet, split, bad_match, dRs
+
+
 
 
     def get_splittings(self, pf_cands, num_excjets = -1, rescale_subjets = "", rescale_val = 1.0):

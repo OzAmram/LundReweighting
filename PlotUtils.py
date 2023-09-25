@@ -615,14 +615,15 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 
                 mLS = 0.07
                 mTS = 0.1
-                TOffset = 0.8
+                TOffset = 0.95
                 # Now draw the main pad
                 data_leg_title = hist.GetTitle()
                 if len(titles) > 0:
                     hist.SetTitle(titles[hist_index])
                 hist.GetYaxis().SetTitleOffset(TOffset)
                 hist.GetXaxis().SetTitleOffset(TOffset)
-                hist.GetYaxis().SetTitle('Events / bin')
+                if(len(ytitle) == 0): ytitle = "Events / bin"
+                hist.GetYaxis().SetTitle(ytitle)
                 hist.GetYaxis().SetLabelSize(mLS)
                 hist.GetYaxis().SetTitleSize(mTS)
                 hist.GetYaxis().SetNdivisions(505)
@@ -680,7 +681,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
                 #legends[hist_index].SetHeader(titles[0], "c")
                 legends[hist_index].SetNColumns(2)
-                legends[hist_index].SetTextSize(0.05)
+                legends[hist_index].SetTextSize(0.04)
 
                 for entry in legends_list[hist_index][::-1]:
                     legends[hist_index].AddEntry(entry[0], entry[1], entry[2])
@@ -740,7 +741,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 r_axis_hist.GetYaxis().SetLabelSize(LS)
                 r_axis_hist.GetYaxis().SetTitleSize(YTS)
                 r_axis_hist.GetYaxis().SetNdivisions(NDiv)
-                r_axis_hist.GetYaxis().SetTitle("Data / MC")
+                r_axis_hist.GetYaxis().SetTitle("Data / Sim.")
 
                 r_axis_hist.GetXaxis().SetRangeUser(hist.GetXaxis().GetXmin(), hist.GetXaxis().GetXmax())
                 r_axis_hist.GetXaxis().SetTitleOffset(1.)

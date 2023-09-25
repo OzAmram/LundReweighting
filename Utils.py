@@ -30,6 +30,10 @@ sys_weights_map = {
         'mu_trigger_down': 22,
         'mu_id_up': 23,
         'mu_id_down': 24,
+        #'mu_iso_up': 25,
+        #'mu_iso_down': 26,
+        #'puID_up': 27,
+        #'puID_down': 28,
         'bkg_norm_up': -999,
         'bkg_norm_down': -999,
         }
@@ -53,6 +57,10 @@ sig_sys = {
         'mu_trigger_down': 22,
         'mu_id_up': 23,
         'mu_id_down': 24,
+        'mu_iso_up': 25,
+        'mu_iso_down': 26,
+        'puID_up': 27,
+        'puID_down': 28,
         }
 
         
@@ -70,6 +78,8 @@ def input_options():
     parser.add_argument("--max_evts", default=-1, type = int, help="Max number of evts to reweight")
     parser.add_argument("--num_jobs", default=1, type = int, help="Max number of evts to reweight")
     parser.add_argument("--job_idx", default=0, type = int, help="Max number of evts to reweight")
+    parser.add_argument("-y", "--year", default=0, type = int, help="Year")
+    parser.add_argument("--mode", default="",  help="Running mode")
     return parser
 
 
@@ -80,24 +90,6 @@ def convert_4vec(vec):
     return [rvec.Px(), rvec.Py(), rvec.Pz(), rvec.E()]
 
 
-def ang_dist(phi1, phi2):
-    phi1 = phi1 % (2. * np.pi)
-    phi2 = phi2 % (2. * np.pi)
-    dphi = phi1 - phi2
-    if(len(dphi.shape) > 0):
-        dphi[dphi < -np.pi] += 2.*np.pi
-        dphi[dphi > np.pi] -= 2.*np.pi
-    else:
-        if(dphi < -np.pi): dphi += 2.*np.pi
-        if(dphi > np.pi): dphi -= 2.*np.pi
-
-    return dphi
-
-def get_subjet_dist(q_eta_phis, subjets_eta_phis):
-    q_eta_phis = np.expand_dims(q_eta_phis, 0)
-    subjets_eta_phis = np.expand_dims(subjets_eta_phis, 1)
-    return np.sqrt(np.square(subjets_eta_phis[:,:,0] - q_eta_phis[:,:,0]) + 
-            np.square(ang_dist(subjets_eta_phis[:,:,1], q_eta_phis[:,:,1] )))
 
 
 def get_dists(q_eta_phis, subjets_eta_phis):
@@ -108,10 +100,6 @@ def get_dists(q_eta_phis, subjets_eta_phis):
     return np.sqrt(np.square(subjets_eta_phis[:,:,:,0] - q_eta_phis[:,:,:,0]) + 
             np.square(ang_dist(subjets_eta_phis[:,:,:,1], q_eta_phis[:,:,:,1] )))
 
-def get_dRs(gen_eta_phi, j_4vec):
-    dR = np.sqrt(np.square(gen_eta_phi[:,0] - j_4vec[1]) + 
-            np.square(ang_dist(gen_eta_phi[:,1], j_4vec[2] )))
-    return dR
 
 
 def deltaR(v1, v2):
@@ -270,27 +258,10 @@ class Dataset():
         return responses
 
 
-    def check_bad_subjet_matching(self, gen_parts_eta_phi, subjets):
-        if(gen_parts_eta_phi is None): return False
-
-
-        deltaR_cut = 0.2
-        dists = get_subjet_dist(gen_parts_eta_phi, np.array(subjets)[:,1:3])
-        j_closest = np.amin(dists, axis = -1)
-        j_which = np.argmin(dists, axis = -1)
-        matches = j_which[j_closest < deltaR_cut]
-
-        #check all quarks within 0.2 of subjet and no two quarks matched to same subjet
-        no_match = np.sum(j_closest < deltaR_cut) != len(subjets)
-        repeats = matches.shape[0] != np.unique(matches).shape[0]
-        bad_match = no_match or repeats
-
-        #print(bad_match, no_match, repeats, j_closest, j_which)
-        return bad_match, j_closest
 
 
 
-    def get_matched_splittings(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1, return_dRs = False, rescale_subjets = "vec"):
+    def get_matched_splittings(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1, rescale_subjets = "vec"):
 
 
         pf_cands = self.get_masked("jet%i_PFCands" % which_j).astype(np.float64)[min_evts:max_evts]
@@ -309,10 +280,6 @@ class Dataset():
 
 
         num_excjets_l = [num_excjets]*len(pf_cands)
-        bad_match = [False] * len(pf_cands)
-        subjets = []
-        splittings = []
-        all_dRs = []
 
         if(num_excjets > 0 and self.dtype < 0): 
             #No gen info
@@ -345,28 +312,20 @@ class Dataset():
             else: gen_parts_eta_phi = np.stack([q1_eta_phi, q2_eta_phi, b_eta_phi], axis = 1)
 
 
+        subjets = []
+        splittings = []
+        bad_matches = []
+        dRs = []
 
         for i in range(len(pf_cands)):
-            dRs = get_dRs(gen_parts_eta_phi[i], j_4vec[i])
-            n_prongs_i = np.sum(dRs < 0.8)
+            subjet, split, bad_match, deltaR = LP_rw.get_splittings_and_matching(pf_cands[i], gen_parts_eta_phi[i], j_4vec[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
 
-            num_excjets_l[i] = max(n_prongs_i,1) if num_excjets <= 0 else num_excjets
-
-            subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
-
-            #check if quarks near boundary of jet
-            bad_match[i] = (np.sum((dRs > 0.7) & (dRs < 0.9)) > 0) #or (n_prongs_i < 2)
-
-            #check subjets matched to quarks
-            subjet_bad_match, subjet_dRs = self.check_bad_subjet_matching(gen_parts_eta_phi[i], subjet)
-            bad_match[i]  = bad_match[i] or subjet_bad_match
             subjets.append(subjet)
             splittings.append(split)
-            if(return_dRs): all_dRs.append(subjet_dRs)
-            
+            bad_matches.append(bad_match)
+            dRs.append(deltaR)
 
-        if(return_dRs): return subjets, splittings, bad_match, all_dRs
-        else: return subjets, splittings, bad_match
+        return subjets, splittings, bad_matches, dRs
 
 
     def reweight_LP(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None, prefix = "", 
@@ -392,11 +351,7 @@ class Dataset():
                 subjets = self.get_masked(prefix + "_subjets")
 
             else:
-                subjets, splittings, matching = self.get_matched_splittings(LP_rw, num_excjets, min_evts = min_evts, max_evts =max_evts)
-
-
-
-
+                subjets, splittings, matching, dRs = self.get_matched_splittings(LP_rw, num_excjets, min_evts = min_evts, max_evts =max_evts)
 
         for i in range(len(pf_cands)):
 
@@ -482,4 +437,30 @@ def add_dset(f, key, data):
             f.create_dataset(key, data = data, chunks = True, maxshape = shape)
         else:
             f.create_dataset(key, data = data)
+
+def fit_ratio(data, s_val, b_val):
+    w = ROOT.RooWorkspace("w", "w")
+    n_obs = ROOT.RooRealVar("n_obs", "", 10, 0, 1000000)
+
+    s = ROOT.RooRealVar("s", "", s_val, 0, 1000000)
+    s.setVal(float(s_val))
+    s.setConstant(True)
+    b = ROOT.RooRealVar("b", "", b_val, 0, 1000000)
+    b.setVal(float(b_val))
+    b.setConstant(True)
+    r_guess = (data - b_val) / s_val
+    r = ROOT.RooRealVar("r", "", r_guess, -10000, 10000)
+
+    n_exp = ROOT.RooFormulaVar("n_exp", "@0 + @1 * @2", ROOT.RooArgList(b,s,r))
+    model = ROOT.RooPoisson("poisson", "", n_obs, n_exp)
+
+    ds = ROOT.RooDataSet("d", "d", ROOT.RooArgSet(n_obs))
+    n_obs.setVal(float(data))
+
+    ds.add(ROOT.RooArgSet(n_obs))
+    fres = model.fitTo(ds,ROOT.RooFit.Save(1),ROOT.RooFit.Minimizer("Minuit2"), ROOT.RooFit.Verbose(0)) 
+    print(r.getErrorHi(), r.getErrorLo())
+    return r.getVal(), r.getError()
+
+
 

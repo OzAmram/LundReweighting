@@ -11,15 +11,22 @@ ROOT.TGaxis.SetMaxDigits(3);
 
 
 #UL
-lumi = 59.74
-year = 2018
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/"
-#lumi = 41.42
-#year = 2017
-#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
-#year = 2016
-#lumi = 16.8 + 19.5
-#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+if(options.year == 2018):
+    lumi = 59.74
+    year = 2018
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/"
+
+elif(options.year == 2017):
+    lumi = 41.42
+    year = 2017
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
+
+elif(options.year == 2016):
+    year = 2016
+    lumi = 16.8 + 19.5
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+else:
+    exit(1)
 
 
 f_data = h5py.File(f_dir + "SingleMu_merge.h5", "r")
@@ -32,8 +39,6 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
-#f_ratio = ROOT.TFile.Open("ttbar_UL_feb14_W_rw/ratio.root")
-#f_ratio = ROOT.TFile.Open("ttbar_UL_feb14_W_rw_chg_only/ratio.root")
 f_ratio = ROOT.TFile.Open(options.fin)
 outdir = options.outdir
 prefix = ""
@@ -173,14 +178,14 @@ if(norm):
 obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt", "DeepAK8_W_MD", "DeepAK8_W"]
 
 obs_attrs = {
-        'mSoftDrop' : (m_cut_min, m_cut_max, n_bins, "m_{SD}"),
-        'tau21' : (0.05, 0.8, 20, "#tau_{21}"),
-        'tau32' : (0.4, 1.0, 20, "#tau_{32}"),
-        'tau43' : (0.6, 1.0, 20, "#tau_{43}"),
-        'nPF' : (20.5, 80.5, 30, "Num. PF Cands."),
-        'pt' : (pt_cut, 1200., 20, "p_{T}"),
-        'DeepAK8_W' : (0., 1., 20, "DeepAK8 (W vs. QCD)"),
-        'DeepAK8_W_MD' : (0., 1., 20, "DeepAK8-MD (W vs. QCD)"),
+        'mSoftDrop' : (60, 110, 25, "m_{SD} [GeV] ", "Events / 2 GeV") if m_cut_max < 200 else (50, 230, 45, "m_{SD} [GeV]", "Events / 4 GeV"),
+        'tau21' : (0.05, 0.8, 25, "#tau_{21}", "Events / 0.03"),
+        'tau32' : (0.4, 0.95, 25, "#tau_{32}", "Events / 0.022)"),
+        'tau43' : (0.6, 0.96, 18, "#tau_{43}", "Events / 0.02"),
+        'nPF' : (20.5, 80.5, 30, "Num. PF Cands.", "Events / 2" ),
+        'pt' : (225, 825., 20, "p_{T}", "Events / 30 GeV"),
+        'DeepAK8_W' : (0., 1., 20, "DeepAK8 (W vs. QCD)", "Events / 0.05"),
+        'DeepAK8_W_MD' : (0., 1., 20, "DeepAK8-MD (W vs. QCD)", "Events / 0.05"),
         }
 
 
@@ -198,10 +203,10 @@ for l in obs:
         a.append(getattr(d, l))
     a_data = getattr(d_data, l)
 
-    low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
+    low,high, nbins_, label, ylabel = obs_attrs.get(l, (None, None, 20, l, ""))
 
     make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_nom, labels = labels, h_range = (low, high), drawSys = False, stack = True, draw_chi2 = True,
-            year = year, colors = colors, axis_label = label,  title = l + " : No Reweighting", 
+            year = year, colors = colors, axis_label = label,  title = l + " : No Reweighting",
             num_bins = nbins_, normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_before.png' )
 
 weights_rw = copy.deepcopy(weights_nom)
@@ -421,7 +426,7 @@ for l in obs:
         a.append(getattr(d, l))
     a_data = getattr(d_data, l)
 
-    low,high, nbins_, label = obs_attrs.get(l, (None, None, 20, l))
+    low,high, nbins_, label, ylabel = obs_attrs.get(l, (None, None, 20, l, ""))
     make_multi_sum_ratio_histogram(data = a_data, entries = a, weights = weights_rw, labels = labels, h_range = (low, high), stack = True, uncs = uncs, drawSys = drawSys, draw_chi2 = True,
             year = year, colors = colors, axis_label = label,  title = l + " : LP Reweighting", num_bins = nbins_, 
             normalize = False, ratio_range = ratio_range, fname = outdir + l + '_ratio_after.png' )

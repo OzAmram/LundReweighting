@@ -10,7 +10,8 @@ def get_diff(h_nom, h):
                 c_sys = h.GetBinContent(i,j,k)
                 eps = 1e-6
                 if(c_nom > eps):
-                    diffs.append(abs(c_nom - c_sys)/c_nom)
+                    diff = min(1.0, abs(c_nom - c_sys)/c_nom)
+                    diffs.append(diff)
     return np.mean(diffs)
 
 
@@ -36,7 +37,6 @@ h_sys_down.Reset()
 
 h_nom.Print()
 h_sys_up.Print()
-
 
 
 for sys in sys_list:
