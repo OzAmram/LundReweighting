@@ -10,9 +10,9 @@ options = parser.parse_args()
 ######################## Setup 
 
 #Input file 
-fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+fname = "data/example_signal.h5"
 #File containing data/MC Lund Plane ratio
-f_ratio_name = 'reweighting_files/ratio_2018.root'
+f_ratio_name = 'data/ratio_2018.root'
 
 f_sig = h5py.File(fname, "r")
 f_ratio = ROOT.TFile.Open(f_ratio_name)
@@ -42,7 +42,7 @@ rdir = ROOT.gDirectory
 #Main class for reweighting utilities
 LP_rw = LundReweighter(pt_extrap_dir = rdir)
 
-max_evts = 2000
+max_evts = 1000
 score = getattr(d, tag_obs)[:max_evts]
 score_cut = score < score_thresh
 
@@ -164,7 +164,7 @@ eff_rw = np.average(score_cut, weights = LP_weights)
 #Nominal 'scale factor'
 SF = eff_rw / eff_nom
 
-print("Nom %.3f, RW %.3f, SF %.3f" % (eff_nom, eff_rw, SF))
+print("Nominal efficiency %.3f, Corrected efficiency %.3f, SF (corrected / nom) %.3f" % (eff_nom, eff_rw, SF))
 
 #NOTE, better to use corrected efficiency computed separately for each sample rather than a single 'SF'
 
@@ -188,8 +188,8 @@ pt_toys_std = np.std(pt_eff_toys)
 eff_stat_unc = (abs(toys_mean - eff_rw)  + toys_std) 
 eff_pt_unc = (abs(pt_toys_mean - eff_rw) + pt_toys_std)
 
-print("Stat variation toys avg %.3f, std dev %.3f" % (toys_mean, toys_std))
-print("Pt variation toys avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
+print("Stat variation toys eff. avg %.3f, std dev %.3f" % (toys_mean, toys_std))
+print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
 #Compute efficiency of systematic variations
 eff_sys_up =  np.average(score_cut, weights = LP_weights_sys_up)
@@ -207,7 +207,7 @@ b_unc_up = abs(eff_rw - eff_b_up)
 b_unc_down = abs(eff_rw - eff_b_down)
 
 
-#matching uncertainty, taken as a fractional uncetainty on efficiency
+#matching uncertainty, taken as a fractional uncertainty on efficiency
 bad_match_frac = np.mean(bad_matches)
 bad_match_unc = bad_match_frac * eff_rw
 
