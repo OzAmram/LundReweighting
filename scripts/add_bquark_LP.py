@@ -23,8 +23,7 @@ print(options)
 
 
 outdir = options.outdir
-#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/TT.h5", "r")
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/TT.h5", "r")
+f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_%i/TT.h5" % options.year, "r")
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 
 pt_max = 1000
@@ -61,14 +60,11 @@ h_bs.GetZaxis().SetTitle(z_label)
 h_bs.GetYaxis().SetTitle(y_label)
 
 
-subjet_rw = False
-excjet_rw = True
 sys = ""
 
 jetR = 1.0
 
 max_evts = 10000
-
 jms_corr = 1.0
 
 m_cut_top_min = 125.

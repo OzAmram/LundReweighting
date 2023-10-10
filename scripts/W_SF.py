@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, '')
 sys.path.append("../")
-from Utils import *
+from utils.Utils import *
 
 parser = input_options()
 options = parser.parse_args()
@@ -17,16 +17,19 @@ if(options.year == 2018):
     lumi = 59.74
     year = 2018
     f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/"
+    f_ratio_name = "data/ratio_2018.root"
 
 elif(options.year == 2017):
     lumi = 41.42
     year = 2017
     f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
+    f_ratio_name = "data/ratio_2017.root"
 
 elif(options.year == 2016):
     year = 2016
     lumi = 16.8 + 19.5
     f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+    f_ratio_name = "data/ratio_2016.root"
 else:
     exit(1)
 
@@ -41,10 +44,12 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
-f_ratio = ROOT.TFile.Open(options.fin)
+if(options.fin != ""): f_ratio_name = options.fin
+f_ratio = ROOT.TFile.Open(f_ratio_name)
 outdir = options.outdir
 prefix = ""
 drawSys = False
+if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
 
 ratio_range = [0.2, 1.8]
@@ -62,14 +67,15 @@ norm = True
 
 jms_corr = 1.0
 
-#m_cut_min = 60.
-#m_cut_max = 110.
-m_cut_min = 50.
-m_cut_max = 250.
+#m_cut_min = 80.
+#m_cut_max = 82.
+m_cut_min = 60.
+m_cut_max = 110.
+#m_cut_min = 50.
+#m_cut_max = 250.
 #m_cut_max = 65.
 pt_cut = 225.
 
-if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
 d_data = Dataset(f_data, is_data = True)
 
@@ -129,7 +135,7 @@ jetR = 1.0
 num_excjets = -1
 
 n_pt_bins = 6
-num_excjets = 2
+#num_excjets = 2
 pt_bins = array('f', [0., 50., 100., 200., 300., 450., 99999.])
 
 
@@ -234,15 +240,23 @@ pt_rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsY(), h_ratio.Get
 
 h_ratio = f_ratio.Get("ratio_nom")
 
-LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only)
+min_kt = 0.002
+#min_kt = -99999.0
+max_kt = 99999.0
 
-d_tw_LP_weights = d_tw.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets,  prefix = "",)
+min_delta = 0.005
+#min_delta = -99999.0
+max_delta = 99999.0
+
+LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only, min_kt = min_kt, max_kt = max_kt, min_delta = min_delta, max_delta = max_delta)
+
+d_tw_LP_weights = d_tw.reweight_LP(LP_rw, h_ratio, num_excjets = 2,  prefix = "",)
 
 d_sig = sigs[0]
 print("Reweighting ", d.f)
 sig_idx = len(bkgs)
 
-subjets, splittings, bad_match, deltaRs = d_sig.get_matched_splittings(LP_rw, num_excjets = num_excjets, return_dRs = True)
+subjets, splittings, bad_match, deltaRs = d_sig.get_matched_splittings(LP_rw, num_excjets = -1)
 
 subjet_responses = []
 jet_responses = []
@@ -329,6 +343,7 @@ for i,sjs in enumerate(subjets):
     for sj in sjs:
         subjet_pts.append(sj[0])
     
+print("Min subjet pt %.2f " % np.amin(subjet_pts))
 num_bins = 40
 pt_bins = array('d', np.linspace(0., 800., num_bins + 1))
 dR_bins = array('d', np.linspace(0., 0.8, num_bins + 1))
@@ -349,6 +364,8 @@ cut_DeepAK8 = d_ttbar_w_match.DeepAK8_W > DeepAK8_cut_val
 cuts = [cut_tau21, cut_DeepAK8_MD, cut_DeepAK8]
 cut_names = ["Tau21", "DeepAK8 W MD", "DeepAK8 W"]
 cut_vals = [tau21_cut_val, DeepAK8_MD_cut_val, DeepAK8_cut_val]
+
+f_SFs = open(options.outdir + "SFs.txt", "w")
 
 for idx,cut in enumerate(cuts):
 
@@ -406,8 +423,10 @@ for idx,cut in enumerate(cuts):
 
     bad_matching_unc = np.mean(bad_match) * SF
 
-    print("\n\nSF %s (cut val %.3f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) +/- %.2f (matching) \n\n"  
-            % (cut_names[idx], cut_vals[idx], SF, SF_stat_unc, SF_sys_unc, SF_pt_unc, bad_matching_unc))
+    SF_str = "\n\nSF %s (cut val %.3f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) +/- %.2f (matching) \n\n"  % (
+            cut_names[idx], cut_vals[idx], SF, SF_stat_unc, SF_sys_unc, SF_pt_unc, bad_matching_unc)
+    print(SF_str)
+    f_SFs.write(SF_str)
 
     #approximate uncertainty on the reweighting for the plots
     overall_unc = (SF_stat_unc **2 + SF_sys_unc**2 + SF_pt_unc**2 + bad_matching_unc**2) **0.5 / SF
@@ -419,6 +438,7 @@ for idx,cut in enumerate(cuts):
     uncs[len(bkgs)-1] = overall_unc
 
 
+f_SFs.close()
 f_ratio.Close()
 
 

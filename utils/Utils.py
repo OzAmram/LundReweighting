@@ -164,8 +164,9 @@ class Dataset():
         self.tau21 = (feats[:,1] / (feats[:,0] + eps))
         self.tau32 = (feats[:,2] / (feats[:,1] + eps))
         self.tau43 = (feats[:,3] / (feats[:,2] + eps))
-        if(feats.shape[1] > 7): self.DeepAK8_W_MD = feats[:,8]
-        if(feats.shape[1] > 8): self.DeepAK8_W = feats[:,9]
+        if(feats.shape[1] > 8): self.DeepAK8_W_MD = feats[:,8]
+        if(feats.shape[1] > 9): self.DeepAK8_W = feats[:,9]
+        if(feats.shape[1] > 10): self.ParticleNet_W = feats[:,10]
         if(self.dtype == 1): self.mSoftDrop = kins[:,5] * self.jms_corr
         else: self.mSoftDrop = kins[:,3] * self.jms_corr
         self.pt = kins[:,0]
@@ -280,6 +281,11 @@ class Dataset():
 
 
         num_excjets_l = [num_excjets]*len(pf_cands)
+        subjets = []
+        splittings = []
+        bad_matches = []
+        dRs = []
+
 
         if(num_excjets > 0 and self.dtype < 0): 
             #No gen info
@@ -287,7 +293,7 @@ class Dataset():
                 subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
                 subjets.append(subjet)
                 splittings.append(split)
-            return subjets, splittings, bad_match
+            return subjets, splittings, bad_matches, dRs
 
         if(self.dtype == 1): #CASE h5
             gen_parts = self.get_masked('gen_info')[min_evts:max_evts]
@@ -312,10 +318,6 @@ class Dataset():
             else: gen_parts_eta_phi = np.stack([q1_eta_phi, q2_eta_phi, b_eta_phi], axis = 1)
 
 
-        subjets = []
-        splittings = []
-        bad_matches = []
-        dRs = []
 
         for i in range(len(pf_cands)):
             subjet, split, bad_match, deltaR = LP_rw.get_splittings_and_matching(pf_cands[i], gen_parts_eta_phi[i], j_4vec[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])

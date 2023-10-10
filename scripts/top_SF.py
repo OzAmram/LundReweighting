@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, '')
 sys.path.append("../")
-from Utils import *
+from utils.Utils import *
 
 
 
@@ -16,16 +16,19 @@ if(options.year == 2018):
     lumi = 59.74
     year = 2018
     f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/"
+    f_ratio_name = "data/ratio_2018.root"
 
 elif(options.year == 2017):
     lumi = 41.42
     year = 2017
     f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
+    f_ratio_name = "data/ratio_2017.root"
 
 elif(options.year == 2016):
     year = 2016
     lumi = 16.8 + 19.5
     f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+    f_ratio_name = "data/ratio_2016.root"
 else:
     exit(1)
 
@@ -38,14 +41,11 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 
 
-#f_ratio = ROOT.TFile.Open("ttbar_UL_jan20_W_rw_kt_sys/ratio.root")
-f_ratio = ROOT.TFile.Open(options.fin)
-
+if(options.fin != ""): f_ratio_name = options.fin
+f_ratio = ROOT.TFile.Open(f_ratio_name)
 
 #for SF computation
 tau32_cut = 0.52
-
-
 
 outdir = options.outdir
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
@@ -58,7 +58,7 @@ norm = True
 jms_corr = 1.0
 
 m_cut_min = 125.
-#m_cut_max = 130.
+#m_cut_min = 150.
 m_cut_max = 225.
 pt_cut = 500.
 
@@ -223,14 +223,22 @@ nToys = 100
 rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ()))
 pt_rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), 3))
 
-LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only)
+#min_kt = 0.04
+min_kt = -99999.0
+max_kt = 99999.0
+
+#min_delta = 0.005
+min_delta = -99999.0
+max_delta = 99999.0
+
+LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only, min_kt = min_kt, max_kt = max_kt, min_delta = min_delta, max_delta = max_delta)
 
 
 d_sig = sigs[0]
 
 sig_idx = len(bkgs)
 print("Reweighting ", d.f )
-subjets, splittings, bad_match, deltaRs = d_sig.get_matched_splittings(LP_rw, num_excjets = num_excjets, return_dRs = True, rescale_subjets = "jec")
+subjets, splittings, bad_match, deltaRs = d_sig.get_matched_splittings(LP_rw, num_excjets = num_excjets, rescale_subjets = "jec")
 d_LP_weights, d_LP_smeared_weights, d_pt_smeared_weights = d_sig.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets,  prefix = "", 
         rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
 
@@ -408,9 +416,14 @@ SF_pt_unc = abs(pt_toys_mean - eff_rw)/eff_nom + pt_toys_std /eff_nom
 
 bad_matching_unc = np.mean(bad_match) * SF
 
-print("\n\nSF (cut val %.2f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) +/- %.2f (bquark) +/- %.2f (matching) \n\n"  
-        % (tau32_cut, SF, SF_stat_unc, SF_sys_unc, SF_pt_unc, SF_bquark_unc, bad_matching_unc))
+f_SFs = open(options.outdir + "SFs.txt", "w")
 
+SF_str = "\n\nSF (cut val %.2f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) +/- %.2f (bquark) +/- %.2f (matching) \n\n"  % (tau32_cut, 
+        SF, SF_stat_unc, SF_sys_unc, SF_pt_unc, SF_bquark_unc, bad_matching_unc)
+print(SF_str)
+f_SFs.write(SF_str)
+
+f_SFs.close()
 f_ratio.Close()
 
 #approximate uncertainty on the reweighting for the plots

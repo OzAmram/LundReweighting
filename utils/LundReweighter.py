@@ -81,7 +81,8 @@ def get_subjet_dist(q_eta_phis, subjets_eta_phis):
 
 class LundReweighter():
 
-    def __init__(self, jetR = -1, maxJets = -1, dR = 0.8, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False) :
+    def __init__(self, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False, 
+             min_kt = 0.002, max_kt = 99999., min_delta = 0.005, max_delta = 99999.) :
 
         self.jetR = jetR
         self.maxJets = maxJets
@@ -93,6 +94,8 @@ class LundReweighter():
         self.charge_only = charge_only
         self.max_rw = 5.
         self.min_rw = 0.2
+        self.min_kt, self.max_kt = min_kt, max_kt
+        self.min_delta, self.max_delta = min_delta, max_delta
         self.func_dict = {}
 
 
@@ -236,7 +239,6 @@ class LundReweighter():
                     # order the parents in pt
                     if (j2.pt() > j1.pt()):
                         j1, j2 = j2, j1
-                    # check if we satisfy cuts
                     delta = j1.delta_R(j2)
                     kt = j2.pt() * delta
                     splittings.append([i, delta, kt])
@@ -300,7 +302,8 @@ class LundReweighter():
             if(subjet_idx >= 0 and jet_i != subjet_idx): continue
             jet_int = int(np.round(jet_i))
             jet_pt = subjets_reshape[0] if no_idx else subjets_reshape[jet_int*4]
-            if(delta > 0. and kt > 0.):
+            if(delta > 0. and kt > 0. and delta > self.min_delta and delta < self.max_delta 
+                    and kt > self.min_kt and kt < self.max_kt):
                 bin_idx = h.FindBin(jet_pt, np.log(self.dR/delta), np.log(kt))
 
                 h.GetBinXYZ(bin_idx, binx, biny, binz)
@@ -413,14 +416,11 @@ class LundReweighter():
         if(subjets is None or splittings is None):
             subjets, splittings = self.get_splittings(pf_cands, num_excjets = num_excjets, rescale_subjets = rescale_subjets, rescale_val = rescale_val )
 
-
         rw = 1.0
-
         pt_smeared_rw = smeared_rw = None
 
         if(rand_noise is not None): smeared_rw = np.array([1.0]*rand_noise.shape[0])
         if(pt_rand_noise is not None): pt_smeared_rw = np.array([1.0]*pt_rand_noise.shape[0])
-
 
         #splittings save idx of associated subjet
         for i in range(len(subjets)):
