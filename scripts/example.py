@@ -193,7 +193,7 @@ print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_s
 
 #Compute efficiency of systematic variations
 eff_sys_up =  np.average(score_cut, weights = LP_weights_sys_up)
-eff_sys_down =  np.average(score_cut, weights = LP_weights_sys_up)
+eff_sys_down =  np.average(score_cut, weights = LP_weights_sys_down)
 
 sys_unc_up = abs(eff_rw - eff_sys_up)
 sys_unc_down = abs(eff_rw - eff_sys_down)
