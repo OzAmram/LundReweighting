@@ -10,7 +10,8 @@ options = parser.parse_args()
 ######################## Setup 
 
 #Input file 
-fname = "data/example_signal.h5"
+#fname = "data/example_signal.h5"
+fname = "../TagNTrain/data/LundRW/YtoHH_Htott_Y5000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #File containing data/MC Lund Plane ratio
 f_ratio_name = 'data/ratio_2018.root'
 
@@ -22,8 +23,10 @@ d = Dataset(f_sig, dtype = 1)
 d.compute_obs()
 
 #The cut we will compute a SF for 'tau21 < 0.34'
-tag_obs = 'tau21'
-score_thresh = 0.34
+#tag_obs = 'tau21'
+#score_thresh = 0.34
+tag_obs = 'tau43'
+score_thresh = 0.65
 
 
 #nominal data/MC Lund plane ratio (3d histogram)
@@ -75,24 +78,37 @@ weights_nom = np.ones(max_evts)
 LP_weights = []
 LP_weights_sys_up = []
 LP_weights_sys_down = []
+LP_weights_prongs_up = []
+LP_weights_prongs_down = []
+LP_weights_reclust_up = []
+LP_weights_reclust_down = []
 stat_smeared_weights = []
 pt_smeared_weights = []
 b_weights_up = []
 b_weights_down = []
-bad_matches = []
+
+partial_merge = 0
+bad_matches = 0
 
 
 for i,cands in enumerate(pf_cands):
 
-    #Get the subjets, splittings and checking matching based on PF candidates in the jet and gen-level quarks
-    subjets, splittings, bad_match, deltaRs = LP_rw.get_splittings_and_matching(cands, gen_parts_eta_phi[i], ak8_jets[i])
+    #Get the subjets and splittings  based on PF candidates in the jet and gen-level quarks
+    #Also compute variations if needed by changing the number of subjets in the reclustering
+    reclust_nom, reclust_prongUp, reclust_prongDown = LP_rw.get_splittings_and_matching(cands, gen_parts_eta_phi[i], ak8_jets[i])
 
     #Gets the nominal LP reweighting factor for this event and statistical + pt extrapolation toys
-    LP_weight, stat_smeared_weight, pt_smeared_weight = LP_rw.reweight_lund_plane(h_rw = h_ratio, subjets = subjets, splittings = splittings,
-            rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, )
-    #Now get systematic variations
-    LP_weight_sys_up,_,_ = LP_rw.reweight_lund_plane(h_rw = h_ratio_sys_up, subjets = subjets, splittings = splittings)
-    LP_weight_sys_down,_,_ = LP_rw.reweight_lund_plane(h_rw = h_ratio_sys_down, subjets = subjets, splittings = splittings)
+    LP_weight, stat_smeared_weight, pt_smeared_weight = LP_rw.reweight_lund_plane(h_rw = h_ratio, reclust_obj = reclust_nom, rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, )
+
+    #Compute weight for prong variations if needed
+    if(reclust_prongUp is not None): LP_weight_prongs_up, _, _ = LP_rw.reweight_lund_plane(h_rw = h_ratio, reclust_obj = reclust_prongUp)
+    else: LP_weight_prongs_up = LP_weight
+    if(reclust_prongDown is not None): LP_weight_prongs_down, _, _ = LP_rw.reweight_lund_plane(h_rw = h_ratio, reclust_obj = reclust_prongDown)
+    else: LP_weight_prongs_down = LP_weight
+
+    #Now get systematic variations due to systemtatic uncertainties on LP
+    LP_weight_sys_up,_,_ = LP_rw.reweight_lund_plane(h_rw = h_ratio_sys_up, reclust_obj = reclust_nom)
+    LP_weight_sys_down,_,_ = LP_rw.reweight_lund_plane(h_rw = h_ratio_sys_down, reclust_obj = reclust_nom)
 
 
     #compute special systematic for subjets matched to b quarks
@@ -101,8 +117,9 @@ for i,cands in enumerate(pf_cands):
 
     if(len(gen_bs) == 0): b_rw = 1.0
     else:
-        dists = get_subjet_dist(gen_parts_eta_phi[i,gen_bs,1:3], np.array(subjets)[:,1:3])
+        dists = get_subjet_dist(gen_parts_eta_phi[i,gen_bs,:], np.array(reclust_nom.subjet)[:,1:3])
 
+        deltaR_cut = 0.2
         b_matches = []
         #which subjet is each quark closest to
         j_closest = np.amin(dists, axis = 0)
@@ -111,8 +128,8 @@ for i,cands in enumerate(pf_cands):
 
         #reweight only subjets matched to b quarks
         if(len(b_matches) > 0):
-            b_subjet = [subjet[j] for j in range(len(subjet)) if j in b_matches]
-            b_split  = [split[j]  for j in range(len(split)) if split[j][0] in b_matches]
+            b_subjet = [reclust_nom.subjet[j] for j in range(len(reclust_nom.subjet)) if j in b_matches]
+            b_split  = [reclust_nom.split[j]  for j in range(len(reclust_nom.split)) if reclust_nom.split[j][0] in b_matches]
 
             b_rw, _,_   = LP_rw.reweight_lund_plane(b_light_ratio, subjets = b_subjet, splittings = b_split, sys_str = 'bquark')
 
@@ -128,7 +145,32 @@ for i,cands in enumerate(pf_cands):
 
     LP_weights_sys_up.append(LP_weight_sys_up)
     LP_weights_sys_down.append(LP_weight_sys_down)
-    bad_matches.append(bad_match)
+
+    #Fill variations due to number of prongs if applicable (else nominal weight)
+    #Split whether reclustering caused by non-fully merged quarks (prongs_up/down) 
+    #Or caused by bad matching between subjets and quarks (sys_reclus)
+    #(can be both)
+    if(reclust_prongUp is not None and reclust_prongUp.prongs_up):
+        partial_merge +=1
+        LP_weights_prongs_up.append(LP_weight_prongs_up)
+    else:
+        LP_weights_prongs_up.append(LP_weight)
+
+    if(reclust_prongDown is not None and reclust_prongDown.prongs_down):
+        partial_merge +=1
+        LP_weights_prongs_down.append(LP_weight_prongs_down)
+    else:
+        LP_weights_prongs_down.append(LP_weight)
+
+    #bad matching triggers both up and down variations
+    if(reclust_prongUp is not None and reclust_prongUp.badmatch_reclust):
+        bad_matches +=1
+        LP_weights_reclust_up.append(LP_weight_prongs_up)
+        LP_weights_reclust_down.append(LP_weight_prongs_down)
+    else:
+        LP_weights_reclust_up.append(LP_weight)
+        LP_weights_reclust_down.append(LP_weight)
+
 
 
 
@@ -152,6 +194,11 @@ b_weights_down = LP_rw.normalize_weights(b_weights_down) * weights_nom
 
 
 
+print(partial_merge, bad_matches)
+partial_merge_frac = float(partial_merge) / len(LP_weights)
+bad_match_frac = float(bad_matches) / len(LP_weights)
+
+print("Fraction of jets with a partially merged prong is %.3f and fraction with bad matches %.3f" % (partial_merge_frac, bad_match_frac))
 ############### Compute efficiences and uncertainties
 
 
@@ -191,28 +238,27 @@ eff_pt_unc = (abs(pt_toys_mean - eff_rw) + pt_toys_std)
 print("Stat variation toys eff. avg %.3f, std dev %.3f" % (toys_mean, toys_std))
 print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
+
+#Compute difference in efficiency due to weight variations as uncertainty
+def get_uncs(score_cut, weights_up, weights_down, eff_baseline):
+    eff_up =  np.average(score_cut, weights = weights_up)
+    eff_down =  np.average(score_cut, weights = weights_down)
+
+    unc_up = eff_up - eff_baseline
+    unc_down = eff_down - eff_baseline 
+    return unc_up, unc_down
+
+
 #Compute efficiency of systematic variations
-eff_sys_up =  np.average(score_cut, weights = LP_weights_sys_up)
-eff_sys_down =  np.average(score_cut, weights = LP_weights_sys_up)
+sys_LPunc_up, sys_LPunc_down = get_uncs(score_cut, LP_weights_sys_up, LP_weights_sys_down, eff_rw)
+sys_prongs_up, sys_prongs_down = get_uncs(score_cut, LP_weights_prongs_up, LP_weights_prongs_down, eff_rw)
+sys_matching_up, sys_matching_down = get_uncs(score_cut, LP_weights_reclust_up, LP_weights_reclust_down, eff_rw)
 
-sys_unc_up = abs(eff_rw - eff_sys_up)
-sys_unc_down = abs(eff_rw - eff_sys_down)
+b_unc_up, b_unc_down = get_uncs(score_cut, b_weights_up, b_weights_down, eff_rw)
 
-
-#Compute efficiency of b quark systematic variations
-eff_b_up =  np.average(score_cut, weights = b_weights_up)
-eff_b_down =  np.average(score_cut, weights = b_weights_down)
-
-b_unc_up = abs(eff_rw - eff_b_up)
-b_unc_down = abs(eff_rw - eff_b_down)
-
-
-#matching uncertainty, taken as a fractional uncertainty on efficiency
-bad_match_frac = np.mean(bad_matches)
-bad_match_unc = bad_match_frac * eff_rw
 
 
 ############ Results
-print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) +%.2f/-%.2f (sys) +%.2f/-%.2f (bquark) +/- %.2f (matching)  \n\n"  % 
-        (eff_rw, eff_stat_unc, eff_pt_unc, sys_unc_up, sys_unc_down, b_unc_up, b_unc_down, bad_match_unc))
+print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) %.2f/%.2f (sys) %.2f/%.2f (bquark) %.2f/%.2f (prongs)  %.2f/%.2f (matching) \n\n"  % 
+        (eff_rw, eff_stat_unc, eff_pt_unc, sys_LPunc_up, sys_LPunc_down, b_unc_up, b_unc_down, sys_prongs_up, sys_prongs_down, sys_matching_up, sys_matching_down ))
 f_ratio.Close()

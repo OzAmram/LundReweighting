@@ -281,18 +281,14 @@ class Dataset():
 
 
         num_excjets_l = [num_excjets]*len(pf_cands)
-        subjets = []
-        splittings = []
-        bad_matches = []
-        dRs = []
 
 
         if(num_excjets > 0 and self.dtype < 0): 
             #No gen info
             for i in range(len(pf_cands)):
                 subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
-                subjets.append(subjet)
-                splittings.append(split)
+                out_dict['subjets'].append(subjet)
+                out_dict['splittings'].append(split)
             return subjets, splittings, bad_matches, dRs
 
         if(self.dtype == 1): #CASE h5
@@ -346,14 +342,7 @@ class Dataset():
 
 
         if(splittings is None):
-            print("Getting splittings")
-            if(prefix + "_splittings" in self.f.keys()):
-                print("Found " + prefix + "_splittings" )
-                splittings = self.get_masked(prefix + "_splittings")
-                subjets = self.get_masked(prefix + "_subjets")
-
-            else:
-                subjets, splittings, matching, dRs = self.get_matched_splittings(LP_rw, num_excjets, min_evts = min_evts, max_evts =max_evts)
+            reclust_nom, reclust_prongUp, reclust_prongDown = self.get_matched_splittings(LP_rw, num_excjets, min_evts = min_evts, max_evts =max_evts)
 
         for i in range(len(pf_cands)):
 
