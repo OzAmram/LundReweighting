@@ -191,20 +191,20 @@ eff_pt_unc = (abs(pt_toys_mean - eff_rw) + pt_toys_std)
 print("Stat variation toys eff. avg %.3f, std dev %.3f" % (toys_mean, toys_std))
 print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
+
+#Compute difference in efficiency due to weight variations as uncertainty
+def get_uncs(score_cut, weights_up, weights_down, eff_baseline):
+    eff_up =  np.average(score_cut, weights = weights_up)
+    eff_down =  np.average(score_cut, weights = weights_down)
+
+    unc_up = eff_up - eff_baseline
+    unc_down = eff_down - eff_baseline 
+    return unc_up, unc_down
+
+
 #Compute efficiency of systematic variations
-eff_sys_up =  np.average(score_cut, weights = LP_weights_sys_up)
-eff_sys_down =  np.average(score_cut, weights = LP_weights_sys_down)
-
-sys_unc_up = abs(eff_rw - eff_sys_up)
-sys_unc_down = abs(eff_rw - eff_sys_down)
-
-
-#Compute efficiency of b quark systematic variations
-eff_b_up =  np.average(score_cut, weights = b_weights_up)
-eff_b_down =  np.average(score_cut, weights = b_weights_down)
-
-b_unc_up = abs(eff_rw - eff_b_up)
-b_unc_down = abs(eff_rw - eff_b_down)
+sys_unc_up, sys_unc_down = get_uncs(score_cut, LP_weights_sys_up, LP_weights_sys_down, eff_rw)
+b_unc_up, b_unc_down = get_uncs(score_cut, b_weights_up, b_weights_down, eff_rw)
 
 
 #matching uncertainty, taken as a fractional uncertainty on efficiency
@@ -213,6 +213,6 @@ bad_match_unc = bad_match_frac * eff_rw
 
 
 ############ Results
-print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) +%.2f/-%.2f (sys) +%.2f/-%.2f (bquark) +/- %.2f (matching)  \n\n"  % 
+print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) %.2f/%.2f (sys) %.2f/%.2f (bquark) +/- %.2f (matching)  \n\n"  % 
         (eff_rw, eff_stat_unc, eff_pt_unc, sys_unc_up, sys_unc_down, b_unc_up, b_unc_down, bad_match_unc))
 f_ratio.Close()
