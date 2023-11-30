@@ -1,4 +1,7 @@
-from Utils import *
+import sys, os
+sys.path.insert(0, '')
+sys.path.append("../")
+from utils.Utils import *
 import os
 
 
@@ -13,7 +16,8 @@ outdir = options.outdir
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 jet_str = 'CA'
 
-fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/WkkToWRadionToWWW_M3000_Mr400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+#fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/ZpToTpTp_Zp5000_Tp400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "test_signal_CASE.h5"

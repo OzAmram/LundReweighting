@@ -1,5 +1,7 @@
-from Utils import *
-import os
+import sys, os
+sys.path.insert(0, '')
+sys.path.append("../")
+from utils.Utils import *
 
 
 parser = input_options()
@@ -10,7 +12,7 @@ print(options)
 if(not os.path.exists(options.outdir)): os.system("mkdir %s" % options.outdir)
 jet_str = 'CA'
 
-f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/Lund_signals/Wkk_M3000_R170_2018_UL.h5", "r")
+f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/WkkToWRadionToWWW_M3000_Mr400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5", "r")
 #f_sig = h5py.File("/uscms_data/d3/oamram/CMSSW_12_4_0/src/CASE/CASEUtils/H5_maker/Wkk_M3500_test.h5", "r")
 f_ratio = ROOT.TFile.Open(options.fin)
 label = "Radion"
