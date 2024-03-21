@@ -10,7 +10,8 @@ options = parser.parse_args()
 ######################## Setup 
 
 #Input file 
-fname = "../TagNTrain/data/LundRW/YtoHH_Htott_Y5000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+#fname = "../TagNTrain/data/LundRW/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+fname = "../TagNTrain/data/LundRW/XToYYprimeTo4Q_MX3000_MY400_MYprime400_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "data/example_signal.h5"
 #File containing data/MC Lund Plane ratio
 f_ratio_name = 'data/ratio_2018.root'
@@ -25,6 +26,8 @@ d.compute_obs()
 #The cut we will compute a SF for 'tau21 < 0.34'
 tag_obs = 'tau21'
 score_thresh = 0.34
+#tag_obs = 'tau43'
+#score_thresh = 0.65
 
 
 #nominal data/MC Lund plane ratio (3d histogram)
@@ -102,8 +105,9 @@ for i,cands in enumerate(pf_cands):
 
     if(len(gen_bs) == 0): b_rw = 1.0
     else:
-        dists = get_subjet_dist(gen_parts_eta_phi[i,gen_bs,1:3], np.array(subjets)[:,1:3])
+        dists = get_subjet_dist(gen_parts_eta_phi[i,gen_bs,:], np.array(subjets)[:,1:3])
 
+        deltaR_cut = 0.2 # to determine subjet matching to b's
         b_matches = []
         #which subjet is each quark closest to
         j_closest = np.amin(dists, axis = 0)
@@ -112,8 +116,8 @@ for i,cands in enumerate(pf_cands):
 
         #reweight only subjets matched to b quarks
         if(len(b_matches) > 0):
-            b_subjet = [subjet[j] for j in range(len(subjet)) if j in b_matches]
-            b_split  = [split[j]  for j in range(len(split)) if split[j][0] in b_matches]
+            b_subjet = [subjets[j] for j in range(len(subjets)) if j in b_matches]
+            b_split  = [splittings[j]  for j in range(len(splittings)) if splittings[j][0] in b_matches]
 
             b_rw, _,_   = LP_rw.reweight_lund_plane(b_light_ratio, subjets = b_subjet, splittings = b_split, sys_str = 'bquark')
 
@@ -217,7 +221,7 @@ total_unc_down = (eff_stat_unc**2 + eff_pt_unc**2 + sys_unc_down**2 + b_unc_down
 
 
 ############ Results
-print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) %.2f/%.2f (sys) %.2f/%.2f (bquark) +/- %.2f (matching)  \n\n"  % 
+print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) %.2f/%.2f (sys) %.2f/%.2f (bquark) +/- %.2f (matching)"  % 
         (eff_rw, eff_stat_unc, eff_pt_unc, sys_unc_up, sys_unc_down, b_unc_up, b_unc_down, bad_match_unc))
-print("%.2f +%.2f/-%.2f" % (eff_rw, total_unc_up, total_unc_down))
+print("%.2f +%.2f/-%.2f \n\n" % (eff_rw, total_unc_up, total_unc_down))
 f_ratio.Close()
