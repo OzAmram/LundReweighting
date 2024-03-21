@@ -132,7 +132,10 @@ class Dataset():
         return np.sum(self.mask)
 
     def apply_cut(self, cut):
-        self.mask = self.mask & cut
+        if(len(self.mask) == len(cut)): self.mask = self.mask & cut
+        elif(len(self.mask[self.mask]) == len(cut)): self.mask[self.mask] = cut
+        else:
+            print("Mask length (%i, %i) and cut length (%i) incompatable! Skipping" % (len(self.mask), len(self.mask[self.mask]), len(self.cut)))
     
     def get_masked(self, key):
         return self.f[key][()][self.mask]
@@ -171,6 +174,28 @@ class Dataset():
         self.pt = kins[:,0]
         self.nPF= feats[:,6]
 
+    def compute_kinematics(self):
+        mu = self.get_masked('mu_info')
+        evt = self.get_masked('event_info')
+        bjet = self.get_masked('btag_jet_info')
+        ak8 = self.get_masked('jet_kinematics')
+
+        self.mu_pt, self.mu_eta, self.mu_phi = mu[:,0], mu[:,1], mu[:,2]
+        self.met_pt, self.met_phi = evt[:,1], evt[:,2]
+
+        w_cand_px = self.mu_pt * np.cos(self.mu_phi) + self.met_pt * np.cos(self.met_phi)
+        w_cand_py = self.mu_pt * np.sin(self.mu_phi) + self.met_pt * np.sin(self.met_phi)
+        self.w_cand_pt = (w_cand_px**2 + w_cand_py**2)**0.5
+
+        self.bjet_pt, self.bjet_eta, self.bjet_phi = bjet[:,0], bjet[:,1], bjet[:,2]
+
+        self.ak8_pt, self.ak8_eta, self.ak8_phi = ak8[:,0], ak8[:,1], ak8[:,2]
+
+        self.dphi_mu_bjet = ang_dist(self.mu_phi, self.bjet_phi)
+        self.dphi_mu_ak8 = ang_dist(self.mu_phi, self.ak8_phi)
+
+        self.dR_mu_bjet = (self.dphi_mu_bjet ** 2 + (self.mu_eta - self.bjet_eta)**2)**0.5
+        self.dR_mu_ak8 = (self.dphi_mu_ak8 ** 2 + (self.mu_eta - self.ak8_eta)**2)**0.5
 
 
 
