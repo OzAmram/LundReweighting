@@ -73,6 +73,7 @@ def get_dRs(gen_eta_phi, j_4vec):
     return dR
 
 def get_subjet_dist(q_eta_phis, subjets_eta_phis):
+    print(q_eta_phis.shape, subjets_eta_phis.shape)
     q_eta_phis = np.expand_dims(q_eta_phis, 0)
     subjets_eta_phis = np.expand_dims(subjets_eta_phis, 1)
     return np.sqrt(np.square(subjets_eta_phis[:,:,0] - q_eta_phis[:,:,0]) + 

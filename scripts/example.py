@@ -10,7 +10,8 @@ options = parser.parse_args()
 ######################## Setup 
 
 #Input file 
-fname = "data/example_signal.h5"
+fname = "../TagNTrain/data/LundRW/YtoHH_Htott_Y5000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+#fname = "data/example_signal.h5"
 #File containing data/MC Lund Plane ratio
 f_ratio_name = 'data/ratio_2018.root'
 
@@ -42,7 +43,7 @@ rdir = ROOT.gDirectory
 #Main class for reweighting utilities
 LP_rw = LundReweighter(pt_extrap_dir = rdir)
 
-max_evts = 1000
+max_evts = 10000
 score = getattr(d, tag_obs)[:max_evts]
 score_cut = score < score_thresh
 
@@ -211,8 +212,12 @@ b_unc_up, b_unc_down = get_uncs(score_cut, b_weights_up, b_weights_down, eff_rw)
 bad_match_frac = np.mean(bad_matches)
 bad_match_unc = bad_match_frac * eff_rw
 
+total_unc_up = (eff_stat_unc**2 + eff_pt_unc**2 + sys_unc_up**2 + b_unc_up**2 + bad_match_unc**2)**0.5
+total_unc_down = (eff_stat_unc**2 + eff_pt_unc**2 + sys_unc_down**2 + b_unc_down**2 + bad_match_unc**2)**0.5
+
 
 ############ Results
 print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) %.2f/%.2f (sys) %.2f/%.2f (bquark) +/- %.2f (matching)  \n\n"  % 
         (eff_rw, eff_stat_unc, eff_pt_unc, sys_unc_up, sys_unc_down, b_unc_up, b_unc_down, bad_match_unc))
+print("%.2f +%.2f/-%.2f" % (eff_rw, total_unc_up, total_unc_down))
 f_ratio.Close()
