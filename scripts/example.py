@@ -45,7 +45,7 @@ rdir = ROOT.gDirectory
 #Main class for reweighting utilities
 LP_rw = LundReweighter(pt_extrap_dir = rdir)
 
-max_evts = 1000
+max_evts = 10000
 score = getattr(d, tag_obs)[:max_evts]
 score_cut = score < score_thresh
 

@@ -1024,7 +1024,7 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, u
         h_tot.SetLineColor(ROOT.kBlue)
 
 
-    fname_root = fname.split(".")[-2] + ".root"
+    fname_root = fname.replace(".png", "").replace(".pdf", "") + ".root"
     print("Saving ROOT: " + fname_root)
     f = ROOT.TFile.Open(fname_root, "RECREATE")
     for h in hists:
