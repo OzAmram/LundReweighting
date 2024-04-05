@@ -108,19 +108,20 @@ class LundReweighter():
         #Matrix of quark-subjet dRs
         dists = get_subjet_dist(gen_parts_eta_phi, np.array(subjets)[:,1:3])
         #DR to closest subjet for each quark
-        j_closest = np.amin(dists, axis = 0)
+        subjet_closest_dR = np.amin(dists, axis = 0)
         #index of closest subjet for each quark
-        j_which = np.argmin(dists, axis = 0)
-        #Which subjets are well matched
-        matches = j_which[j_closest < deltaR_cut]
+        subjet_closest_idx = np.argmin(dists, axis = 0)
+        #Which subjets are matched to a quark
+        matches = subjet_closest_idx[subjet_closest_dR < deltaR_cut]
 
         #check if each subjet within Delta < 0.2 of a quark 
-        j_matched = [i in matches for i in range(len(subjets))]
-        #check if two quarks matched to same subjet
+        is_subjet_matched = [i in matches for i in range(len(subjets))]
+        #check if two quarks matched to a given subjet
+        is_subjet_double_matched = [np.sum(matches == i)>2 for i in range(len(subjets))]
 
         repeats = matches.shape[0] != np.unique(matches).shape[0]
 
-        return j_matched, repeats, j_closest
+        return is_subjet_matched, is_subjet_double_matched, subjet_closest_dR
 
     def get_splittings_and_matching(self, pf_cands, gen_particles_eta_phi, ak8_jet, rescale_subjets = "", rescale_val = 1.0):
         """Given a list of pf_candidates (px, py,pz,E), and gen_particles (eta, phi), and an AK8 jet 4 vector (pt, eta,phi, M) 
@@ -154,30 +155,30 @@ class LundReweighter():
         RO.subjet, RO.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
 
         #check subjets matched to quarks
-        RO.subjet_match, RO.double_match, RO.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO.subjet)
+        RO.subjet_match, RO.subjet_double_matched, RO.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO.subjet)
 
         #If any subjets not matched, or double matched, perform N+1/N-1 subjets reclustering
-        badmatch_reclust = (not np.all(RO.subjet_match)) or RO.double_match
+        RO.badmatch = (not np.all(RO.subjet_match)) or np.any(RO.subjet_double_matched)
 
         #Recluster with one more subjet
-        if(badmatch_reclust or prongs_up):
+        if(RO.badmatch or prongs_up):
             RO_prongsUp = ReclusterObj()
-            RO_prongsUp.n_prongs = RO.n_prongs + 1
-            RO_prongsUp.badmatch_reclust = badmatch_reclust
-            RO_prongsUp.prongs_up = prongs_up
             RO_prongsUp.subjet, RO_prongsUp.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs+1, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
+            RO_prongsUp.n_prongs = RO.n_prongs + 1
+            RO_prongsUp.from_badmatch = RO.badmatch
+            RO_prongsUp.from_prongs_up = prongs_up
             #check subjets matched to quarks
-            RO_prongsUp.subjet_match, _, RO_prongsUp.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsUp.subjet)
+            RO_prongsUp.subjet_match, RO_prongsUp.subjet_double_matched, RO_prongsUp.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsUp.subjet)
 
         #Recluster with one less subjet
-        if(RO.badmatch_reclust or prongs_down):
+        if(RO.badmatch or prongs_down):
             RO_prongsDown = ReclusterObj()
-            RO_prongsDown.n_prongs = RO.n_prongs - 1
-            RO_prongsDown.badmatch_reclust = badmatch_reclust
-            RO_prongsDown.prongs_down = prongs_down
             RO_prongsDown.subjet, RO_prongsDown.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs-1, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
+            RO_prongsDown.n_prongs = RO.n_prongs - 1
+            RO_prongsDown.from_badmatch = RO.badmatch
+            RO_prongsDown.from_prongs_down = prongs_down
             #check subjets matched to quarks
-            RO_prongsDown.subjet_match, _, RO_prongsDown.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsDown.subjet)
+            RO_prongsDown.subjet_match, RO_prongsDown.subjet_double_matched, RO_prongsDown.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsDown.subjet)
 
 
         return RO, RO_prongsUp, RO_prongsDown
@@ -289,6 +290,7 @@ class LundReweighter():
             rescale_val = rescale_val / total_jet.pt()
             for i in range(len(subjets)):
                 subjets[i][0] *= rescale_val
+
 
         return subjets, splittings
 
@@ -413,6 +415,35 @@ class LundReweighter():
         return rw, smeared_rw, pt_smeared_rw
 
 
+    def get_up_down_prongs_weights(self, h_rw, reclust_prongs_up = None, reclust_prongs_down = None, nom_weight = None):
+    
+        prongs_up_weight = prongs_down_weight = match_up_weight = match_down_weight = nom_weight
+
+        #Compute weight for prong variations if needed
+        #Separate prongs up from non-fully prongd decays and from bad matching
+        if(reclust_prongs_up is not None): 
+            LP_weight_prongs_up, _, _ = self.reweight_lund_plane(h_rw = h_rw, reclust_obj = reclust_prongs_up)
+            if(reclust_prongs_up.from_prongs_up): prongs_up_weight = LP_weight_prongs_up
+            if(reclust_prongs_up.from_badmatch): 
+                match_up_weight = LP_weight_prongs_up
+                #If reclustering still not matched, apply extra variation
+                if(np.sum(reclust_prongs_up.subjet_match) != (reclust_prongs_up.n_prongs-1) or np.sum(reclust_prongs_up.subjet_double_matched) != 0):
+                    match_up_weight *= 2.0
+            #print("Up", nom_weight, prongs_up_weight, match_up_weight)
+
+        if(reclust_prongs_down is not None): 
+            LP_weight_prongs_down, _, _ = self.reweight_lund_plane(h_rw = h_rw, reclust_obj = reclust_prongs_down)
+            if(reclust_prongs_down.from_prongs_down): prongs_down_weight = LP_weight_prongs_down
+            if(reclust_prongs_down.from_badmatch): match_down_weight = LP_weight_prongs_down
+            if(reclust_prongs_down.from_badmatch): 
+                match_down_weight = LP_weight_prongs_down
+                #If reclustering still not matched, apply extra variation
+                if(np.sum(reclust_prongs_down.subjet_match) != (reclust_prongs_up.n_prongs+1) or np.sum(reclust_prongs_down.subjet_double_matched) != 0):
+                    match_up_weight *= 0.5
+
+        return prongs_up_weight, prongs_down_weight, match_up_weight, match_down_weight
+
+
 
     def reweight_lund_plane(self, h_rw, pf_cands = None, reclust_obj = None, splittings = None, subjets = None, num_excjets = -1, 
                             rand_noise = None, pt_rand_noise = None,  sys_str = "", rescale_subjets = "", rescale_val = 1.0):
@@ -485,9 +516,9 @@ class LundReweighter():
         """ Function to construct data/MC LP ratio"""
 
 
-        h_data.Print()
-        h_bkg.Print()
-        h_mc.Print()
+        #h_data.Print()
+        #h_bkg.Print()
+        #h_mc.Print()
 
         do_jet_pt_norm  = (h_data_subjet_pt is not None) and (h_mc_subjet_pt is not None) and (h_bkg_subjet_pt is not None)
 
@@ -508,9 +539,9 @@ class LundReweighter():
 
         if(do_jet_pt_norm):
 
-            h_data_subjet_pt.Print()
-            h_bkg_subjet_pt.Print()
-            h_mc_subjet_pt.Print()
+            #h_data_subjet_pt.Print()
+            #h_bkg_subjet_pt.Print()
+            #h_mc_subjet_pt.Print()
 
             h_data_subjet_pt_clone = h_data_subjet_pt.Clone(h_data_subjet_pt.GetName() + "_clone")
             h_bkg_subjet_pt_clone = h_bkg_subjet_pt.Clone(h_bkg_subjet_pt.GetName() + "_clone")
@@ -528,7 +559,7 @@ class LundReweighter():
             
         h_data_sub = h_data.Clone("h_data_sub")
         h_data_sub.Add(h_bkg_clone, -1.)
-        h_data_sub.Print()
+        #h_data_sub.Print()
 
 
 
@@ -562,7 +593,7 @@ class LundReweighter():
             print(mc_norm, bkg_norm, data_norm)
 
 
-            h_bkg_proj.Scale(1./bkg_norm)
+            if(bkg_norm > 0): h_bkg_proj.Scale(1./bkg_norm)
 
             h_data_proj.Scale(1./data_norm)
             h_mc_proj.Scale(1./mc_norm)
@@ -594,12 +625,12 @@ class LundReweighter():
                 c_mc.Print(outdir + "lundPlane_bin%i_MC.png" % i)
 
 
-                c_bkg = ROOT.TCanvas("c", "", 1000, 800)
+                c_bkg = ROOT.TCanvas("c", "", 1000,1000)
                 h_bkg_proj.Draw("colz")
                 c_bkg.SetRightMargin(0.2)
                 c_bkg.Print(outdir + "lundPlane_bin%i_bkg.png" % i)
 
-                c_data = ROOT.TCanvas("c", "", 1000, 800)
+                c_data = ROOT.TCanvas("c", "", 1000, 1000)
                 h_data_proj.Draw("colz")
                 c_data.SetRightMargin(0.2)
                 c_data.Print(outdir + "lundPlane_bin%i_data.png" %i )
@@ -642,10 +673,13 @@ class ReclusterObj():
         self.subjet = None
         self.split = None
         self.dRs = None
-        self.subjet_match = None
-        self.badmatch_reclust = False
-        self.prongs_up = False
-        self.prongs_down = False
+        self.subjet_match = None #is subjet matched to a quark
+        self.subjet_double_matched = None #is subjet matched to multiple quarks
+        self.subjet_dRs = None #deltaRs between each quark and closest subjet
+        self.from_badmatch = False
+        self.from_prongs_up = False
+        self.from_prongs_down = False
+        self.n_prongs = 0
 
 
 

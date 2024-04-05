@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, '')
 sys.path.append("../")
-from Utils import *
+from utils.Utils import *
 
 def get_diff(h_nom, h):
     diffs = []
@@ -18,6 +18,7 @@ def get_diff(h_nom, h):
 
 
 parser = input_options()
+parser.add_argument("--herwig", default=False, action='store_true',  help="Pythia herwig ratio (less sys)")
 options = parser.parse_args()
 
 print(options)
@@ -29,6 +30,8 @@ f_ratio = ROOT.TFile.Open(options.fin, "UPDATE")
 
 sys_list = list(sys_weights_map.keys())
 sys_list.remove('nom_weight')
+if(options.herwig):
+    sys_list = ['PS_ISR_up', 'PS_ISR_down', 'PS_FSR_up', 'PS_FSR_down', 'unmatched_norm_up', 'unmatched_norm_down']
 sys_ratios = []
 
 h_nom = ROOT.TH3F(f_ratio.Get("ratio_nom"))

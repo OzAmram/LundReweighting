@@ -78,10 +78,10 @@ weights_nom = np.ones(max_evts)
 LP_weights = []
 LP_weights_sys_up = []
 LP_weights_sys_down = []
-LP_weights_prongs_up = []
-LP_weights_prongs_down = []
-LP_weights_reclust_up = []
-LP_weights_reclust_down = []
+LP_weights_prong_up = []
+LP_weights_prong_down = []
+LP_weights_matching_up = []
+LP_weights_matching_down = []
 stat_smeared_weights = []
 pt_smeared_weights = []
 b_weights_up = []
@@ -95,16 +95,18 @@ for i,cands in enumerate(pf_cands):
 
     #Get the subjets and splittings  based on PF candidates in the jet and gen-level quarks
     #Also compute variations if needed by changing the number of subjets in the reclustering
-    reclust_nom, reclust_prongUp, reclust_prongDown = LP_rw.get_splittings_and_matching(cands, gen_parts_eta_phi[i], ak8_jets[i])
+    reclust_nom, reclust_prongs_up, reclust_prongs_down = LP_rw.get_splittings_and_matching(cands, gen_parts_eta_phi[i], ak8_jets[i])
+
+    if(reclust_nom.badmatch): bad_matches +=1
+    if((reclust_prongs_up is not None and reclust_prongs_up.from_prongs_up) or 
+       (reclust_prongs_down is not None and reclust_prongs_down.from_prongs_down)): partial_merge +=1
 
     #Gets the nominal LP reweighting factor for this event and statistical + pt extrapolation toys
     LP_weight, stat_smeared_weight, pt_smeared_weight = LP_rw.reweight_lund_plane(h_rw = h_ratio, reclust_obj = reclust_nom, rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, )
 
-    #Compute weight for prong variations if needed
-    if(reclust_prongUp is not None): LP_weight_prongs_up, _, _ = LP_rw.reweight_lund_plane(h_rw = h_ratio, reclust_obj = reclust_prongUp)
-    else: LP_weight_prongs_up = LP_weight
-    if(reclust_prongDown is not None): LP_weight_prongs_down, _, _ = LP_rw.reweight_lund_plane(h_rw = h_ratio, reclust_obj = reclust_prongDown)
-    else: LP_weight_prongs_down = LP_weight
+    LP_weight_prong_up, LP_weight_prong_down, LP_weight_match_up, LP_weight_match_down = LP_rw.get_up_down_prongs_weights(h_rw = h_ratio, 
+            reclust_prongs_up = reclust_prongs_up, reclust_prongs_down = reclust_prongs_down, nom_weights = LP_weight)
+
 
     #Now get systematic variations due to systemtatic uncertainties on LP
     LP_weight_sys_up,_,_ = LP_rw.reweight_lund_plane(h_rw = h_ratio_sys_up, reclust_obj = reclust_nom)
@@ -138,38 +140,21 @@ for i,cands in enumerate(pf_cands):
     b_weights_up.append(LP_weight * b_rw)
     b_weights_down.append(LP_weight / b_rw)
 
-
     LP_weights.append(LP_weight)
+
+    LP_weights_prong_up.append(LP_weight_prong_up)
+    LP_weights_prong_down.append(LP_weight_prong_down)
+
+    LP_weights_match_up.append(LP_weight_match_up)
+    LP_weights_match_down.append(LP_weight_match_down)
+
+
     stat_smeared_weights.append(stat_smeared_weight)
     pt_smeared_weights.append(pt_smeared_weight)
 
     LP_weights_sys_up.append(LP_weight_sys_up)
     LP_weights_sys_down.append(LP_weight_sys_down)
 
-    #Fill variations due to number of prongs if applicable (else nominal weight)
-    #Split whether reclustering caused by non-fully merged quarks (prongs_up/down) 
-    #Or caused by bad matching between subjets and quarks (sys_reclus)
-    #(can be both)
-    if(reclust_prongUp is not None and reclust_prongUp.prongs_up):
-        partial_merge +=1
-        LP_weights_prongs_up.append(LP_weight_prongs_up)
-    else:
-        LP_weights_prongs_up.append(LP_weight)
-
-    if(reclust_prongDown is not None and reclust_prongDown.prongs_down):
-        partial_merge +=1
-        LP_weights_prongs_down.append(LP_weight_prongs_down)
-    else:
-        LP_weights_prongs_down.append(LP_weight)
-
-    #bad matching triggers both up and down variations
-    if(reclust_prongUp is not None and reclust_prongUp.badmatch_reclust):
-        bad_matches +=1
-        LP_weights_reclust_up.append(LP_weight_prongs_up)
-        LP_weights_reclust_down.append(LP_weight_prongs_down)
-    else:
-        LP_weights_reclust_up.append(LP_weight)
-        LP_weights_reclust_down.append(LP_weight)
 
 
 
@@ -194,9 +179,11 @@ b_weights_down = LP_rw.normalize_weights(b_weights_down) * weights_nom
 
 
 
-print(partial_merge, bad_matches)
-partial_merge_frac = float(partial_merge) / len(LP_weights)
-bad_match_frac = float(bad_matches) / len(LP_weights)
+#TODO
+#print(partial_merge, bad_matches)
+#partial_merge_frac = float(partial_merge) / len(LP_weights)
+partial_merge_frac = 99999999
+bad_match_frac = np.mean(reclust
 
 print("Fraction of jets with a partially merged prong is %.3f and fraction with bad matches %.3f" % (partial_merge_frac, bad_match_frac))
 ############### Compute efficiences and uncertainties
@@ -251,14 +238,14 @@ def get_uncs(score_cut, weights_up, weights_down, eff_baseline):
 
 #Compute efficiency of systematic variations
 sys_LPunc_up, sys_LPunc_down = get_uncs(score_cut, LP_weights_sys_up, LP_weights_sys_down, eff_rw)
-sys_prongs_up, sys_prongs_down = get_uncs(score_cut, LP_weights_prongs_up, LP_weights_prongs_down, eff_rw)
-sys_matching_up, sys_matching_down = get_uncs(score_cut, LP_weights_reclust_up, LP_weights_reclust_down, eff_rw)
+sys_merge_up, sys_merge_down = get_uncs(score_cut, LP_weights_merge_up, LP_weights_merge_down, eff_rw)
+sys_matching_up, sys_matching_down = get_uncs(score_cut, LP_weights_match_up, LP_weights_match_down, eff_rw)
 
 b_unc_up, b_unc_down = get_uncs(score_cut, b_weights_up, b_weights_down, eff_rw)
 
 
 
 ############ Results
-print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) %.2f/%.2f (sys) %.2f/%.2f (bquark) %.2f/%.2f (prongs)  %.2f/%.2f (matching) \n\n"  % 
+print("\n\nCalibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) %.2f/%.2f (sys) %.2f/%.2f (bquark) %.2f/%.2f (merging)  %.2f/%.2f (matching) \n\n"  % 
         (eff_rw, eff_stat_unc, eff_pt_unc, sys_LPunc_up, sys_LPunc_down, b_unc_up, b_unc_down, sys_prongs_up, sys_prongs_down, sys_matching_up, sys_matching_down ))
 f_ratio.Close()

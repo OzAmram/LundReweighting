@@ -30,8 +30,6 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 outdir = options.outdir
 sys = ""
-#CA_prefix = "2prong"
-CA_prefix = ""
 charge_only = False
 
 
@@ -48,10 +46,7 @@ m_cut_max = 110.
 #m_cut_max = 81.
 pt_cut = 225.
 
-jetR = 1.0
-n_pt_bins = 6
 num_excjets = 2
-pt_bins = array('f', [0., 50., 100., 175., 250., 350., 99999.])
 
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
@@ -68,9 +63,12 @@ d_ttbar_w_match = Dataset(f_ttbar, label = "ttbar : W-matched", color = ROOT.kRe
 d_ttbar_t_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr)
 d_ttbar_nomatch = Dataset(f_ttbar, label = "ttbar : unmatched", color = ROOT.kGreen+3, jms_corr = jms_corr)
 
-d_ttbar_w_match.norm_uncertainty = 0.
-d_ttbar_t_match.norm_uncertainty = 0.
-d_ttbar_nomatch.norm_uncertainty = 0.
+#TODO 
+d_wjets.norm_unc = 0.06
+d_diboson.norm_unc = 0.06
+d_singletop.norm_unc = 0.06
+
+d_ttbar_nomatch.norm_unc = 0.06
 
 ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]
 
@@ -86,29 +84,6 @@ d_ttbar_nomatch.apply_cut(nomatch_cut)
 
 sigs = [d_ttbar_w_match]
 bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_tw, d_diboson, d_wjets, d_singletop]
-
-
-
-pt_max = 1000
-
-
-dr_bin_min = -1.
-dr_bin_max = 8.
-#y_bin_min = np.log(1./0.5)
-#y_bin_max = 20*y_bin_min
-#y_label = "ln(1/z)"
-kt_bin_min = -5
-kt_bin_max = np.log(pt_max)
-z_label = "ln(kt/GeV)"
-y_label = "ln(0.8/#Delta)"
-n_bins_LP = 20
-n_bins = 40
-
-kt_bins = array('f', np.linspace(kt_bin_min, kt_bin_max, num = n_bins_LP+1))
-
-dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
-
-
 
 
 ratio_range = [0.5, 1.5]
@@ -218,13 +193,13 @@ if(do_plot):
 
 LP_rw = LundReweighter(jetR = jetR, charge_only = options.charge_only)
 
-d_data.subjets = d_data.fill_LP(LP_rw, h_data,  num_excjets = num_excjets, prefix = CA_prefix, rescale_subjets = "vec" )
+d_data.subjets = d_data.fill_LP(LP_rw, h_data,  num_excjets = num_excjets,  rescale_subjets = "vec" )
 
 for d in sigs:
-    d.subjets = d.fill_LP(LP_rw, h_mc,  num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec" )
+    d.subjets = d.fill_LP(LP_rw, h_mc,  num_excjets = num_excjets, sys_variations = sig_sys_variations,  rescale_subjets = "vec" )
 
 for d in bkgs:
-    d.subjets = d.fill_LP(LP_rw, h_bkg, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec")
+    d.subjets = d.fill_LP(LP_rw, h_bkg, num_excjets = num_excjets, sys_variations = bkg_sys_variations, rescale_subjets = "vec")
 
 
 for d in ([d_data] + sigs + bkgs): 
@@ -264,34 +239,40 @@ if(do_sys_variations):
         print(sys_name)
         h_bkg_subjets_sys = h_bkg_subjets.Clone(sys_name + "_bkg_ptnorm")
         h_bkg_subjets_sys.Reset()
-        h_mc_subjets_sys = h_mc_subjets.Clone(sys_name + "_mc_ptnorm")
-        h_mc_subjets_sys.Reset()
 
         sys_idx = sys_weights_map[sys_name]
 
         #compute pt distributions for this sys
         for d in bkgs:
-            if(sys_name == 'bkg_norm_up'): weights_sys = d.get_weights() * (1. + d.norm_unc)
-            elif(sys_name == 'bkg_norm_down'): weights_sys = d.get_weights()  * (1. - d.norm_unc)
+            if('norm' in sys): #normalization uncs split by process
+                process = sys.split("_")[0]
+                if(process in d.label and 'up' in sys): weights_sys = nom_weights * (1. + d.norm_unc)
+                elif(process in d.label and 'down' in sys): weights_sys = nom_weights  * (1. - d.norm_unc)
+                else: weights_sys = nom_weights
             else:  
                 all_sys_weights = d.get_masked('sys_weights')
                 weights_sys = d.get_weights() * all_sys_weights[:, sys_idx]
             fill_hist(h_bkg_subjets_sys, d.subjet_pt, weights_sys)
 
-        if('bkg_norm' in sys_name): h_mc_subjets_sys = h_mc_subjets.Clone("nom_clone")
-        else:
+        if(sys_name in sig_sys): #some systematics effect signal
+            h_mc_subjets_sys = h_mc_subjets.Clone(sys_name + "_mc_ptnorm")
+            h_mc_subjets_sys.Reset()
             for d in sigs:
                 all_sys_weights = d.get_masked('sys_weights')
                 weights_sys = d.get_weights() * all_sys_weights[:, sys_idx]
                 fill_hist(h_mc_subjets_sys, d.subjet_pt, weights_sys)
+
+            h_mc_sys = sig_sys_variations[sys_name]
+
+        else:
+            h_mc_subjets_sys = h_mc_subjets.Clone("nom_clone")
+            h_mc_sys = h_mc
 
 
 
         h_bkg_sys = bkg_sys_variations[sys_name]
 
         #Some systematics only for bkgs not signal (want denom of ratio to be consistent)
-        if(sys_name in sig_sys): h_mc_sys = sig_sys_variations[sys_name]
-        else: h_mc_sys = h_mc
 
         sys_ratio = LP_rw.make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, h_data_subjets, h_bkg_subjets_sys, h_mc_subjets_sys, pt_bins = pt_bins)
         sys_ratio.SetName("ratio_" + sys_name)
@@ -307,7 +288,7 @@ if(do_plot):
 
     LP_weights = []
     for i,d in enumerate(sigs):
-        d_LP_weights  = d.reweight_LP(LP_rw, nom_ratio,  num_excjets = num_excjets, prefix = CA_prefix)
+        d_LP_weights  = d.reweight_LP(LP_rw, nom_ratio,  num_excjets = num_excjets )
         LP_weights.append(d_LP_weights)
 
         weights_rw[len(bkgs) + i] *= d_LP_weights

@@ -1,4 +1,5 @@
 from .LundReweighter import *
+from .Consts import *
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(False)
@@ -34,8 +35,14 @@ sys_weights_map = {
         #'mu_iso_down': 26,
         #'puID_up': 27,
         #'puID_down': 28,
-        'bkg_norm_up': -999,
-        'bkg_norm_down': -999,
+        'QCD_norm_up': -999,
+        'QCD_norm_down': -999,
+        'Diboson_norm_up': -999,
+        'Diboson_norm_down': -999,
+        'Single_norm_up': -999, #single top
+        'Single_norm_down': -999,
+        'unmatched_norm_up': -999, #unmatched ttbar
+        'unmatched_norm_down': -999,
         }
 
 sig_sys = {
@@ -116,6 +123,7 @@ class Dataset():
         self.label = label
         self.color = color
 
+
         self.n_evts = f['event_info'].shape[-1]
         self.mask = f['jet_kinematics'][:,0] > 0.
         self.norm_factor = 1.0
@@ -124,7 +132,7 @@ class Dataset():
         self.sys_key = ""
         self.sys_power = 1.0
 
-        self.norm_unc = 0.1
+        self.norm_unc = 0.0
         self.dtype = dtype
 
 
@@ -135,7 +143,8 @@ class Dataset():
         if(len(self.mask) == len(cut)): self.mask = self.mask & cut
         elif(len(self.mask[self.mask]) == len(cut)): self.mask[self.mask] = cut
         else:
-            print("Mask length (%i, %i) and cut length (%i) incompatable! Skipping" % (len(self.mask), len(self.mask[self.mask]), len(self.cut)))
+            print("Mask length (%i, %i) and cut length (%i) incompatable! Skipping" % (len(self.mask), len(self.mask[self.mask]), len(cut)))
+            exit(1)
     
     def get_masked(self, key):
         return self.f[key][()][self.mask]
@@ -148,7 +157,7 @@ class Dataset():
 
     def get_weights(self):
         max_weight = 50.
-        if(self.is_data): return np.ones(self.n())
+        if(self.is_data): return np.ones(self.n()) * self.norm_factor
         weights = self.get_masked('norm_weights') * self.norm_factor
         if(len(self.sys_key) > 0):
             sys_idx = sys_weights_map[self.sys_key]
@@ -234,9 +243,12 @@ class Dataset():
 
 
             for sys in sys_variations.keys():
-                #don't vary ttbar norm at the same time
-                if(sys == 'bkg_norm_up'): weights_sys = nom_weights * (1. + self.norm_unc)
-                elif(sys == 'bkg_norm_down'): weights_sys = nom_weights  * (1. - self.norm_unc)
+                if('norm' in sys): #normalization uncs split by process
+                    process = sys.split("_")[0]
+                    print(sys, self.label, process)
+                    if(process in self.label and 'up' in sys): weights_sys = nom_weights * (1. + self.norm_unc)
+                    elif(process in self.label and 'down' in sys): weights_sys = nom_weights  * (1. - self.norm_unc)
+                    else: weights_sys = nom_weights
                 else:
                     sys_idx = sys_weights_map[sys]
                     weights_sys = nom_weights * all_sys_weights[:, sys_idx]
@@ -287,7 +299,7 @@ class Dataset():
 
 
 
-    def get_matched_splittings(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1, rescale_subjets = "vec"):
+    def get_all_matched_splittings(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1, rescale_subjets = "vec"):
 
 
         pf_cands = self.get_masked("jet%i_PFCands" % which_j).astype(np.float64)[min_evts:max_evts]
@@ -310,11 +322,19 @@ class Dataset():
 
         if(num_excjets > 0 and self.dtype < 0): 
             #No gen info
+            subjets = []
+            splittings = []
+
             for i in range(len(pf_cands)):
                 subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
-                out_dict['subjets'].append(subjet)
-                out_dict['splittings'].append(split)
-            return subjets, splittings, bad_matches, dRs
+                subjets.append(subjet)
+                splittings.append(split)
+
+            RO = ReclusterObj()
+            RO.subjet, RO.split = subjets, splittings
+            RO.n_prongs = num_excjets
+
+            return RO, None, None
 
         if(self.dtype == 1): #CASE h5
             gen_parts = self.get_masked('gen_info')[min_evts:max_evts]
@@ -340,18 +360,32 @@ class Dataset():
 
 
 
+        ro_nom = []
+        ro_up = []
+        ro_down = []
         for i in range(len(pf_cands)):
-            subjet, split, bad_match, deltaR = LP_rw.get_splittings_and_matching(pf_cands[i], gen_parts_eta_phi[i], j_4vec[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
+            ro, ro_prongs_up, ro_prongs_down = LP_rw.get_splittings_and_matching(pf_cands[i], gen_parts_eta_phi[i], j_4vec[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
 
-            subjets.append(subjet)
-            splittings.append(split)
-            bad_matches.append(bad_match)
-            dRs.append(deltaR)
+            ro_nom.append(ro)
+            ro_up.append(ro_prongs_up)
+            ro_down.append(ro_prongs_down)
 
-        return subjets, splittings, bad_matches, dRs
+        return ro_nom, ro_up, ro_down
 
 
-    def reweight_LP(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None, prefix = "", 
+    def reweight_all_up_down_prongs(self, LP_rw, h_ratio = None, reclust_prongs_up = None, reclust_prongs_down = None, nom_weights = None):
+        weights_match_up = np.copy(nom_weights)
+        weights_match_down = np.copy(nom_weights)
+        weights_prong_up = np.copy(nom_weights)
+        weights_prong_down = np.copy(nom_weights)
+        for i in range(len(reclust_prongs_up)):
+            weights_prong_up[i], weights_prong_down[i], weights_match_up[i], weights_match_down[i] = LP_rw.get_up_down_prongs_weights(h_ratio, 
+                                                                                    reclust_prongs_up[i], reclust_prongs_down[i], nom_weights[i])
+
+        return weights_prong_up, weights_prong_down, weights_match_up, weights_match_down
+
+
+    def reweight_all(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None, prefix = "", reclust_objs = None, 
             rand_noise = None,  pt_rand_noise = None, sys_str = "", subjets = None, splittings = None, norm = True):
 
         LP_weights = []
@@ -366,15 +400,16 @@ class Dataset():
 
 
 
-        if(splittings is None):
-            reclust_nom, reclust_prongUp, reclust_prongDown = self.get_matched_splittings(LP_rw, num_excjets, min_evts = min_evts, max_evts =max_evts)
+        if(reclust_objs is None):
+            reclust_objs, reclust_prongs_up, reclust_prongs_down = self.get_all_matched_splittings(LP_rw, num_excjets, min_evts = min_evts, max_evts =max_evts)
 
+        n_b_matched = 0
         for i in range(len(pf_cands)):
 
-            split = splittings[i]
-            subjet = subjets[i]
+            ro = reclust_objs[i]
+            split, subjet = ro.split, ro.subjet
 
-            if(sys_str == 'bquark'):
+            if(sys_str == 'bquark'): # systematic only for bquarks
                 deltaR_cut = 0.2
                 if(self.dtype == 1): #CASE h5 saves all gen decays with pdg ID
                     B_ID = 5 
@@ -399,14 +434,14 @@ class Dataset():
                     #splittings save idx of associated subjet
                     b_split  = [split[j]  for j in range(len(split)) if split[j][0] in b_matches]
 
-                    rw, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, 
-                            subjets = b_subjet, splittings = b_split, sys_str = sys_str)
+                    rw, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, subjets = b_subjet, splittings = b_split, sys_str = sys_str)
+                    n_b_matched +=1
                 else: 
                     rw = 1.0
 
 
             else:
-                rw, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, subjets = subjet, splittings = split,                                        
+                rw, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, reclust_obj = ro,
                         rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
 
             eps = 1e-6
@@ -418,6 +453,8 @@ class Dataset():
                 pt_smeared_weights.append(pt_smeared_rw)
 
 
+        if(sys_str == 'bquark'):
+            print("%i / %i jets were b-matched" % (n_b_matched, len(pf_cands)))
         if(norm):
             LP_weights = np.clip(np.array(LP_weights), 0., LP_rw.max_rw)
             LP_weights /= np.mean(LP_weights)
