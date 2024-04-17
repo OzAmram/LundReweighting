@@ -299,7 +299,7 @@ class Dataset():
 
 
 
-    def get_all_matched_splittings(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1, rescale_subjets = "vec"):
+    def reweight_all(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1, do_sys_weights = True, rescale_subjets = "vec"):
 
 
         pf_cands = self.get_masked("jet%i_PFCands" % which_j).astype(np.float64)[min_evts:max_evts]
@@ -319,35 +319,15 @@ class Dataset():
 
         num_excjets_l = [num_excjets]*len(pf_cands)
 
-
-        if(num_excjets > 0 and self.dtype < 0): 
-            #No gen info
-            subjets = []
-            splittings = []
-
-            for i in range(len(pf_cands)):
-                subjet, split = LP_rw.get_splittings(pf_cands[i], num_excjets = num_excjets_l[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
-                subjets.append(subjet)
-                splittings.append(split)
-
-            RO = ReclusterObj()
-            RO.subjet, RO.split = subjets, splittings
-            RO.n_prongs = num_excjets
-
-            return RO, None, None
-
         if(self.dtype == 1): #CASE h5
             gen_parts = self.get_masked('gen_info')[min_evts:max_evts]
             n_evts = gen_parts.shape[0]
             gen_parts_eta_phi_raw = gen_parts[:,:,1:3]
             gen_pdg_id = np.abs(gen_parts[:,:,3])
             #neutrino pdg ids are 12,14,16
-            is_lep = gen_pdg_id > 10
             not_neutrinos = ((~np.isclose(gen_pdg_id, 12)) & (~np.isclose(gen_pdg_id, 14)) & (~np.isclose(gen_pdg_id, 16)))
             
             gen_parts_eta_phi = [gen_parts_eta_phi_raw[i][not_neutrinos[i]] for i in range(n_evts)]
-            #gen_parts_eta_phi = gen_parts_eta_phi[not_neutrinos].reshape(n_evts, -1, 2)
-            is_lep = is_lep[not_neutrinos]
 
 
         else:#W or t matched MC
@@ -357,20 +337,12 @@ class Dataset():
             b_eta_phi = gen_parts[:,26:28]
             if(self.dtype == 2): gen_parts_eta_phi = np.stack([q1_eta_phi,q2_eta_phi], axis = 1)
             else: gen_parts_eta_phi = np.stack([q1_eta_phi, q2_eta_phi, b_eta_phi], axis = 1)
+            gen_pdg_id = np.array([[1,2,5]] * gen_parts.shape[0])
 
 
 
-        ro_nom = []
-        ro_up = []
-        ro_down = []
-        for i in range(len(pf_cands)):
-            ro, ro_prongs_up, ro_prongs_down = LP_rw.get_splittings_and_matching(pf_cands[i], gen_parts_eta_phi[i], j_4vec[i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
-
-            ro_nom.append(ro)
-            ro_up.append(ro_prongs_up)
-            ro_down.append(ro_prongs_down)
-
-        return ro_nom, ro_up, ro_down
+        out = LP_rw.get_all_weights(pf_cands, gen_parts_eta_phi, j_4vec, gen_parts_pdg_ids = gen_pdg_id, do_sys_weights = do_sys_weights)
+        return out
 
 
     def reweight_all_up_down_prongs(self, LP_rw, h_ratio = None, reclust_prongs_up = None, reclust_prongs_down = None, nom_weights = None):
@@ -378,15 +350,28 @@ class Dataset():
         weights_match_down = np.copy(nom_weights)
         weights_prong_up = np.copy(nom_weights)
         weights_prong_down = np.copy(nom_weights)
+
+        weights_unclust_up = np.copy(nom_weights)
+        weights_unclust_down = np.copy(nom_weights)
+
+        n_reclust_up = n_reclust_down = n_reclust_up_still_bad = n_reclust_down_still_bad = 0
+        n_tot = len(reclust_prongs_up)
+
         for i in range(len(reclust_prongs_up)):
             weights_prong_up[i], weights_prong_down[i], weights_match_up[i], weights_match_down[i] = LP_rw.get_up_down_prongs_weights(h_ratio, 
                                                                                     reclust_prongs_up[i], reclust_prongs_down[i], nom_weights[i])
+            if(still_bad):
+                weights_unclust_up[i] *= 2
+                weights_unclust_down[i] *= 0.5
 
-        return weights_prong_up, weights_prong_down, weights_match_up, weights_match_down
+        print("%i total. %i prong up reclust (%i still bad). %i prong down reclust (%i still bad)" % 
+                (n_tot, n_reclust_up, n_reclust_up_still_bad, n_reclust_down, n_reclust_down_still_bad))
+
+        return weights_prong_up, weights_prong_down, weights_match_up, weights_match_down, weights_unclust_up, weights_unclust_down
 
 
-    def reweight_all(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None, prefix = "", reclust_objs = None, 
-            rand_noise = None,  pt_rand_noise = None, sys_str = "", subjets = None, splittings = None, norm = True):
+
+    def reweight_all_(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None):
 
         LP_weights = []
         LP_smeared_weights = []
@@ -412,9 +397,8 @@ class Dataset():
             if(sys_str == 'bquark'): # systematic only for bquarks
                 deltaR_cut = 0.2
                 if(self.dtype == 1): #CASE h5 saves all gen decays with pdg ID
-                    B_ID = 5 
                     #pick out subjets matched to a b quark
-                    gen_bs = [j for j in range(len(gen_parts[i])) if abs(gen_parts[i,j,3]) == B_ID]
+                    gen_bs = [j for j in range(len(gen_parts[i])) if abs(gen_parts[i,j,3]) == B_PDG_ID]
                     dists = get_subjet_dist(gen_parts[i,gen_bs,1:3], np.array(subjet)[:,1:3])
                 else: #ttbar MC saves in order
                     b_eta_phi = gen_parts[i,26:28]

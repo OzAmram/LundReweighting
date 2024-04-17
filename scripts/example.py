@@ -29,21 +29,9 @@ tag_obs = 'tau43'
 score_thresh = 0.65
 
 
-#nominal data/MC Lund plane ratio (3d histogram)
-h_ratio = f_ratio.Get("ratio_nom")
-#systematic variations
-h_ratio_sys_up = f_ratio.Get("ratio_sys_tot_up")
-h_ratio_sys_down = f_ratio.Get("ratio_sys_tot_down")
-#MC ratio of b to light quarks
-b_light_ratio = f_ratio.Get("h_bl_ratio")
-
-
-#directory of pt extrapolation fits
-f_ratio.cd('pt_extrap')
-rdir = ROOT.gDirectory
 
 #Main class for reweighting utilities
-LP_rw = LundReweighter(pt_extrap_dir = rdir)
+LP_rw = LundReweighter(f_ratio)
 
 max_evts = 10000
 score = getattr(d, tag_obs)[:max_evts]

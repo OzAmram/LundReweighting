@@ -18,3 +18,6 @@ n_bins = 40
 
 kt_bins = array('f', np.linspace(kt_bin_min, kt_bin_max, num = n_bins_LP+1))
 dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
+
+B_PDG_ID = 5
+

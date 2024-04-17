@@ -3,6 +3,121 @@ sys.path.insert(0, '')
 sys.path.append("../")
 from utils.Utils import *
 
+def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins=10, normalize = False, h_range = None, first_like_data = True,
+        weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None):
+    h_type= 'step'
+    alpha = 1.
+    fontsize = 22
+    label_size = 18
+    lw = 3
+    fig = plt.figure(figsize = fig_size)
+    gs = gridspec.GridSpec(2,1, height_ratios = [3,1])
+    ax0 =  plt.subplot(gs[0])
+
+    if(h_range is None):
+        low = np.amin(entries[0])
+        high = np.amax(entries[0])
+    else:
+        low,high = h_range
+
+    data,bins = np.histogram(entries[0], bins = num_bins, range=(low,high), weights = weights[0])
+    data_uncs = np.sqrt(data)
+
+    if(normalize):
+        norm = np.sum(data) * ((high - low)/num_bins) #counts * bin width
+        data /= norm
+        data_uncs /=norm
+
+    ns, bins, patches  = ax0.hist(entries[1:], bins=num_bins, range=(low,high), color=colors[1:], alpha=alpha,label=labels[1:len(entries)], 
+            density = normalize, weights = weights[1:], histtype=h_type, linewidth = lw)
+
+    bincenters = 0.5*(bins[1:]+bins[:-1]) 
+    ax0.errorbar(bincenters, data, yerr=data_uncs, fmt='ko', markerfacecolor = colors[0], ecolor = colors[0], markeredgecolor = colors[0], label = labels[0])
+
+    plt.xlim(h_range)
+
+    if(logy): plt.yscale("log")
+    plt.title(title, fontsize=fontsize)
+
+    bin_size = bins[1] - bins[0]
+    bincenters = 0.5*(bins[1:]+bins[:-1]) 
+
+    ax1 = plt.subplot(gs[1])
+    ax1.errorbar(bincenters, np.ones_like(bincenters), yerr = data_uncs/data, markerfacecolor = colors[0], ecolor = colors[0], markeredgecolor = colors[0], fmt='ko')
+
+    ratios = []
+    for i in range(len(ns)):
+        ratio =  np.clip(data, 1e-8, None)/ np.clip(ns[i], 1e-8, None)
+        ratio = np.append(ratio, ratio[-1])
+        ratios.append(ratio)
+
+        plt.step(bins, ratio, color = colors[i+1], linewidth = lw, where = 'post')
+
+    leg = ax0.legend(loc='best', fontsize = 14)
+
+    #draw sys unc band
+    if(sys_weights is not None):
+        for j in range(len(sys_weights)): # separate set for each observable
+            sys_w = sys_weights[j]
+            if(len(sys_w) == 0): continue
+            nom = ns[j]
+
+            uncs_up = np.zeros(nom.shape)
+            uncs_down = np.zeros(nom.shape)
+            for i in range(len(sys_w)):
+                weights_up = sys_w[i][0]
+                weights_down = sys_w[i][1]
+
+                ns_sys_up, _ = np.histogram(entries[j+1], bins = bins, weights = weights_up, density =normalize )
+                ns_sys_down, _ = np.histogram(entries[j+1], bins = bins, weights = weights_down, density =normalize )
+
+                ns_up, ns_down = np.maximum(ns_sys_up, ns_sys_down), np.minimum(ns_sys_up, ns_sys_down)
+
+                uncs_up += (ns_up - nom)**2
+                uncs_down += (ns_down - nom)**2
+
+            uncs_up = np.sqrt(uncs_up)
+            uncs_down = np.sqrt(uncs_down)
+
+            vals_up = nom + uncs_up
+            vals_down = nom - uncs_down
+
+            #compute ratio unc
+            ratio_up =  np.clip(data, 1e-8, None)/ np.clip(vals_up, 1e-8, None) 
+            ratio_down =  np.clip(data, 1e-8, None)/ np.clip(vals_down, 1e-8, None) 
+            
+            #Pad with dummy val
+            vals_up = np.append(vals_up, vals_up[-1])
+            vals_down = np.append(vals_down, vals_down[-1])
+
+            ratio_up = np.append(ratio_up, ratio_up[-1])
+            ratio_down = np.append(ratio_down, ratio_down[-1])
+
+            ax0.fill_between(bins, vals_down, vals_up, color = colors[j+1], alpha = 0.5, step = 'post')
+            ax1.fill_between(bins, ratio_down, ratio_up, color = colors[j+1], alpha = 0.5, step = 'post')
+
+
+    ax1.set_ylabel("Herwig/Pythia", fontsize= label_size)
+    ax1.set_xlabel(axis_label, fontsize = label_size)
+
+    plt.xlim([low, high])
+
+    if(type(ratio_range) == list or type(ratio_range) == tuple):
+        plt.ylim(ratio_range[0], ratio_range[1])
+    else:
+        if(ratio_range > 0):
+            plt.ylim([1-ratio_range, 1+ratio_range])
+
+    plt.grid(axis='y')
+
+
+    if(fname != ""): 
+        plt.savefig(fname)
+        print("saving fig %s" %fname)
+
+    return 
+
+
 
 parser = input_options()
 parser.add_argument("--topSF", default=False, action='store_true',  help="Top SF")
@@ -23,13 +138,12 @@ f_herwig = h5py.File(f_dir + "TT_herwig.h5", "r")
 f_ratio_name = ""
 if(options.fin != ""): f_ratio_name = options.fin
 f_ratio = ROOT.TFile.Open(f_ratio_name)
-h_ratio = f_ratio.Get("ratio_nom")
 
 outdir = options.outdir
 
 do_sys_variations = not (options.no_sys)
 
-tau21_thresholds = [0.2, 0.27, 0.35]
+tau21_thresholds = [0.18, 0.24, 0.3]
 tau32_thresholds = [0.3, 0.4, 0.5]
 
 
@@ -77,118 +191,41 @@ else:
     pt_cut = 225.
 
 
-if('pt_extrap' in f_ratio.GetListOfKeys()):
-    rdir = f_ratio.GetDirectory("pt_extrap")
-    rdir.cd()
-else: 
-    print("NO Pt extrapolation")
-    rdir = None
 
 for d in [d_powheg, d_herwig]:
     jet_kinematics = d.f['jet_kinematics'][:]
     pt_cut_mask = jet_kinematics[:,0] > pt_cut
     d.apply_cut(pt_cut_mask)
     d.compute_obs()
-    weights = d.get_weights()
-    d.nom_weights = weights
+    d.nom_weights = d.get_weights()
 
-weights_nom = d_powheg.nom_weights
+nom_weights = d_powheg.nom_weights
 print("%i powheg, %i herwig evts" % (len(d_powheg.nom_weights), len(d_herwig.nom_weights)))
 
+LP_rw = LundReweighter(jetR = jetR, f_ratio = f_ratio, charge_only = options.charge_only)
 
-#Noise used to generated smeared ratio's based on stat unc
-nToys = 100
-rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ()))
-pt_rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), 3))
+LP_weights = d_powheg.reweight_all(LP_rw, do_sys_weights = do_sys_variations)
 
-LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only)
-
-reclust_nom, reclust_prongs_up, reclust_prongs_down = d_powheg.get_all_matched_splittings(LP_rw, num_excjets = num_excjets)
-
-LP_weights, stat_smeared_weights, pt_smeared_weights = d_powheg.reweight_all(LP_rw, h_ratio, reclust_objs = reclust_nom, num_excjets = num_excjets, 
-        rand_noise = rand_noise, pt_rand_noise = pt_rand_noise)
-
-LP_weights_prong_up, LP_weights_prong_down, LP_weights_match_up, LP_weights_match_down = d_powheg.reweight_all_up_down_prongs(
-        LP_rw, h_ratio = h_ratio, reclust_prongs_up = reclust_prongs_up, reclust_prongs_down = reclust_prongs_down, nom_weights = LP_weights)
-
-sys_ratios = []
-sys_variations = dict()
-LP_weights_sys_up = LP_weights_sys_down = b_weights_up = b_weights_down = np.ones_like(weights_nom)
-if(do_sys_variations):
-    #sys_list = list(sys_weights_map.keys())
-    sys_list = ['sys_tot_up', 'sys_tot_down']
-    for sys in sys_list:
-
-        if(f_ratio.GetListOfKeys().Contains("ratio_" + sys)):
-            sys_ratio = f_ratio.Get("ratio_" + sys)
-            sys_str = sys + "_"
-
-            sys_LP_weights = d_powheg.reweight_all(LP_rw, sys_ratio, num_excjets = num_excjets, prefix = "", 
-                    sys_str = sys_str, reclust_objs = reclust_nom)
-            sys_weights = weights_nom * sys_LP_weights
-            rw = np.sum(weights_nom) / np.sum(sys_weights)
-            sys_weights *= rw
-        else:
-            print("Missing sys %s!" % sys)
-            sys_weights = LP_weights
-
-        if('up' in sys): LP_weights_sys_up = sys_weights
-        else: LP_weights_sys_down = sys_weights
-
-    if(f_ratio.GetListOfKeys().Contains("h_bl_ratio")):
-        b_light_ratio = f_ratio.Get("h_bl_ratio")
-        bquark_rw = d_powheg.reweight_all(LP_rw, b_light_ratio, num_excjets = num_excjets, prefix = "", sys_str = 'bquark', reclust_objs = reclust_nom)
-    else: 
-        bquark_rw = np.ones_like(LP_weights)
-
-    b_weights_down = (1./ bquark_rw) * LP_weights
-    b_weights_up = bquark_rw * LP_weights
+for key in LP_weights.keys():
+    if('nom' in key or 'up' in key or 'down' in key):
+        LP_weights[key] *= nom_weights
 
 
-all_badmatches = [ro.badmatch for ro in reclust_nom]
-print("Bad match frac is %.2f" % np.mean(all_badmatches))
+print("Bad match frac %.2f" % np.mean(LP_weights['bad_match']))
+print("Reclustered bad match frac %.2f" % np.mean(LP_weights['reclust_still_bad_match']))
 
 
-
-#The nominal Lund Plane correction event weights
-LP_weights = LP_rw.normalize_weights(LP_weights) * weights_nom 
-
-#Toy variations for stat and pt uncertainties
-stat_smeared_weights = LP_rw.normalize_weights(stat_smeared_weights) * weights_nom.reshape(-1, 1)
-pt_smeared_weights = LP_rw.normalize_weights(pt_smeared_weights) * weights_nom.reshape(-1,1)
-
-#Systematic up/down variations
-LP_weights_sys_up = LP_rw.normalize_weights(LP_weights_sys_up) * weights_nom
-LP_weights_sys_down = LP_rw.normalize_weights(LP_weights_sys_down) * weights_nom
-
-LP_weights_match_up = LP_rw.normalize_weights(LP_weights_match_up) * weights_nom
-LP_weights_match_down = LP_rw.normalize_weights(LP_weights_match_down) * weights_nom
-
-LP_weights_prong_up = LP_rw.normalize_weights(LP_weights_prong_up) * weights_nom
-LP_weights_prong_down = LP_rw.normalize_weights(LP_weights_prong_down) * weights_nom
-
-diffs = LP_weights_match_up - LP_weights
-print("Diffs")
-print(np.mean(diffs > 0.1))
-print(diffs[diffs > 0.1][:10])
-
-
-#b quark systematic up/down variations
-b_weights_up = LP_rw.normalize_weights(b_weights_up) * weights_nom
-b_weights_down = LP_rw.normalize_weights(b_weights_down) * weights_nom
-
-
-make_histogram(LP_weights, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 5.0),
+make_histogram(LP_weights['nom'], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 5.0),
      normalize=False, fname=outdir + "lundPlane_weights.png")
+quantiles = np.arange(0.,1.0, 0.1)
+threshs = np.quantile(LP_weights['nom'], quantiles)
+print("Quantiles are ", threshs)
+
+
 
 #Save subjet pts and deltaR
-subjet_pts =  []
+subjet_pts =  LP_weights['subjet_pts']
 
-for i,ro in enumerate(reclust_nom):
-    sjs = ro.subjet
-    for sj in sjs:
-        subjet_pts.append(sj[0])
-    
 print("Min subjet pt %.2f " % np.amin(subjet_pts))
 num_bins = 40
 pt_bins = array('d', np.linspace(0., 800., num_bins + 1))
@@ -208,8 +245,8 @@ for idx in range(len(powheg_cuts)):
     pow_cut = powheg_cuts[idx]
     her_cut = herwig_cuts[idx]
 
-    eff_nom = np.average(pow_cut, weights = weights_nom)
-    eff_rw = np.average(pow_cut, weights = LP_weights)
+    eff_nom = np.average(pow_cut, weights = nom_weights)
+    eff_rw = np.average(pow_cut, weights = LP_weights['nom'])
 
     eff_herwig = np.average(her_cut)
 
@@ -217,13 +254,14 @@ for idx in range(len(powheg_cuts)):
     print("Herwig: %.3f " % (eff_herwig))
 
 
+    nToys = LP_weights['stat_vars'].shape[1]
     eff_toys = []
     pt_eff_toys = []
     for i in range(nToys):
-        eff = np.average(pow_cut, weights = stat_smeared_weights[:,i])
+        eff = np.average(pow_cut, weights = LP_weights['stat_vars'][:,i])
         eff_toys.append(eff)
 
-        eff1 = np.average(pow_cut, weights = pt_smeared_weights[:,i])
+        eff1 = np.average(pow_cut, weights = LP_weights['pt_vars'][:,i])
         pt_eff_toys.append(eff1)
 
     #Compute stat and pt uncertainty based on variation in the toys
@@ -239,42 +277,51 @@ for idx in range(len(powheg_cuts)):
     print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
     #Add systematic differences in quadrature
-    sys_LPunc_up = sys_LPunc_down = sys_prongs_up = sys_prongs_down = sys_matching_up = sys_matching_down = b_unc_up = b_unc_down = 0.
+    sys_keys = ['sys', 'bquark', 'prongs', 'matching', 'unclust']
+    sys_uncs = dict()
+
+    diffs_up = np.abs(LP_weights['nom'] - LP_weights['prongs_up'])
+    diffs_down = np.abs(LP_weights['nom'] - LP_weights['prongs_down'])
+    filt = diffs_down > 0.1
+    print(diffs_up[filt][:5], diffs_down[filt][:5])
+    print("Avg up down", np.mean(diffs_up), np.mean(diffs_down))
+
+    for sys in sys_keys: sys_uncs[sys] = [0.,0.]
     if(do_sys_variations):
 
         #Compute difference in efficiency due to weight variations as uncertainty
         def get_uncs(score_cut, weights_up, weights_down, eff_baseline):
             eff_up =  np.average(score_cut, weights = weights_up)
             eff_down =  np.average(score_cut, weights = weights_down)
-            print(eff_up, eff_down, eff_baseline)
 
             unc_up = eff_up - eff_baseline
             unc_down = eff_down - eff_baseline 
             return unc_up, unc_down
 
-
-        #Compute efficiency of systematic variations
-        sys_LPunc_up, sys_LPunc_down = get_uncs(pow_cut, LP_weights_sys_up, LP_weights_sys_down, eff_rw)
-        print("prong")
-        sys_prong_up, sys_prong_down = get_uncs(pow_cut, LP_weights_prong_up, LP_weights_prong_down, eff_rw)
-        print("match")
-        sys_matching_up, sys_matching_down = get_uncs(pow_cut, LP_weights_match_up, LP_weights_match_down, eff_rw)
-
-        b_unc_up, b_unc_down = get_uncs(pow_cut, b_weights_up, b_weights_down, eff_rw)
+        for sys in sys_keys:
+            unc_up, unc_down = get_uncs(pow_cut, LP_weights[sys + '_up'], LP_weights[sys + '_down'], eff_rw)
+            print(sys, unc_up, unc_down)
+            sys_uncs[sys] = [unc_up, unc_down]
 
 
     f_effs.write("Thresh %.2f" % thresholds[idx])
 
-    eff_str = ("Calibrated efficiency  is %.2f +/- %.2f  (stat) +/- %.2f (pt) %.2f/%.2f (sys) %.2f/%.2f (bquark) %.2f/%.2f (prongs)  %.2f/%.2f (matching) \n"  % 
-        (eff_rw, eff_stat_unc, eff_pt_unc, sys_LPunc_up, sys_LPunc_down, b_unc_up, b_unc_down, sys_prongs_up, sys_prongs_down, sys_matching_up, sys_matching_down ))
+    eff_str = "Calibrated efficiency  is %.2f +/- %.2f (stat) +/- %.2f (pt)" % (eff_rw, eff_stat_unc, eff_pt_unc )
+    tot_unc_up = tot_unc_down = eff_stat_unc**2 + eff_pt_unc**2
 
-    tot_unc_up = (eff_stat_unc**2 + eff_pt_unc**2 + max(sys_LPunc_up, sys_LPunc_down)**2 + max(b_unc_up, b_unc_down)**2 + 
-            max(sys_prongs_up, sys_prongs_down)**2 + max(sys_matching_up, sys_matching_down)**2)**0.5
+    for sys in sys_keys:
+        eff_str += " %.2f/%.2f (%s)" % (sys_uncs[sys][0], sys_uncs[sys][1], sys)
+        up_var = max(sys_uncs[sys][0], sys_uncs[sys][1])
+        down_var = min(sys_uncs[sys][0], sys_uncs[sys][1])
+        tot_unc_up += up_var**2
+        tot_unc_down += down_var**2
 
-    tot_unc_down = (eff_stat_unc**2 + eff_pt_unc**2 + min(sys_LPunc_up, sys_LPunc_down)**2 + min(b_unc_up, b_unc_down)**2 + 
-            min(sys_prongs_up, sys_prongs_down)**2 + min(sys_matching_up, sys_matching_down)**2)**0.5
 
-    eff_str += "Herwig %.2f, Reweighted Powheg %.2f +%.2f/-%.2f \n"  % (eff_herwig, eff_rw, tot_unc_up, tot_unc_down)
+
+    tot_unc_up = tot_unc_up**0.5
+    tot_unc_down = tot_unc_down**0.5
+
+    eff_str += "\n Herwig %.2f, Reweighted Powheg %.2f +%.2f/-%.2f \n"  % (eff_herwig, eff_rw, tot_unc_up, tot_unc_down)
 
 
     print(eff_str)
@@ -285,28 +332,36 @@ for idx in range(len(powheg_cuts)):
 f_effs.close()
 f_ratio.Close()
 
+#Plotting
+tau21_start = 0.2 if options.topSF else 0.05
+tau32_start = 0.15 if options.topSF else 0.3
+tau43_start = 0.4 if options.topSF else 0.6
 obs_attrs = {
         'mSoftDrop' : (50, 230, 45, "m_{SD} [GeV]", "Events / 4 GeV"),
-        'tau21' : (0.05, 0.8, 25, "#tau_{21}", "Events  "),
-        'tau32' : (0.1, 0.95, 25, "#tau_{32}", "Events "),
-        'tau43' : (0.6, 0.96, 18, "#tau_{43}", "Events "),
+        'tau21' : (tau21_start, 0.8, 12, r"$\tau_{21}$", "Events  "),
+        'tau32' : (tau32_start, 0.9, 15, r"$\tau_{32}$", "Events "),
+        'tau43' : (tau43_start, 0.96, 12, r"$\tau_{43}$", "Events "),
         'nPF' : (0.5, 100.5, 50, "Num. PF Cands.", "Events " ),
-        'pt' : (pt_cut, 825., 20, "p_{T}", "Events "),
+        'pt' : (pt_cut, 825., 20, r"$p_{T}$", "Events "),
         }
 labels = ['herwig', 'pythia', 'pythia, reweighted']
-colors = ['b', 'r', 'green']
+colors = [c_red, c_lightblue, c_purple]
 
+
+
+hist_weights = [d_herwig.nom_weights, d_powheg.nom_weights, LP_weights['nom']]
+sys_list = ['sys', 'bquark', 'prongs', 'matching', 'unclust']
+hist_sys_weights = [ [], [[LP_weights[sys+"_up"], LP_weights[sys+"_down"]] for sys in sys_list]]
 
 
 for l in obs_attrs.keys():
+    print(l)
     a = []
 
     low,high, nbins_, label, ylabel = obs_attrs.get(l, (None, None, 20, l, ""))
-
     obs = [getattr(d_herwig, l), getattr(d_powheg, l), getattr(d_powheg, l)]
-    weights = [d_herwig.nom_weights, d_powheg.nom_weights, LP_weights]
-    sys_weights = None
 
-    make_multi_ratio_histogram(obs, weights = weights, sys_weights = sys_weights, labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high),
+    make_herwig_ratio_histogram(obs, weights = hist_weights, sys_weights = hist_sys_weights, first_like_data = True, 
+            labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high),
             normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir +title + '_' + l + "_cmp.png" )
 

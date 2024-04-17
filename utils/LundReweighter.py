@@ -4,6 +4,7 @@ import fastjet as fj
 import numpy as np
 import sys
 from .PlotUtils import *
+from .Consts import *
 import ROOT
 from array import array
 import copy
@@ -54,6 +55,16 @@ def get_unc_hist(h):
                 h_unc.SetBinContent(i,j, 0.)
     return h_unc
 
+def symmetrize(up, down, nom):
+    ratio_up = up/nom
+    ratio_down = down/nom
+    if(abs(ratio_up -1.0) > abs(ratio_down -1.0)):
+        down = nom * (nom/up)
+    else:
+        up = nom * (nom/down)
+    return up,down
+
+
 def ang_dist(phi1, phi2):
     phi1 = phi1 % (2. * np.pi)
     phi2 = phi2 % (2. * np.pi)
@@ -81,14 +92,13 @@ def get_subjet_dist(q_eta_phis, subjets_eta_phis):
 
 class LundReweighter():
 
-    def __init__(self, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False, 
+    def __init__(self, f_ratio = None, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False, 
              min_kt = 0.002, max_kt = 99999., min_delta = 0.005, max_delta = 99999.) :
 
         self.jetR = jetR
         self.maxJets = maxJets
         self.charge_only = charge_only
         self.dR = 0.8
-        self.pt_extrap_dir = pt_extrap_dir
         self.pt_extrap_val = pt_extrap_val
         self.pf_pt_min = pf_pt_min
         self.charge_only = charge_only
@@ -97,6 +107,23 @@ class LundReweighter():
         self.min_kt, self.max_kt = min_kt, max_kt
         self.min_delta, self.max_delta = min_delta, max_delta
         self.func_dict = {}
+
+        #nominal data/MC Lund plane ratio (3d histogram)
+        self.f_ratio = f_ratio
+
+        if(f_ratio is not None):
+            self.h_ratio = f_ratio.Get("ratio_nom")
+            #systematic variations
+            self.h_ratio_sys_up = f_ratio.Get("ratio_sys_tot_up")
+            self.h_ratio_sys_down = f_ratio.Get("ratio_sys_tot_down")
+            #MC ratio of b to light quarks
+            self.b_light_ratio = f_ratio.Get("h_bl_ratio")
+
+
+            #directory of pt extrapolation fits
+            f_ratio.cd('pt_extrap')
+            self.pt_extrap_dir = ROOT.gDirectory
+
 
 
 
@@ -169,6 +196,8 @@ class LundReweighter():
             RO_prongsUp.from_prongs_up = prongs_up
             #check subjets matched to quarks
             RO_prongsUp.subjet_match, RO_prongsUp.subjet_double_matched, RO_prongsUp.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsUp.subjet)
+            #print('nom', prongs_up, RO.subjet_match, RO.subjet_double_matched)
+            #print('prong_up', RO_prongsUp.subjet_match, RO_prongsUp.subjet_double_matched)
 
         #Recluster with one less subjet
         if(RO.badmatch or prongs_down):
@@ -179,6 +208,8 @@ class LundReweighter():
             RO_prongsDown.from_prongs_down = prongs_down
             #check subjets matched to quarks
             RO_prongsDown.subjet_match, RO_prongsDown.subjet_double_matched, RO_prongsDown.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsDown.subjet)
+            #print('nom', prongs_down, RO.subjet_match, RO.subjet_double_matched)
+            #print('prong_down', RO_prongsDown.subjet_match, RO_prongsDown.subjet_double_matched)
 
 
         return RO, RO_prongsUp, RO_prongsDown
@@ -370,8 +401,6 @@ class LundReweighter():
 
             if(pt_rand_noise is not None):
                 for n in range(pt_rand_noise.shape[0]):
-                #up_down = [-1., 1.]
-                #for n in range(2):
                     pars = array('d')
                     for p in range(f.GetNpar()):
                         pnom = f.GetParameter(p)
@@ -415,7 +444,8 @@ class LundReweighter():
         return rw, smeared_rw, pt_smeared_rw
 
 
-    def get_up_down_prongs_weights(self, h_rw, reclust_prongs_up = None, reclust_prongs_down = None, nom_weight = None):
+
+    def get_up_down_prongs_weights(self, h_rw, reclust_prongs_up = None, reclust_prongs_down = None, nom_weight = None, do_symmetrize = False):
     
         prongs_up_weight = prongs_down_weight = match_up_weight = match_down_weight = nom_weight
 
@@ -424,24 +454,133 @@ class LundReweighter():
         if(reclust_prongs_up is not None): 
             LP_weight_prongs_up, _, _ = self.reweight_lund_plane(h_rw = h_rw, reclust_obj = reclust_prongs_up)
             if(reclust_prongs_up.from_prongs_up): prongs_up_weight = LP_weight_prongs_up
-            if(reclust_prongs_up.from_badmatch): 
-                match_up_weight = LP_weight_prongs_up
-                #If reclustering still not matched, apply extra variation
-                if(np.sum(reclust_prongs_up.subjet_match) != (reclust_prongs_up.n_prongs-1) or np.sum(reclust_prongs_up.subjet_double_matched) != 0):
-                    match_up_weight *= 2.0
-            #print("Up", nom_weight, prongs_up_weight, match_up_weight)
+            if(reclust_prongs_up.from_badmatch): match_up_weight = LP_weight_prongs_up
 
         if(reclust_prongs_down is not None): 
             LP_weight_prongs_down, _, _ = self.reweight_lund_plane(h_rw = h_rw, reclust_obj = reclust_prongs_down)
             if(reclust_prongs_down.from_prongs_down): prongs_down_weight = LP_weight_prongs_down
             if(reclust_prongs_down.from_badmatch): match_down_weight = LP_weight_prongs_down
-            if(reclust_prongs_down.from_badmatch): 
-                match_down_weight = LP_weight_prongs_down
-                #If reclustering still not matched, apply extra variation
-                if(np.sum(reclust_prongs_down.subjet_match) != (reclust_prongs_up.n_prongs+1) or np.sum(reclust_prongs_down.subjet_double_matched) != 0):
-                    match_up_weight *= 0.5
+
+
+
+        if(do_symmetrize):
+            prongs_up_weight, prongs_down_weight = symmetrize(prongs_up_weight, prongs_down_weight, nom_weight)
+            match_up_weight, match_down_weight = symmetrize(match_up_weight, match_down_weight, nom_weight)
 
         return prongs_up_weight, prongs_down_weight, match_up_weight, match_down_weight
+
+    def check_reclust_still_bad(self, reclust_prongs_up, reclust_prongs_down):
+        still_bad = False
+        if(reclust_prongs_up is not None):
+
+            if( reclust_prongs_up.from_badmatch and (np.sum(reclust_prongs_up.subjet_match) != (reclust_prongs_up.n_prongs-1) or 
+                np.sum(reclust_prongs_up.subjet_double_matched) != 0)):
+                   still_bad= True
+
+        if(reclust_prongs_down is not None):
+
+            if( reclust_prongs_down.from_badmatch and (np.sum(reclust_prongs_down.subjet_match) != (reclust_prongs_down.n_prongs) or 
+                np.sum(reclust_prongs_down.subjet_double_matched) != 0)):
+                   still_bad = True
+
+        return still_bad
+
+
+    def get_all_weights(self, pf_cands, gen_parts_eta_phi, ak8_jets, gen_parts_pdg_ids = None, do_sys_weights = True, nToys = 100):
+
+
+        nEvts = len(pf_cands)
+
+        #dict for all the outputs
+        out = {
+                'nom': np.zeros((nEvts)),
+                'stat_vars': np.zeros((nEvts, nToys)),
+                'pt_vars': np.zeros((nEvts, nToys)),
+                'sys_up': np.zeros((nEvts)),
+                'sys_down': np.zeros((nEvts)),
+                'bquark_up': np.zeros((nEvts)),
+                'bquark_down': np.zeros((nEvts)),
+                'prongs_up': np.zeros((nEvts)),
+                'prongs_down': np.zeros((nEvts)),
+                'matching_up': np.zeros((nEvts)),
+                'matching_down': np.zeros((nEvts)),
+                'unclust_up': np.zeros((nEvts)),
+                'unclust_down': np.zeros((nEvts)),
+                'subjet_pts': [],
+                'bad_match': [False,]*nEvts,
+                'reclust_still_bad_match': [False,]*nEvts,
+        }
+
+        rand_noise = np.random.normal(size = (nToys, self.h_ratio.GetNbinsX(), self.h_ratio.GetNbinsY(), self.h_ratio.GetNbinsZ()))
+        pt_rand_noise = np.random.normal(size = (nToys, self.h_ratio.GetNbinsY(), self.h_ratio.GetNbinsZ(), 3))
+
+
+        n_badmatch = 0
+        for i,cands in enumerate(pf_cands):
+            reclust_nom, reclust_prongs_up, reclust_prongs_down = self.get_splittings_and_matching(cands, gen_parts_eta_phi[i], ak8_jets[i])
+
+            out['bad_match'][i] = reclust_nom.badmatch
+
+            #Gets the nominal LP reweighting factor for this event and statistical + pt extrapolation toys
+            out['nom'][i], out['stat_vars'][i], out['pt_vars'][i] = self.reweight_lund_plane(h_rw = self.h_ratio,
+                                    reclust_obj = reclust_nom, rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, )
+
+            
+            out['prongs_up'][i], out['prongs_down'][i], out['matching_up'][i], out['matching_down'][i] = self.get_up_down_prongs_weights(h_rw = self.h_ratio, 
+                    reclust_prongs_up = reclust_prongs_up, reclust_prongs_down = reclust_prongs_down, nom_weight = out['nom'][i])
+
+            out['reclust_still_bad_match'][i] = self.check_reclust_still_bad(reclust_prongs_up, reclust_prongs_down)
+            out['unclust_up'][i] = out['nom'][i]
+            out['unclust_down'][i] = out['nom'][i]
+            if(out['reclust_still_bad_match'][i]):
+                out['unclust_up'][i] *= 2.0
+                out['unclust_down'][i] /= 2.0
+
+
+
+            for sj in reclust_nom.subjet: out['subjet_pts'].append(sj[0])
+
+            if(do_sys_weights):
+                #Now get systematic variations due to systemtatic uncertainties on LP
+                out['sys_up'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio_sys_up, reclust_obj = reclust_nom)
+                out['sys_down'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio_sys_down, reclust_obj = reclust_nom)
+
+                #compute special systematic for subjets matched to b quarks
+                #not needed if signal does not specifically produce b quark subjets
+                if(gen_parts_pdg_ids is None): gen_bs = []
+                else: gen_bs = [j for j in range(len(gen_parts_pdg_ids[i])) if abs(gen_parts_pdg_ids[i,j]) == B_PDG_ID]
+
+                if(len(gen_bs) == 0): b_rw = 1.0
+                else:
+                    dists = get_subjet_dist(gen_parts_eta_phi[i,gen_bs,:], np.array(reclust_nom.subjet)[:,1:3])
+
+                    deltaR_cut = 0.2
+                    b_matches = []
+                    #which subjet is each quark closest to
+                    j_closest = np.amin(dists, axis = 0)
+                    j_which = np.argmin(dists, axis = 0)
+                    b_matches = np.unique(j_which[j_closest < deltaR_cut])
+
+                    #reweight only subjets matched to b quarks
+                    if(len(b_matches) > 0):
+                        b_subjet = [reclust_nom.subjet[j] for j in range(len(reclust_nom.subjet)) if j in b_matches]
+                        b_split  = [reclust_nom.split[j]  for j in range(len(reclust_nom.split)) if reclust_nom.split[j][0] in b_matches]
+
+                        b_rw, _,_   = self.reweight_lund_plane(self.b_light_ratio, subjets = b_subjet, splittings = b_split, sys_str = 'bquark')
+
+                    else: b_rw = 1.0
+                out['bquark_up'][i] = out['nom'][i]* b_rw
+                out['bquark_down'][i] = out['nom'][i]/b_rw
+
+
+        for key in out.keys(): 
+            if(('nom' in key) or ('up' in key) or ('down' in key)):
+                out[key] = self.normalize_weights(out[key])
+
+
+        return out
+
+
 
 
 

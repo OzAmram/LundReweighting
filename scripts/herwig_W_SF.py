@@ -226,45 +226,8 @@ max_delta = 99999.0
 
 LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only, min_kt = min_kt, max_kt = max_kt, min_delta = min_delta, max_delta = max_delta)
 
-d_tw_LP_weights = d_tw.reweight_LP(LP_rw, h_ratio, num_excjets = 2,  prefix = "",)
-
 d_sig = sigs[0]
-print("Reweighting ", d.f)
-sig_idx = len(bkgs)
-
-subjets, splittings, bad_match, deltaRs = d_sig.get_matched_splittings(LP_rw, num_excjets = -1)
-
-subjet_responses = []
-jet_responses = []
-
 gen_parts_raw = d_sig.get_masked('gen_parts')[:]
-top = gen_parts_raw[:,1:5]
-antitop = gen_parts_raw[:,5:9]
-W = gen_parts_raw[:,9:13]
-antiW = gen_parts_raw[:,13:17]
-q1 = gen_parts_raw[:,17:20]
-q2 = gen_parts_raw[:,21:24]
-b = gen_parts_raw[:,25:28]
-gen_parts = np.stack([q1, q2], axis = 1)
-
-j_4vec = d_sig.get_masked('jet_kinematics')[:,:4].astype(np.float64)
-
-for i,sjs in enumerate(subjets):
-    if(bad_match[i]): continue
-
-    if(deltaR(W[i], j_4vec[i]) < deltaR(antiW[i], j_4vec[i])):
-        jet_responses.append(j_4vec[i][0] / W[i][0])
-    else:
-        jet_responses.append(j_4vec[i][0] / antiW[i][0])
-
-    subjet_responses.append(d_sig.get_pt_response(gen_parts[i], subjets[i]))
-
-make_histogram(np.array(subjet_responses).reshape(-1), "W subjets", 'b', 'Subjet pt / gen pt', "Subjet pt response ", 20 , h_range = (0.5, 1.5),
-     normalize=True, fname=outdir + "subjet_response.png", mean_std = True)
-
-
-make_histogram(np.array(jet_responses).reshape(-1), "W jets", 'b', 'Jet pt / gen pt', "Jet pt response ", 20 , h_range = (0.5, 1.5),
-     normalize=True, fname=outdir + "jet_response.png", mean_std = True)
 
 
 d_LP_weights, d_LP_smeared_weights, d_pt_smeared_weights = d_sig.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, prefix = "", 

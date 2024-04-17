@@ -11,6 +11,16 @@ import CMS_lumi, tdrstyle
 import copy
 from array import array
 
+#colors from CAT
+#https://gitlab.cern.ch/cms-analysis/analysisexamples/plotting-demo/-/blob/master/1-tutorial_CAT_recommendations.ipynb?ref_type=heads
+
+c_lightblue = "#5790fc"
+c_orange = "#f89c20"
+c_red = "#e42536"
+c_purple = "#964a8b"
+c_grey = "#9c9ca1"
+c_indigo = "#7a21dd"
+
 fig_size = (12,9)
 
 def add_patch(legend, patch, name):
@@ -115,11 +125,12 @@ def make_outline_hist(stacks,outlines, labels, colors, xaxis_label, title, num_b
 
 
 #Mpl
-def make_multi_ratio_histogram(entries, labels = None, colors = None, axis_label = None, title = None, num_bins=10, normalize = False, h_range = None, 
+def make_multi_ratio_histogram(entries, labels = None, colors = None, axis_label = None, title = None, num_bins=10, normalize = False, h_range = None, first_like_data = False,
         weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None):
     h_type= 'step'
     alpha = 1.
     fontsize = 22
+    lw = 3
     fig = plt.figure(figsize = fig_size)
     gs = gridspec.GridSpec(2,1, height_ratios = [3,1])
     ax0 =  plt.subplot(gs[0])
@@ -130,9 +141,26 @@ def make_multi_ratio_histogram(entries, labels = None, colors = None, axis_label
     else:
         low,high = h_range
 
+    if(first_like_data):
+        data,bins = np.histogram(entries[0], bins = num_bins, range=(low,high), weights = weights[0])
+        data_uncs = np.sqrt(data)
 
-    ns, bins, patches  = ax0.hist(entries, bins=num_bins, range=(low,high), color=colors, alpha=alpha,label=labels[:len(entries)], 
-            density = normalize, weights = weights, histtype=h_type)
+        if(normalize):
+            norm = np.sum(data) * ((high - low)/num_bins) #counts * bin width
+            data /= norm
+            data_uncs /=norm
+
+        ns, bins, patches  = ax0.hist(entries[1:], bins=num_bins, range=(low,high), color=colors[1:], alpha=alpha,label=labels[1:len(entries)], 
+                density = normalize, weights = weights[1:], histtype=h_type, linewidth = lw)
+
+        bincenters = 0.5*(bins[1:]+bins[:-1]) 
+        ax0.errorbar(bincenters, data, yerr=data_uncs, fmt='o', ecolor = colors[0], color = colors[0], label = labels[0])
+
+        ns.insert(0,data)
+
+    else:
+        ns, bins, patches  = ax0.hist(entries, bins=num_bins, range=(low,high), color=colors, alpha=alpha,label=labels[:len(entries)], 
+                density = normalize, weights = weights, histtype=h_type, linewidth = lw)
     plt.xlim(h_range)
 
 
@@ -154,11 +182,12 @@ def make_multi_ratio_histogram(entries, labels = None, colors = None, axis_label
             sys_w = sys_weights[j]
             if(len(sys_w) == 0): continue
             nom = ns[j]
+
             uncs_up = np.zeros(nom.shape)
             uncs_down = np.zeros(nom.shape)
-            for i in range(len(sys_weights[0])/2):
-                weights_up = sys_w[i]
-                weights_down = sys_w[i+1]
+            for i in range(len(sys_w)):
+                weights_up = sys_w[i][0]
+                weights_down = sys_w[i][1]
 
                 ns_sys_up, _ = np.histogram(entries[j], bins = bins, weights = weights_up, density =normalize )
                 ns_sys_down, _ = np.histogram(entries[j], bins = bins, weights = weights_down, density =normalize )
@@ -177,38 +206,40 @@ def make_multi_ratio_histogram(entries, labels = None, colors = None, axis_label
             vals_up = np.append(vals_up, vals_up[-1])
             vals_down = np.append(vals_down, vals_down[-1])
 
-            h_unc = ax0.fill_between(bins, vals_down, vals_up, color = 'gray', alpha = 0.5, step = 'post')
-            if(j == 0): 
-                ratios_unc_up = 1. + (uncs_up / nom)
-                ratios_unc_down = 1. - (uncs_down / nom)
+            h_unc = ax0.fill_between(bins, vals_down, vals_up, color = colors[j], alpha = 0.5, step = 'post')
 
-                ratios_unc_up = np.append(ratios_unc_up, ratios_unc_up[-1])
-                ratios_unc_down = np.append(ratios_unc_down, ratios_unc_down[-1])
+            #ratio panel
+            ratios_unc_up = 1. + (uncs_up / nom)
+            ratios_unc_down = 1. - (uncs_down / nom)
 
-                h_unc = ax1.fill_between(bins, ratios_unc_down, ratios_unc_up, color = 'gray', alpha = 0.5)
+            #Add dummy value at end
+            ratios_unc_up = np.append(ratios_unc_up, ratios_unc_up[-1])
+            ratios_unc_down = np.append(ratios_unc_down, ratios_unc_down[-1])
+
+            h_unc = ax1.fill_between(bins, ratios_unc_down, ratios_unc_up, color = colors[j], alpha = 0.5)
 
     for i in range(1, len(ns)):
         ratio = np.clip(ns[i], 1e-8, None) / np.clip(ns[0], 1e-8, None)
         ratios.append(ratio)
 
         ratio_err = None
-        if(errors):
-            if(weights != None):
-                w0 = weights[0]**2
-                w1 = weights[i]**2
-                norm0 = np.sum(weights[0])*bin_size
-                norm1 = np.sum(weights[i])*bin_size
-            else:
-                w0 = w1 = None
-                norm0 = entries[0].shape[0]*bin_size
-                norm1 = entries[i].shape[0]*bin_size
+        #if(errors):
+        #    if(weights != None):
+        #        w0 = weights[0]**2
+        #        w1 = weights[i]**2
+        #        norm0 = np.sum(weights[0])*bin_size
+        #        norm1 = np.sum(weights[i])*bin_size
+        #    else:
+        #        w0 = w1 = None
+        #        norm0 = entries[0].shape[0]*bin_size
+        #        norm1 = entries[i].shape[0]*bin_size
 
-            err0 = np.sqrt(np.histogram(entries[0], bins=bins, weights=w0)[0])/norm0
-            err1 = np.sqrt(np.histogram(entries[i], bins=bins, weights=w1)[0])/norm1
-            err0_alt  = np.sqrt(norm0*n0)/norm0
-            err_alt1  = np.sqrt(norm1*n1)/norm1
-            ratio_err = ratio * np.sqrt((err0/n0)**2 + (err1/n1)**2)
-        errs.append(ratio_err)
+        #    err0 = np.sqrt(np.histogram(entries[0], bins=bins, weights=w0)[0])/norm0
+        #    err1 = np.sqrt(np.histogram(entries[i], bins=bins, weights=w1)[0])/norm1
+        #    err0_alt  = np.sqrt(norm0*n0)/norm0
+        #    err_alt1  = np.sqrt(norm1*n1)/norm1
+        #    ratio_err = ratio * np.sqrt((err0/n0)**2 + (err1/n1)**2)
+        #errs.append(ratio_err)
 
         ax1.errorbar(bincenters, ratio, yerr = ratio_err, alpha=alpha, markerfacecolor = colors[i], markeredgecolor = colors[i], fmt='ko')
 
