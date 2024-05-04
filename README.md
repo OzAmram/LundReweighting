@@ -1,8 +1,4 @@
 # Code for the Lund Jet Plane Reweighting Method (JME-23-001)
-# Version 0
-
-This is the version of the method corresponding at the time of 'pre-approval' of JME-23-001. It is left here for posterity, but it 
-is recommended to switch to the updated version located on the `main` branch
 
 
 For those seeking to just use the Lund Plane ratio for their analysis,
@@ -30,6 +26,3 @@ All of this code is based on running on files using the CASE [h5 file format](ht
 For a full description of the method and how the different uncertainties should be computed / used,
     please consult the [JME-23-001 documentation](https://cms.cern.ch/iCMS/analysisadmin/cadilines?id=2660&ancode=JME-23-001&tp=an&line=JME-23-001). 
     
-
-
-
