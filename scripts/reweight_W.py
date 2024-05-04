@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, '')
 sys.path.append("../")
-from Utils import *
+from utils.Utils import *
 
 
 parser = input_options()
@@ -13,11 +13,11 @@ print(options)
 #lumi = 59.74
 #f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/"
 
-lumi = 41.42
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
+#lumi = 41.42
+#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/"
 
-#lumi = 16.8 + 19.5
-#f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
+lumi = 16.8 + 19.5
+f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2016/"
 
 f_data = h5py.File(f_dir + "SingleMu_merge.h5", "r")
 f_ttbar = h5py.File(f_dir + "TT.h5", "r")
@@ -30,8 +30,6 @@ f_singletop = h5py.File(f_dir + "SingleTop_merge.h5", "r")
 
 outdir = options.outdir
 sys = ""
-#CA_prefix = "2prong"
-CA_prefix = ""
 charge_only = False
 
 
@@ -48,10 +46,7 @@ m_cut_max = 110.
 #m_cut_max = 81.
 pt_cut = 225.
 
-jetR = 1.0
-n_pt_bins = 6
 num_excjets = 2
-pt_bins = array('f', [0., 50., 100., 175., 250., 350., 99999.])
 
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
@@ -68,9 +63,13 @@ d_ttbar_w_match = Dataset(f_ttbar, label = "ttbar : W-matched", color = ROOT.kRe
 d_ttbar_t_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr)
 d_ttbar_nomatch = Dataset(f_ttbar, label = "ttbar : unmatched", color = ROOT.kGreen+3, jms_corr = jms_corr)
 
-d_ttbar_w_match.norm_uncertainty = 0.
-d_ttbar_t_match.norm_uncertainty = 0.
-d_ttbar_nomatch.norm_uncertainty = 0.
+#TODO 
+d_wjets.norm_unc = 0.1
+d_diboson.norm_unc = 0.04
+d_singletop.norm_unc = 0.05
+d_tw.norm_unc = 0.05
+
+d_ttbar_nomatch.norm_unc = 0.06
 
 ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]
 
@@ -88,37 +87,14 @@ sigs = [d_ttbar_w_match]
 bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_tw, d_diboson, d_wjets, d_singletop]
 
 
-
-pt_max = 1000
-
-
-dr_bin_min = -1.
-dr_bin_max = 8.
-#y_bin_min = np.log(1./0.5)
-#y_bin_max = 20*y_bin_min
-#y_label = "ln(1/z)"
-kt_bin_min = -5
-kt_bin_max = np.log(pt_max)
-z_label = "ln(kt/GeV)"
-y_label = "ln(0.8/#Delta)"
-n_bins_LP = 20
-n_bins = 40
-
-kt_bins = array('f', np.linspace(kt_bin_min, kt_bin_max, num = n_bins_LP+1))
-
-dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
-
-
-
-
 ratio_range = [0.5, 1.5]
 h_mc = ROOT.TH3F("mc_nom", "Lund Plane MC", n_pt_bins, pt_bins, n_bins_LP,  dr_bins, n_bins_LP, kt_bins) 
 h_bkg = ROOT.TH3F("bkg_nom", "Lund Plane Bkg", n_pt_bins, pt_bins, n_bins_LP,  dr_bins, n_bins_LP, kt_bins) 
 h_data = ROOT.TH3F("data", "Lund Plane Data", n_pt_bins, pt_bins, n_bins_LP, dr_bins, n_bins_LP, kt_bins) 
 
 h_data_subjets = ROOT.TH1F("data_subjet_pts", "data subjet pts", n_pt_bins, pt_bins)
-h_bkg_subjets = ROOT.TH1F("bkg_subjet_pts", "bkg subjet pts", n_pt_bins, pt_bins)
-h_mc_subjets = ROOT.TH1F("mc_subjet_pts", "mc subjet pts", n_pt_bins, pt_bins)
+h_bkg_subjets = ROOT.TH1F("bkg_subjet_pts_nom", "bkg subjet pts", n_pt_bins, pt_bins)
+h_mc_subjets = ROOT.TH1F("mc_subjet_pts_nom", "mc subjet pts", n_pt_bins, pt_bins)
 
 
 h_mc.GetZaxis().SetTitle(z_label)
@@ -135,25 +111,29 @@ if(do_sys_variations):
     keys = sys_weights_map.keys()
     keys.remove("nom_weight")
     for sys in keys: 
-        bkg_sys_variations[sys] = h_bkg.Clone(h_bkg.GetName().replace("nom",sys))
-        if(sys in sig_sys): sig_sys_variations[sys] = h_mc.Clone(h_mc.GetName().replace("nom",sys))
+        bkg_sys_variations[sys] = (h_bkg.Clone(h_bkg.GetName().replace("nom",sys)), h_bkg_subjets.Clone(h_bkg_subjets.GetName().replace("nom",sys)))
+        if(sys in sig_sys): sig_sys_variations[sys] = (h_mc.Clone(h_mc.GetName().replace("nom",sys)), h_mc_subjets.Clone(h_mc_subjets.GetName().replace("nom",sys)))
 
 
 
-jet_kinematics_data= f_data['jet_kinematics'][()]
+jet_kinematics_data = d_data.get_masked('jet_kinematics')
+d_data.compute_kinematics()
 msd_cut_data = (jet_kinematics_data[:,3] > m_cut_min) & (jet_kinematics_data[:,3] < m_cut_max)
 pt_cut_data = jet_kinematics_data[:,0] > pt_cut
-d_data.apply_cut(msd_cut_data & pt_cut_data)
+mu_b_dr_cut = d_data.dR_mu_bjet > 0.1
+d_data.apply_cut(msd_cut_data & pt_cut_data & mu_b_dr_cut)
 d_data.compute_obs()
 
 for d in (bkgs + sigs):
 
     d.norm_factor = lumi
 
-    jet_kinematics = d.f['jet_kinematics'][:]
+    d.compute_kinematics()
+    jet_kinematics = d.get_masked('jet_kinematics')
     msd_cut_mask = (jet_kinematics[:,3] * jms_corr > m_cut_min) & (jet_kinematics[:,3] * jms_corr < m_cut_max)
     pt_cut_mask = jet_kinematics[:,0] > pt_cut
-    d.apply_cut(msd_cut_mask & pt_cut_mask)
+    mu_b_dr_cut = d.dR_mu_bjet > 0.1
+    d.apply_cut(msd_cut_mask & pt_cut_mask & mu_b_dr_cut)
     d.compute_obs()
 
 
@@ -218,29 +198,15 @@ if(do_plot):
 
 LP_rw = LundReweighter(jetR = jetR, charge_only = options.charge_only)
 
-d_data.subjets = d_data.fill_LP(LP_rw, h_data,  num_excjets = num_excjets, prefix = CA_prefix, rescale_subjets = "vec" )
+d_data.subjets = d_data.fill_LP(LP_rw, h_data,  h_subjets = h_data_subjets, num_excjets = num_excjets,  rescale_subjets = "vec" )
 
 for d in sigs:
-    d.subjets = d.fill_LP(LP_rw, h_mc,  num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec" )
+    print(d.label)
+    d.subjets = d.fill_LP(LP_rw, h_mc,  h_subjets = h_mc_subjets, num_excjets = num_excjets, sys_variations = sig_sys_variations,  rescale_subjets = "vec" )
 
 for d in bkgs:
-    d.subjets = d.fill_LP(LP_rw, h_bkg, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec")
-
-
-for d in ([d_data] + sigs + bkgs): 
-    d.subjet_pt = []
-    if(d is d_data): h_subjets = h_data_subjets
-    elif(d in sigs): h_subjets = h_mc_subjets
-    elif(d in bkgs): h_subjets = h_bkg_subjets
-
-    weights = d.get_weights()
-
-    for idx,sjs in enumerate(d.subjets):
-        sj_pts = []
-        for sj in sjs: 
-            sj_pts.append(sj[0])
-            h_subjets.Fill(sj[0], weights[idx])
-        d.subjet_pt.append(sj_pts)
+    print(d.label)
+    d.subjets = d.fill_LP(LP_rw, h_bkg, h_subjets = h_bkg_subjets, num_excjets = num_excjets, sys_variations = bkg_sys_variations, rescale_subjets = "vec")
 
 obs.append("subjet_pt")
 
@@ -262,83 +228,25 @@ if(do_sys_variations):
     keys.remove("nom_weight")
     for i,sys_name in enumerate(keys):
         print(sys_name)
-        h_bkg_subjets_sys = h_bkg_subjets.Clone(sys_name + "_bkg_ptnorm")
-        h_bkg_subjets_sys.Reset()
-        h_mc_subjets_sys = h_mc_subjets.Clone(sys_name + "_mc_ptnorm")
-        h_mc_subjets_sys.Reset()
 
-        sys_idx = sys_weights_map[sys_name]
-
-        #compute pt distributions for this sys
-        for d in bkgs:
-            if(sys_name == 'bkg_norm_up'): weights_sys = d.get_weights() * (1. + d.norm_unc)
-            elif(sys_name == 'bkg_norm_down'): weights_sys = d.get_weights()  * (1. - d.norm_unc)
-            else:  
-                all_sys_weights = d.get_masked('sys_weights')
-                weights_sys = d.get_weights() * all_sys_weights[:, sys_idx]
-            fill_hist(h_bkg_subjets_sys, d.subjet_pt, weights_sys)
-
-        if('bkg_norm' in sys_name): h_mc_subjets_sys = h_mc_subjets.Clone("nom_clone")
-        else:
-            for d in sigs:
-                all_sys_weights = d.get_masked('sys_weights')
-                weights_sys = d.get_weights() * all_sys_weights[:, sys_idx]
-                fill_hist(h_mc_subjets_sys, d.subjet_pt, weights_sys)
-
-
-
-        h_bkg_sys = bkg_sys_variations[sys_name]
+        h_bkg_sys, h_bkg_subjets_sys = bkg_sys_variations[sys_name]
 
         #Some systematics only for bkgs not signal (want denom of ratio to be consistent)
-        if(sys_name in sig_sys): h_mc_sys = sig_sys_variations[sys_name]
-        else: h_mc_sys = h_mc
+        if(sys in sig_sys):
+            h_mc_sys, h_mc_subjets_sys = sig_sys_variations[sys_name]
+        else:
+            h_mc_sys = h_mc
+            h_mc_subjets_sys = h_mc_subjets
+
+        h_mc_sys.Print()
+        h_bkg_sys.Print()
+        h_bkg_subjets_sys.Print()
+        h_mc_subjets_sys.Print()
+
 
         sys_ratio = LP_rw.make_LP_ratio(h_data, h_bkg_sys, h_mc_sys, h_data_subjets, h_bkg_subjets_sys, h_mc_subjets_sys, pt_bins = pt_bins)
         sys_ratio.SetName("ratio_" + sys_name)
         #sys_ratio.Print("range") 
         sys_ratio.Write()
-
-
-
-
-
-if(do_plot):
-    weights_rw = copy.deepcopy(weights_nom)
-
-    LP_weights = []
-    for i,d in enumerate(sigs):
-        d_LP_weights  = d.reweight_LP(LP_rw, nom_ratio,  num_excjets = num_excjets, prefix = CA_prefix)
-        LP_weights.append(d_LP_weights)
-
-        weights_rw[len(bkgs) + i] *= d_LP_weights
-
-
-    make_histogram(LP_weights[0], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
-         normalize=False, fname=outdir + "lundPlane_weights.png")
-
-    for l in obs:
-        a = []
-        for i,d in enumerate(bkgs + sigs):
-            a.append(getattr(d, l))
-
-        if(l == 'mSoftDrop'): 
-            h_range = (m_cut_min, m_cut_max)
-            n_bins_ = n_bins
-        elif(l == 'nPF'): 
-            h_range = (0.5,120.5)
-            n_bins_ = 40
-        elif(l == 'pt'): 
-            h_range = (pt_cut, 800.)
-            n_bins_ = n_bins
-        elif(l == 'subjet_pt'): 
-            h_range = (0., 800.)
-            n_bins_ = n_bins
-        else: 
-            n_bins_ = n_bins
-            h_range = None
-
-        make_multi_sum_ratio_histogram(data = getattr(d_data, l), entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False, stack = False,
-                colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins_, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
-
 
 f_out.Close()

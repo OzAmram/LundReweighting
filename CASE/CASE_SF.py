@@ -14,11 +14,10 @@ print(options)
 
 outdir = options.outdir
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
-jet_str = 'CA'
 
-fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/WkkToWRadionToWWW_M3000_Mr400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+#fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/WkkToWRadionToWWW_M3000_Mr400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
-#fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/ZpToTpTp_Zp5000_Tp400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/ZpToTpTp_Zp5000_Tp400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "test_signal_CASE.h5"
 
@@ -45,7 +44,7 @@ jetR = 1.0
 num_excjets = -1
 
 #max_evts = 20000
-max_evts = 1000
+max_evts = 10000
 #max_evts = None
 
 d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 1)
@@ -53,16 +52,6 @@ is_lep = f_sig['event_info'][:,4]
 mjj = f_sig['jet_kinematics'][:,0]
 
 print("input file", fname)
-
-j1_m = f_sig['jet_kinematics'][:,5]
-j2_m = f_sig['jet_kinematics'][:,9]
-
-
-j1_pt = f_sig['jet_kinematics'][:,2]
-j2_pt = f_sig['jet_kinematics'][:,6]
-
-max_pt = np.maximum(j1_pt, j2_pt)
-min_pt = np.minimum(j1_pt, j2_pt)
 
 cut = (is_lep < 0.5)
 print(np.mean(cut))
@@ -73,253 +62,163 @@ d.compute_obs()
 obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt"]
 n_bins = 20
 
-#for l in obs:
-#
-#    if(l == 'nPF'): 
-#        h_range = (0.5,120.5)
-#        n_bins_ = 40
-#    else: 
-#        n_bins_ = n_bins
-#        h_range = None
-#
-#    make_histogram(getattr(d,l), l, 'b', l, l, n_bins_, h_range = h_range, normalize=True, fname=outdir + l + "_before.png")
-#
-#    #make_histogram(data = getattr(d, l), labels = labels, h_range = h_range, drawSys = False, stack = False,
-#            #colors = colors, axis_label = l,  title = l + " : No Reweighting", num_bins = n_bins, normalize = False, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_before.png' )
-
 score = getattr(d, tag_obs)[:max_evts]
 
 print("%i events" % score.shape[0])
 
-
-
-
 score_cut = score < score_thresh
 
-weights_nom = np.ones_like(score)
+nom_weights = np.ones_like(score)
+
+LP_rw = LundReweighter(f_ratio = f_ratio, charge_only = options.charge_only)
+
+#Compute reweighting factors and all systematic variations
+LP_weights = d.reweight_all(LP_rw, max_evts = max_evts)
 
 
-weights_rw = copy.deepcopy(weights_nom)
-
-h_ratio = f_ratio.Get("ratio_nom")
-f_ratio.cd('pt_extrap')
-rdir = ROOT.gDirectory
-#rdir = None
-
-nToys = 100
-
-#Noise used to generated smeared ratio's based on stat unc
-rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsX(), h_ratio.GetNbinsY(), h_ratio.GetNbinsZ()))
-pt_rand_noise = np.random.normal(size = (nToys, h_ratio.GetNbinsY(), h_ratio.GetNbinsZ(), 3))
-
-LP_rw = LundReweighter(jetR = jetR, pt_extrap_dir = rdir, charge_only = options.charge_only)
+#multiply Lund plane weights with nominal event weights
+for key in LP_weights.keys():
+    if('nom' in key or 'up' in key or 'down' in key):
+        if(isinstance(LP_weights[key], np.ndarray)) : LP_weights[key] *= nom_weights
 
 
-subjets, splittings, bad_match, deltaRs = d.get_matched_splittings(LP_rw, num_excjets = num_excjets, max_evts = max_evts)
+#Fraction of prongs that are not well matched to subjets (want this to be low)
+print("Bad match frac %.2f" % np.mean(LP_weights['bad_match']))
+#Fraction of prongs that are still not well matched after reclustering with varied number of prongs
+print("Reclustered bad match frac %.2f" % np.mean(LP_weights['reclust_still_bad_match']))
 
 
-d_LP_weights, d_LP_smeared_weights, d_pt_smeared_weights = d.reweight_LP(LP_rw, h_ratio, num_excjets = num_excjets, 
-        max_evts = max_evts, prefix = "", rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, subjets = subjets, splittings = splittings)
-
-
-
-
-
-
-LP_weights = d_LP_weights
-print(LP_weights[:10])
-
-
-#apply weights, keep normalization fixed
-old_norm = np.sum(weights_rw)
-weights_rw *= d_LP_weights
-
-new_norm = np.sum(weights_rw)
-
-weights_rw *= old_norm / new_norm
-LP_smeared_weights = np.array(d_LP_smeared_weights * np.expand_dims(weights_nom, -1) * (old_norm / new_norm))
-pt_smeared_weights = np.array(d_pt_smeared_weights * np.expand_dims(weights_nom, -1) * (old_norm / new_norm))
-
-
-print("MEAN weight", np.mean(weights_rw))
-
-
-make_histogram(weights_rw, "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 40 , h_range = (0., LP_rw.max_rw + 0.1),
+make_histogram(LP_weights['nom'], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 40 , h_range = (0., LP_rw.max_rw + 0.1),
      normalize=False, fname=outdir + "lundPlane_weights.png")
 
 
-frac_low_edge = np.mean( weights_rw < np.amin(weights_rw) * 1.01)
-frac_high_edge = np.mean( weights_rw > np.amax(weights_rw) * 0.99)
+frac_low_edge = np.mean( LP_weights['nom'] < np.amin(LP_weights['nom']) * 1.01)
+frac_high_edge = np.mean( LP_weights['nom'] > np.amax(LP_weights['nom']) * 0.99)
 
-print(np.amin(weights_rw), np.amax(weights_rw))
-print(weights_rw[:10])
+print(np.amin(LP_weights['nom']), np.amax(LP_weights['nom']))
 
 print("Frac of weights low edge %.3f, high edge %.3f" % (frac_low_edge, frac_high_edge))
 
 
-sys_variations = dict()
-if(not options.no_sys):
-    #sys_list = list(sys_weights_map.keys())
-    sys_list = ["sys_tot_up", "sys_tot_down"]
-    for sys in sys_list:
-        sys_ratio = f_ratio.Get("ratio_" + sys)
-        sys_ratio.Print()
-        sys_str = sys + "_"
+#Efficiency of the cut in nominal MC
+eff_nom = np.average(score_cut, weights = nom_weights)
+
+#Efficiency of the cut after the Lund Plane reweighting
+eff_rw = np.average(score_cut, weights = LP_weights['nom'])
+
+#Nominal 'scale factor'
+SF = eff_rw / eff_nom
+
+print("Nominal efficiency %.3f, Corrected efficiency %.3f, SF (corrected / nom) %.3f" % (eff_nom, eff_rw, SF))
 
 
-        sys_LP_weights = d.reweight_LP(LP_rw, sys_ratio, num_excjets = num_excjets, prefix = "", 
-                max_evts = max_evts, sys_str = sys_str, subjets = subjets, splittings = splittings)
-        sys_weights = weights_nom * sys_LP_weights
-        rw = np.sum(weights_nom) / np.sum(sys_weights)
-        sys_weights *= rw
-        sys_variations[sys] = sys_weights
+######  Compute uncertainties on the efficiency from the various weight variations ##############
 
-    #vary weights up/down for b-quark subjets by ratio of b-quark to light quark LP
-    b_light_ratio = f_ratio.Get("h_bl_ratio")
-    bquark_rw = d.reweight_LP(LP_rw, b_light_ratio, num_excjets = num_excjets, prefix = "", 
-            max_evts = max_evts, sys_str = 'bquark', subjets = subjets, splittings = splittings)
+#statistical and pt extrapolation uncertainties derived from 100 variations of the weights 
+#take std dev to determine unc
 
-    up_bquark_weights = bquark_rw * weights_rw
-    down_bquark_weights = (1./ bquark_rw) * weights_rw
+nToys = LP_weights['stat_vars'].shape[1]
+eff_toys = []
+pt_eff_toys = []
+for i in range(nToys):
+    eff = np.average(score_cut, weights = LP_weights['stat_vars'][:,i])
+    eff_toys.append(eff)
 
-    up_bquark_weights *= old_norm / np.sum(up_bquark_weights)
-    down_bquark_weights *= old_norm / np.sum(down_bquark_weights)
+    eff1 = np.average(score_cut, weights = LP_weights['pt_vars'][:,i])
+    pt_eff_toys.append(eff1)
 
-    sys_variations['bquark_up'] = up_bquark_weights
-    sys_variations['bquark_down'] = down_bquark_weights
+#Compute stat and pt uncertainty based on variation in the toys
+toys_mean = np.mean(eff_toys)
+toys_std = np.std(eff_toys)
+pt_toys_mean = np.mean(pt_eff_toys)
+pt_toys_std = np.std(pt_eff_toys)
+
+#if mean of toys is biased, also include it as an unc (should be zero)
+eff_stat_unc = (abs(toys_mean - eff_rw)  + toys_std) 
+eff_pt_unc = (abs(pt_toys_mean - eff_rw) + pt_toys_std)
+
+print("Stat variation toys eff. avg %.3f, std dev %.3f" % (toys_mean, toys_std))
+print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
+
+#Other systematics come from up/down variations of the weights
+sys_keys = ['sys', 'bquark', 'prongs', 'unclust', 'distortion']
+sys_uncs = dict()
+
+for sys in sys_keys: sys_uncs[sys] = [0.,0.]
+
+#Compute difference in efficiency due to weight variations as uncertainty
+def get_uncs(cut, weights_up, weights_down, eff_baseline):
+    eff_up =  np.average(cut, weights = weights_up)
+    eff_down =  np.average(cut, weights = weights_down)
+
+    unc_up = eff_up - eff_baseline
+    unc_down = eff_down - eff_baseline 
+    return unc_up, unc_down
+
+for sys in sys_keys:
+    unc_up, unc_down = get_uncs(score_cut, LP_weights[sys + '_up'], LP_weights[sys + '_down'], eff_rw)
+    sys_uncs[sys] = [unc_up, unc_down]
+
+
+eff_str = "Obs is %s, cut is %.2f \n" %  (tag_obs, score_thresh)
+#Print uncertainty breakdown
+eff_str += "Calibrated efficiency  is %.2f +/- %.2f (stat) +/- %.2f (pt)" % (eff_rw, eff_stat_unc, eff_pt_unc )
+tot_unc_up = tot_unc_down = eff_stat_unc**2 + eff_pt_unc**2
+
+for sys in sys_keys:
+    eff_str += " %.2f/%.2f (%s)" % (sys_uncs[sys][0], sys_uncs[sys][1], sys)
+    up_var = max(sys_uncs[sys][0], sys_uncs[sys][1])
+    down_var = min(sys_uncs[sys][0], sys_uncs[sys][1])
+    tot_unc_up += up_var**2
+    tot_unc_down += down_var**2
+
+
+
+tot_unc_up = tot_unc_up**0.5
+tot_unc_down = tot_unc_down**0.5
+
+#Print final calibrated efficiency and total uncertaintiy
+eff_str += "\n Original %.2f, Calibrated %.2f +%.2f/-%.2f \n"  % (eff_nom, eff_rw, tot_unc_up, tot_unc_down)
+
+print(eff_str)
+f_effs = open(options.outdir + "Effs.txt", "w")
+f_effs.write(eff_str)
+f_effs.close()
+
+f_ratio.Close()
+
 
 
 #Save subjet pts and deltaR
-subjet_pts =  []
-deltaRs = np.reshape(deltaRs, -1)
+#deltaRs = np.reshape(deltaRs, -1)
 
-for i,sjs in enumerate(subjets):
-    for sj in sjs:
-        subjet_pts.append(sj[0])
 
-#n_splits = []
-#for splits in splittings:
-#    count_jet_idx = 0
-#    n_split = 0
-#    for jet_idx,delta,kt in splits:
-#        if(jet_idx == count_jet_idx):
-#            n_split += 1
-#        else:
-#            n_splits.append(n_split)
-#            count_jet_idx = jet_idx
-#            n_split = 1
-#    n_splits.append(n_split)
-#
-#print(n_splits[:5])
-        
-
-#subjet_pts = np.array(subjet_pts).reshape(-1)
-#n_splits = np.array(n_splits).reshape(-1)
-#print(subjet_pts.shape, n_splits.shape)
-#make_scatter_plot(subjet_pts, n_splits, "b", ["subjet pt", "num splittings"], fname = options.outdir + "subjet_pt_vs_nsplit.png")
-    
 num_bins = 40
 pt_bins = array('d', np.linspace(0., 800., num_bins + 1))
 dR_bins = array('d', np.linspace(0., 0.8, num_bins + 1))
 
-h_subjet_pts = make_root_hist(data = subjet_pts, name = 'h_%s_subjetpt' %h_label, num_bins = num_bins, bins = pt_bins)
-h_dRs = make_root_hist(data = deltaRs, name = 'h_%s_dRs' %h_label, num_bins = num_bins, bins = dR_bins)
+h_subjet_pts = make_root_hist(data = LP_weights['subjet_pts'], name = 'h_%s_subjetpt' %h_label, num_bins = num_bins, bins = pt_bins)
 f_ptout = ROOT.TFile.Open(outdir + "subjet_pt_dR.root", "RECREATE")
 h_subjet_pts.Write()
-h_dRs.Write()
+#h_dRs = make_root_hist(data = deltaRs, name = 'h_%s_dRs' %h_label, num_bins = num_bins, bins = dR_bins)
+#h_dRs.Write()
 f_ptout.Close()
 
-make_histogram([subjet_pts], ["Subjets"], colors = ['blue'], xaxis_label = 'Subjet pt (GeV)', 
+make_histogram([LP_weights['subjet_pts']], ["Subjets"], colors = ['blue'], xaxis_label = 'Subjet pt (GeV)', 
                 title = "%s : subjet pt " % (label), num_bins = 40, normalize = True, fname = options.outdir + label + "_subjet_pt.png")
 
-subjet_pts = np.array(subjet_pts).reshape(-1)
-print(np.amin(subjet_pts))
-print("Fraction of subjets with pt > 350 : %.3f" % (np.mean( subjet_pts > 350.)))
+print(np.amin(LP_weights['subjet_pts']))
+print("Fraction of subjets with pt > 350 : %.3f" % (np.mean( LP_weights['subjet_pts'] > 350.)))
 
 
 
+#weights = [  weights_nom, weights_rw, sys_variations['sys_tot_up'], sys_variations['sys_tot_down']]
+#labels = ["Nom", "RW", "RW Sys. Up", "RW Sys. Down"]
+#colors = ['gray','black', 'blue', 'red']
 
-#compute 'Scalefactor'
-
-eff_nom = np.average(score_cut, weights = weights_nom)
-eff_rw = np.average(score_cut, weights = weights_rw)
-
-print("Nom %.3f, RW %.3f" % (eff_nom, eff_rw))
-
-
-eff_toys = []
-pt_eff_toys = []
-for i in range(nToys):
-    eff = np.average(score_cut, weights = LP_smeared_weights[:,i])
-    eff_toys.append(eff)
-
-    eff1 = np.average(score_cut, weights = pt_smeared_weights[:,i])
-    pt_eff_toys.append(eff1)
-
-toys_mean = np.mean(eff_toys)
-toys_std = np.std(eff_toys)
-
-print("Toys avg %.3f, std dev %.3f" % (toys_mean, toys_std))
-
-
-pt_toys_mean = np.mean(pt_eff_toys)
-pt_toys_std = np.std(pt_eff_toys)
-
-print("Pt variation toys avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
-
-#Add systematic differences in quadrature
-sys_unc_up = sys_unc_down = 0.
-if(not options.no_sys):
-
-    eff_sys_tot_up = np.average(score_cut, weights = sys_variations['sys_tot_up'])
-    eff_sys_tot_down = np.average(score_cut, weights = sys_variations['sys_tot_down'])
-    SF_sys_unc_up = abs(eff_sys_tot_up - eff_rw)/eff_nom
-    SF_sys_unc_down = abs(eff_sys_tot_down - eff_rw)/eff_nom
-    SF_sys_unc = (SF_sys_unc_up + SF_sys_unc_down) / 2.0
-
-    eff_bquark_up = np.average(score_cut, weights = sys_variations['bquark_up'])
-    eff_bquark_down = np.average(score_cut, weights = sys_variations['bquark_down'])
-    SF_bquark_up = abs(eff_bquark_up - eff_rw)/eff_nom
-    SF_bquark_down = abs(eff_bquark_down - eff_rw)/eff_nom
-    SF_bquark_unc = (SF_bquark_up + SF_bquark_down) /2.0
-
-else: 
-    SF_sys_unc = SF_sys_unc_up = SF_sys_unc_down = bquark_unc = 0. 
-
-
-    #for sys in sys_variations.keys():
-    #    eff = np.average(WH_cut, weights = sys_variations[sys])
-    #    diff = eff - eff_rw
-    #    if(diff > 0): sys_unc_up += diff**2
-    #    else: sys_unc_down += diff**2
-    #    print("%s %.4f" % (sys,  diff))
-
-    #sys_unc_up = sys_unc_up**(0.5)
-    #sys_unc_down = sys_unc_down**(0.5)
-    
-
-
-SF = eff_rw / eff_nom
-SF_stat_unc = abs(toys_mean - eff_rw)/eff_nom + toys_std /eff_nom
-SF_pt_unc = abs(pt_toys_mean - eff_rw)/eff_nom + pt_toys_std /eff_nom
-
-print(bad_match[:10])
-#fraction of evts with bad match, take as fractional unc on SF
-bad_matching_unc = np.mean(bad_match) * SF
-
-print("\n\nSF (%s val %.2f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) +/- %.2f (bquark) +/- %.2f (matching) \n\n"  
-        % (tag_obs, score_thresh, SF, SF_stat_unc, SF_sys_unc, SF_pt_unc, SF_bquark_unc, bad_matching_unc))
-f_ratio.Close()
-
-#approximate uncertainty on the reweighting for the plots
-overall_unc = (SF_stat_unc **2 + SF_sys_unc**2 + SF_pt_unc**2 + SF_bquark_unc**2 + bad_matching_unc**2) **0.5 
-print("overall unc %.3f" % overall_unc)
-
-
-
-weights = [  weights_nom, weights_rw, sys_variations['sys_tot_up'], sys_variations['sys_tot_down']]
-labels = ["Nom", "RW", "RW Sys. Up", "RW Sys. Down"]
-colors = ['gray','black', 'blue', 'red']
+weights = [ nom_weights, LP_weights['nom']]
+labels = ["Nom", "RW"]
+colors = ['gray','black']
 ratio_range = [0.5, 1.5]
 
 
@@ -336,6 +235,6 @@ for l in obs:
 
     print(x.shape, weights[0].shape)
 
-    make_multi_ratio_histogram([x]*4, labels, colors, l, "%s : Before vs. After Lund Plane Reweighting" % l, n_bins,
+    make_multi_ratio_histogram([x]*2, labels, colors, l, "%s : Before vs. After Lund Plane Reweighting" % l, n_bins,
          ratio_range = ratio_range, normalize=True, weights = weights, fname=outdir + "%s_before_vs_after.png" %l )
 

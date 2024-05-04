@@ -11,6 +11,16 @@ import CMS_lumi, tdrstyle
 import copy
 from array import array
 
+#colors from CAT
+#https://gitlab.cern.ch/cms-analysis/analysisexamples/plotting-demo/-/blob/master/1-tutorial_CAT_recommendations.ipynb?ref_type=heads
+
+c_lightblue = "#5790fc"
+c_orange = "#f89c20"
+c_red = "#e42536"
+c_purple = "#964a8b"
+c_grey = "#9c9ca1"
+c_indigo = "#7a21dd"
+
 fig_size = (12,9)
 
 def add_patch(legend, patch, name):
@@ -27,199 +37,14 @@ def add_patch(legend, patch, name):
     legend.set_title(legend.get_title().get_text())
 
 
-
-
-
-def plot_training(hist, fname =""):
-    #plot trianing and validation loss
-
-    loss = hist['loss']
-
-    epochs = range(1, len(loss) + 1)
-    colors = ['b', 'g', 'grey', 'r']
-    idx=0
-
-    plt.figure(figsize=fig_size)
-    for label,loss_hist in hist.items():
-        if(len(loss_hist) > 0): plt.plot(epochs, loss_hist, colors[idx], label=label)
-        idx +=1
-    plt.title('Training and validation loss')
-    plt.yscale("log")
-    plt.xlabel('Steps')
-    plt.ylabel('Loss')
-    plt.legend()
-    if(fname != ""): 
-        plt.savefig(fname)
-        print("saving fig %s" %fname)
-    #else: 
-        #plt.show(block=False)
-
-
-def make_roc_curve(classifiers, y_true, colors = None, logy=True, labels = None, fname=""):
-    plt.figure(figsize=fig_size)
-
-    y_true = np.clip(y_true, 0,1)
-
-    fs = 18
-    fs_leg = 16
-    sig_effs = []
-    bkg_effs = []
-    aucs = []
-    for idx,scores in enumerate(classifiers):
-
-        fpr, tpr, thresholds = roc_curve(y_true, scores)
-        roc_auc = auc(fpr, tpr)
-        sig_effs.append(tpr)
-        bkg_effs.append(fpr)
-
-    make_roc_plot(sig_effs, bkg_effs, colors = colors, labels = labels, logy = logy, fname = fname)
-        
-def make_roc_plot(sig_effs, bkg_effs, colors = None, logy = True, labels = None, fname = ""):
-
-    plt.figure(figsize=fig_size)
-    fs = 18
-    fs_leg = 16
-    sic_max = 10.
-
-    for idx in range(len(sig_effs)):
-        tpr = sig_effs[idx]
-        fpr = bkg_effs[idx]
-        auc_ = auc(fpr, tpr)
-
-        fpr = np.clip(fpr, 1e-8, 1.)
-        #guard against division by 0
-        ys = 1./fpr
-
-        lbl = 'auc %.3f' % auc_
-        clr = 'navy'
-        if(labels is not None): lbl = labels[idx] + " = %.3f" % auc_
-        if(colors is not None): clr = colors[idx]
-
-        print(lbl)
-
-        plt.plot(tpr, ys, lw=2, color=clr, label=lbl)
-
-
-
-    plt.xlim([0, 1.0])
-    plt.xlabel('Signal Efficiency', fontsize=fs)
-    if(logy): 
-        plt.yscale('log')
-    plt.ylim([1., 1e4])
-    plt.ylabel('QCD Rejection Rate', fontsize=fs)
-
-    plt.legend(loc="upper right", fontsize = fs_leg)
-    if(fname != ""): 
-        print("Saving roc plot to %s" % fname)
-        plt.savefig(fname)
-    #else: 
-        #plt.show(block=False)
-
-
-def make_sic_plot(sig_effs, bkg_effs, colors = None, labels = None, eff_min = 1e-3, ymax = -1, fname=""):
-
-
-    plt.figure(figsize=fig_size)
-
-    fs = 18
-    fs_leg = 16
-    sic_max = 10.
-
-
-
-    for idx in range(len(sig_effs)):
-        sic = sig_effs[idx] / np.sqrt(bkg_effs[idx])
-
-        lbl = 'auc'
-        clr = 'navy'
-        if(labels != None): lbl = labels[idx]
-        if(colors != None): clr = colors[idx]
-        print(lbl, "max sic: ", np.amax(sic))
-        plt.plot(bkg_effs[idx], sic, lw=2, color=clr, label='%s' % lbl)
-
-
-    
-    plt.xlim([eff_min, 1.0])
-    if(ymax < 0):
-        ymax = sic_max
-        
-    plt.ylim([0,ymax])
-    plt.xscale('log')
-    plt.xlabel('Background Efficiency', fontsize = fs)
-    plt.ylabel('Significance Improvement', fontsize = fs)
-    plt.tick_params(axis='x', labelsize=fs_leg)
-    plt.tick_params(axis='y', labelsize=fs_leg)
-    plt.grid(axis = 'y', linestyle='--', linewidth = 0.5)
-    plt.legend(loc="best", fontsize= fs_leg)
-    if(fname != ""):
-        plt.savefig(fname)
-        print("Saving file to %s " % fname)
-
-
-def make_sic_curve(classifiers, y_true, colors = None, logy=False, labels = None, eff_min = 1e-3, ymax = -1, fname=""):
-
-    y_true = np.clip(y_true, 0,1)
-    plt.figure(figsize=fig_size)
-
-    fs = 18
-    fs_leg = 16
-
-    sic_max = 10.
-
-
-
-    for idx,scores in enumerate(classifiers):
-        fpr, tpr, thresholds = roc_curve(y_true, scores)
-        fpr= np.clip(fpr, 1e-8, 1.)
-        tpr = np.clip(tpr, 1e-8, 1.)
-
-        mask = tpr > eff_min
-
-        xs = fpr[mask]
-        ys = tpr[mask]/np.sqrt(xs)
-
-        sic_max = max(np.amax(ys), sic_max)
-
-
-        
-
-
-        lbl = 'auc'
-        clr = 'navy'
-        if(labels != None): lbl = labels[idx]
-        if(colors != None): clr = colors[idx]
-        print(lbl, "max sic: ", np.amax(ys))
-        plt.plot(xs, ys, lw=2, color=clr, label='%s' % lbl)
-
-
-    
-    plt.xlim([eff_min, 1.0])
-    if(ymax < 0):
-        ymax = sic_max
-        
-    plt.ylim([0,ymax])
-    plt.xscale('log')
-    plt.xlabel('Background Efficiency', fontsize = fs)
-    plt.ylabel('Significance Improvement', fontsize = fs)
-    plt.tick_params(axis='x', labelsize=fs_leg)
-    plt.tick_params(axis='y', labelsize=fs_leg)
-    plt.grid(axis = 'y', linestyle='--', linewidth = 0.5)
-    plt.legend(loc="best", fontsize= fs_leg)
-    if(fname != ""):
-        plt.savefig(fname, bbox_inches = 'tight')
-        print("Saving file to %s " % fname)
-
-
-        
-
 def make_histogram(entries, labels, colors, xaxis_label="", title ="", num_bins = 10, logy = False, normalize = False, stacked = False, h_type = 'step', 
-        h_range = None, fontsize = 24, fname="", yaxis_label = "", ymax = -1, mean_std = False):
+        h_range = None, fontsize = 24, fname="", yaxis_label = "", ymax = -1, mean_std = False, weights = None):
     alpha = 1.
     if(stacked): 
         h_type = 'barstacked'
         alpha = 0.2
     fig, ax = plt.subplots(figsize=fig_size)
-    ns, bins, patches = plt.hist(entries, bins=num_bins, range=h_range, color=colors, alpha=alpha,label=labels, density = normalize, histtype=h_type)
+    ns, bins, patches = plt.hist(entries, bins=num_bins, range=h_range, weights = weights, color=colors, alpha=alpha,label=labels, density = normalize, histtype=h_type)
     plt.xlabel(xaxis_label, fontsize =fontsize)
     plt.tick_params(axis='x', labelsize=fontsize)
     plt.tick_params(axis='y', labelsize=fontsize)
@@ -299,22 +124,44 @@ def make_outline_hist(stacks,outlines, labels, colors, xaxis_label, title, num_b
 
 
 
-def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, h_range = None, 
-        weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, unc_band_norm = -1):
+#Mpl
+def make_multi_ratio_histogram(entries, labels = None, colors = None, axis_label = None, title = None, num_bins=10, normalize = False, h_range = None, first_like_data = False,
+        weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None):
     h_type= 'step'
     alpha = 1.
     fontsize = 22
+    lw = 3
     fig = plt.figure(figsize = fig_size)
     gs = gridspec.GridSpec(2,1, height_ratios = [3,1])
     ax0 =  plt.subplot(gs[0])
 
-    low = np.amin(entries[0])
-    high = np.amax(entries[0])
-    if(h_range == None):
-        h_range = (low, high)
+    if(h_range is None):
+        low = np.amin(entries[0])
+        high = np.amax(entries[0])
+    else:
+        low,high = h_range
 
-    ns, bins, patches  = ax0.hist(entries, bins=num_bins, range=h_range, color=colors, alpha=alpha,label=labels[:len(entries)], 
-            density = normalize, weights = weights, histtype=h_type)
+    if(first_like_data):
+        data,bins = np.histogram(entries[0], bins = num_bins, range=(low,high), weights = weights[0])
+        data_uncs = np.sqrt(data)
+
+        if(normalize):
+            norm = np.sum(data) * ((high - low)/num_bins) #counts * bin width
+            data /= norm
+            data_uncs /=norm
+
+        ns, bins, patches  = ax0.hist(entries[1:], bins=num_bins, range=(low,high), color=colors[1:], alpha=alpha,label=labels[1:len(entries)], 
+                density = normalize, weights = weights[1:], histtype=h_type, linewidth = lw)
+
+        bincenters = 0.5*(bins[1:]+bins[:-1]) 
+        ax0.errorbar(bincenters, data, yerr=data_uncs, fmt='o', ecolor = colors[0], color = colors[0], label = labels[0])
+
+        ns.insert(0,data)
+
+    else:
+        ns, bins, patches  = ax0.hist(entries, bins=num_bins, range=(low,high), color=colors, alpha=alpha,label=labels[:len(entries)], 
+                density = normalize, weights = weights, histtype=h_type, linewidth = lw)
+    plt.xlim(h_range)
 
 
     plt.xlim([low, high])
@@ -329,49 +176,70 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
     errs = []
 
     leg = ax0.legend(loc='best', fontsize = 14)
-    
-
-
     frac_unc = None
-    if(unc_band_norm > 0):
-        raw_dist = np.copy(ns[0])
-        if(not normalize): norm_dist = raw_dist * unc_band_norm / np.sum(raw_dist)
-        else: normed_dist = raw_dist * bin_size * unc_band_norm
-        #print(raw_dist)
-        unc_dist = np.sqrt(normed_dist)
-        frac_unc = unc_dist / normed_dist
-        bincenters_band = np.copy(bincenters)
-        bincenters_band[0] = low
-        bincenters_band[-1] = high
+    if(sys_weights is not None):
+        for j in range(len(sys_weights)): # separate set for each observable
+            sys_w = sys_weights[j]
+            if(len(sys_w) == 0): continue
+            nom = ns[j]
 
-        if(len(labels) <= len(entries)): label = "Signal Injection Stat. Unc."
-        else: label = labels[-1]
+            uncs_up = np.zeros(nom.shape)
+            uncs_down = np.zeros(nom.shape)
+            for i in range(len(sys_w)):
+                weights_up = sys_w[i][0]
+                weights_down = sys_w[i][1]
 
-        l_unc = ax1.fill_between(bincenters_band, 1. - frac_unc, 1. + frac_unc, color = 'gray', alpha = 0.5, label = labels)
-        add_patch(leg, l_unc, label)
+                ns_sys_up, _ = np.histogram(entries[j], bins = bins, weights = weights_up, density =normalize )
+                ns_sys_down, _ = np.histogram(entries[j], bins = bins, weights = weights_down, density =normalize )
+
+                ns_up, ns_down = np.maximum(ns_sys_up, ns_sys_down), np.minimum(ns_sys_up, ns_sys_down)
+
+                uncs_up += (ns_up - nom)**2
+                uncs_down += (ns_down - nom)**2
+
+            uncs_up = np.sqrt(uncs_up)
+            uncs_down = np.sqrt(uncs_down)
+
+            vals_up = nom + uncs_up
+            vals_down = nom - uncs_down
+            
+            vals_up = np.append(vals_up, vals_up[-1])
+            vals_down = np.append(vals_down, vals_down[-1])
+
+            h_unc = ax0.fill_between(bins, vals_down, vals_up, color = colors[j], alpha = 0.5, step = 'post')
+
+            #ratio panel
+            ratios_unc_up = 1. + (uncs_up / nom)
+            ratios_unc_down = 1. - (uncs_down / nom)
+
+            #Add dummy value at end
+            ratios_unc_up = np.append(ratios_unc_up, ratios_unc_up[-1])
+            ratios_unc_down = np.append(ratios_unc_down, ratios_unc_down[-1])
+
+            h_unc = ax1.fill_between(bins, ratios_unc_down, ratios_unc_up, color = colors[j], alpha = 0.5)
 
     for i in range(1, len(ns)):
         ratio = np.clip(ns[i], 1e-8, None) / np.clip(ns[0], 1e-8, None)
         ratios.append(ratio)
 
         ratio_err = None
-        if(errors):
-            if(weights != None):
-                w0 = weights[0]**2
-                w1 = weights[i]**2
-                norm0 = np.sum(weights[0])*bin_size
-                norm1 = np.sum(weights[i])*bin_size
-            else:
-                w0 = w1 = None
-                norm0 = entries[0].shape[0]*bin_size
-                norm1 = entries[i].shape[0]*bin_size
+        #if(errors):
+        #    if(weights != None):
+        #        w0 = weights[0]**2
+        #        w1 = weights[i]**2
+        #        norm0 = np.sum(weights[0])*bin_size
+        #        norm1 = np.sum(weights[i])*bin_size
+        #    else:
+        #        w0 = w1 = None
+        #        norm0 = entries[0].shape[0]*bin_size
+        #        norm1 = entries[i].shape[0]*bin_size
 
-            err0 = np.sqrt(np.histogram(entries[0], bins=bins, weights=w0)[0])/norm0
-            err1 = np.sqrt(np.histogram(entries[i], bins=bins, weights=w1)[0])/norm1
-            err0_alt  = np.sqrt(norm0*n0)/norm0
-            err_alt1  = np.sqrt(norm1*n1)/norm1
-            ratio_err = ratio * np.sqrt((err0/n0)**2 + (err1/n1)**2)
-        errs.append(ratio_err)
+        #    err0 = np.sqrt(np.histogram(entries[0], bins=bins, weights=w0)[0])/norm0
+        #    err1 = np.sqrt(np.histogram(entries[i], bins=bins, weights=w1)[0])/norm1
+        #    err0_alt  = np.sqrt(norm0*n0)/norm0
+        #    err_alt1  = np.sqrt(norm1*n1)/norm1
+        #    ratio_err = ratio * np.sqrt((err0/n0)**2 + (err1/n1)**2)
+        #errs.append(ratio_err)
 
         ax1.errorbar(bincenters, ratio, yerr = ratio_err, alpha=alpha, markerfacecolor = colors[i], markeredgecolor = colors[i], fmt='ko')
 
@@ -400,6 +268,99 @@ def make_multi_ratio_histogram(entries, labels, colors, axis_label, title, num_b
 
     return ns, bins, ratios, frac_unc
 
+
+def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, h_range = None, 
+        weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
+
+
+    h_type= 'step'
+    alpha = 1.
+    fontsize = 16
+    fig = plt.figure(figsize = fig_size)
+    gs = gridspec.GridSpec(2,1, height_ratios = [3,1])
+    ax0 =  plt.subplot(gs[0])
+
+    if(h_range is None):
+        low = np.amin([np.amin(entries[0]), np.amin(entries[1])])
+        high = np.amax([np.amax(entries[0]), np.amax(entries[1])])
+        h_range = (low, high)
+    else:
+        low,high = h_range
+
+    print(title, low,high)
+
+
+    ns, bins, patches  = ax0.hist(entries, bins=num_bins, range=h_range, color=colors, alpha=alpha,label=labels, 
+            density = normalize, weights = weights, histtype=h_type)
+
+    if(extras is not None):
+        ecolors = ['red', 'orange', 'cyan']
+        for e_i, extra in enumerate(extras):
+            ax0.hist(extra[0], bins= num_bins, range = h_range, color = ecolors[e_i], label = extra[2], density = normalize, weights = extra[1], histtype=h_type)
+
+
+    plt.xlim([low, high])
+    if(logy): plt.yscale("log")
+    ax0.legend(loc='upper right')
+    plt.title(title, fontsize=fontsize)
+    n0 = np.clip(ns[0], 1e-8, None)
+    n1 = np.clip(ns[1], 1e-8, None)
+    ratio =  n0/ n1
+
+    #low outliers more ok than high ones
+    if(max_rw > 0):
+        ratio = np.clip(ratio, 1./(2*max_rw), max_rw)
+
+    ratio_err = None
+
+    bin_size = bins[1] - bins[0]
+
+    if(errors):
+        if(weights != None):
+            w0 = weights[0]**2
+            w1 = weights[1]**2
+            norm0 = np.sum(weights[0])*bin_size
+            norm1 = np.sum(weights[1])*bin_size
+        else:
+            w0 = w1 = None
+            norm0 = entries[0].shape[0]*bin_size
+            norm1 = entries[1].shape[0]*bin_size
+
+        err0 = np.sqrt(np.histogram(entries[0], bins=bins, weights=w0)[0])/norm0
+        err1 = np.sqrt(np.histogram(entries[1], bins=bins, weights=w1)[0])/norm1
+        err0_alt  = np.sqrt(norm0*n0)/norm0
+        err_alt1  = np.sqrt(norm1*n1)/norm1
+
+
+        ratio_err = ratio * np.sqrt((err0/n0)**2 + (err1/n1)**2)
+
+
+
+    bincenters = 0.5*(bins[1:]+bins[:-1]) 
+    ax1 = plt.subplot(gs[1])
+
+    ax1.errorbar(bincenters, ratio, yerr = ratio_err, alpha=alpha, fmt='ko')
+
+    plt.xlim([np.amin(entries[0]), np.amax(entries[0])])
+    ax1.set_ylabel("Ratio")
+    ax1.set_xlabel(axis_label)
+
+
+    if(type(ratio_range) == list):
+        plt.ylim(ratio_range[0], ratio_range[1])
+    else:
+        if(ratio_range > 0):
+            plt.ylim([1-ratio_range, 1+ratio_range])
+
+    plt.grid(axis='y')
+
+    if(fname != ""):
+        plt.savefig(fname)
+        print("saving fig %s" %fname)
+
+    return bins, ratio
+
+
 def get_chi2(ratio):
     ys = ratio.GetY()
     xs = ratio.GetX()
@@ -413,7 +374,7 @@ def get_chi2(ratio):
         chi2 += ((1. - y)/ e)**2;
     return chi2
 
-def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[], drawSys = False,
+def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[], drawSys = False, data_label = "data",
         draw_chi2 = False, stack = True, outlines = [], logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=-1, ratio_range = None, NDiv = 205, prelim = False):  
 
     sig_color = ROOT.kOrange - 7
@@ -997,9 +958,10 @@ def make_root_hist(data = None, weight = None, name = "h", bins = None, num_bins
 
 
 
+#ROOT version
 def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, uncs = None, colors = None, axis_label = None, title = None, num_bins = None, drawSys = False, stack = True,
-    draw_chi2 = False, normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5, year = -1):
-    if(h_range == None):
+    draw_chi2 = False, normalize = False, h_range = None, weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5, data_label = "data", year = -1):
+    if(h_range is None):
         low = np.amin(entries[0])
         high = np.amax(entries[0])
         h_range = (low, high)
@@ -1016,7 +978,7 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, u
         hist.SetLineColor(colors[i])
         hists.append(hist)
     
-    h_data = make_root_hist(data = data, weight = None, unc = None, name = 'data', num_bins = num_bins, bin_low = low, bin_high = high)
+    h_data = make_root_hist(data = data, weight = None, unc = None, name = data_label, num_bins = num_bins, bin_low = low, bin_high = high)
     h_tot = hists[0].Clone("h_tot")
     h_tot.Reset()
     for h in hists: h_tot.Add(h)
@@ -1024,7 +986,7 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, u
         h_tot.SetLineColor(ROOT.kBlue)
 
 
-    fname_root = fname.split(".")[-2] + ".root"
+    fname_root = fname.replace(".png", "").replace(".pdf", "") + ".root"
     print("Saving ROOT: " + fname_root)
     f = ROOT.TFile.Open(fname_root, "RECREATE")
     for h in hists:
@@ -1038,94 +1000,6 @@ def make_multi_sum_ratio_histogram(data = None, entries = None, labels = None, u
         drawSys = drawSys, ratio_range = ratio_range, stack = stack, draw_chi2 = draw_chi2, prelim = True, year = year)
 
 
-def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, normalize = False, h_range = None, 
-        weights = None, fname="", ratio_range = -1, errors = False, extras = None, logy = False, max_rw = 5):
-
-
-    h_type= 'step'
-    alpha = 1.
-    fontsize = 16
-    fig = plt.figure(figsize = fig_size)
-    gs = gridspec.GridSpec(2,1, height_ratios = [3,1])
-    ax0 =  plt.subplot(gs[0])
-
-    if(h_range == None):
-        low = np.amin([np.amin(entries[0]), np.amin(entries[1])])
-        high = np.amax([np.amax(entries[0]), np.amax(entries[1])])
-        h_range = (low, high)
-    else:
-        low,high = h_range
-
-
-    ns, bins, patches  = ax0.hist(entries, bins=num_bins, range=h_range, color=colors, alpha=alpha,label=labels, 
-            density = normalize, weights = weights, histtype=h_type)
-
-    if(extras is not None):
-        ecolors = ['red', 'orange', 'cyan']
-        for e_i, extra in enumerate(extras):
-            ax0.hist(extra[0], bins= num_bins, range = h_range, color = ecolors[e_i], label = extra[2], density = normalize, weights = extra[1], histtype=h_type)
-
-
-    plt.xlim([low, high])
-    if(logy): plt.yscale("log")
-    ax0.legend(loc='upper right')
-    plt.title(title, fontsize=fontsize)
-    n0 = np.clip(ns[0], 1e-8, None)
-    n1 = np.clip(ns[1], 1e-8, None)
-    ratio =  n0/ n1
-
-    #low outliers more ok than high ones
-    if(max_rw > 0):
-        ratio = np.clip(ratio, 1./(2*max_rw), max_rw)
-
-    ratio_err = None
-
-    bin_size = bins[1] - bins[0]
-
-    if(errors):
-        if(weights != None):
-            w0 = weights[0]**2
-            w1 = weights[1]**2
-            norm0 = np.sum(weights[0])*bin_size
-            norm1 = np.sum(weights[1])*bin_size
-        else:
-            w0 = w1 = None
-            norm0 = entries[0].shape[0]*bin_size
-            norm1 = entries[1].shape[0]*bin_size
-
-        err0 = np.sqrt(np.histogram(entries[0], bins=bins, weights=w0)[0])/norm0
-        err1 = np.sqrt(np.histogram(entries[1], bins=bins, weights=w1)[0])/norm1
-        err0_alt  = np.sqrt(norm0*n0)/norm0
-        err_alt1  = np.sqrt(norm1*n1)/norm1
-
-
-        ratio_err = ratio * np.sqrt((err0/n0)**2 + (err1/n1)**2)
-
-
-
-    bincenters = 0.5*(bins[1:]+bins[:-1]) 
-    ax1 = plt.subplot(gs[1])
-
-    ax1.errorbar(bincenters, ratio, yerr = ratio_err, alpha=alpha, fmt='ko')
-
-    plt.xlim([np.amin(entries[0]), np.amax(entries[0])])
-    ax1.set_ylabel("Ratio")
-    ax1.set_xlabel(axis_label)
-
-
-    if(type(ratio_range) == list):
-        plt.ylim(ratio_range[0], ratio_range[1])
-    else:
-        if(ratio_range > 0):
-            plt.ylim([1-ratio_range, 1+ratio_range])
-
-    plt.grid(axis='y')
-
-    if(fname != ""):
-        plt.savefig(fname)
-        print("saving fig %s" %fname)
-
-    return bins, ratio
 
 def draw_jet_image(image, title, fname = "", do_log = False):
     fontsize = 20
@@ -1171,4 +1045,168 @@ def horizontal_bar_chart(vals, labels, fname = "", xaxis_label = ""):
     if(fname != ""):
         print("saving %s" % fname)
         plt.savefig(fname)
+
+def compute_chi2(data, data_unc, y):
+    chi2 = 0.
+    for i in range(len(data)):
+        if(data_unc[i] <= 0.): data_unc[i] = y[i]
+        chi2 += (data[i] - y[i])**2/data_unc[i]**2
+    return chi2
+
+def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins=10, normalize = False, h_range = None, first_like_data = True,
+        weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None, stat_weights = None, draw_chi2 = True):
+    h_type= 'step'
+    alpha = 1.
+    fontsize = 22
+    label_size = 18
+    lw = 3
+    fig = plt.figure(figsize = fig_size)
+    gs = gridspec.GridSpec(2,1, height_ratios = [3,1])
+    ax0 =  plt.subplot(gs[0])
+
+    if(h_range is None):
+        low = np.amin(entries[0])
+        high = np.amax(entries[0])
+    else:
+        low,high = h_range
+
+    data,bins = np.histogram(entries[0], bins = num_bins, range=(low,high), weights = weights[0])
+    data_uncs = np.sqrt(data)
+
+    if(normalize):
+        norm = np.sum(data) * ((high - low)/num_bins) #counts * bin width
+        data /= norm
+        data_uncs /=norm
+
+    ns, bins, patches  = ax0.hist(entries[1:], bins=num_bins, range=(low,high), color=colors[1:], alpha=alpha,label=labels[1:len(entries)], 
+            density = normalize, weights = weights[1:], histtype=h_type, linewidth = lw)
+
+    bincenters = 0.5*(bins[1:]+bins[:-1]) 
+    ax0.errorbar(bincenters, data, yerr=data_uncs, fmt='ko', markerfacecolor = colors[0], ecolor = colors[0], markeredgecolor = colors[0], label = labels[0])
+
+    plt.xlim(h_range)
+
+    if(logy): plt.yscale("log")
+    plt.title(title, fontsize=fontsize)
+
+    bin_size = bins[1] - bins[0]
+    bincenters = 0.5*(bins[1:]+bins[:-1]) 
+
+    ax1 = plt.subplot(gs[1])
+    ax1.errorbar(bincenters, np.ones_like(bincenters), yerr = data_uncs/data, markerfacecolor = colors[0], ecolor = colors[0], markeredgecolor = colors[0], fmt='ko')
+
+    ratios = []
+    chi2s = []
+
+    for i in range(len(ns)):
+        ratio =  np.clip(data, 1e-8, None)/ np.clip(ns[i], 1e-8, None)
+        ratio = np.append(ratio, ratio[-1])
+        ratios.append(ratio)
+
+        plt.step(bins, ratio, color = colors[i+1], linewidth = lw, where = 'post')
+
+        chi2s.append(compute_chi2(data, data_uncs, ns[i]))
+
+    print(chi2s)
+
+    leg = ax0.legend(loc='best', fontsize = 14)
+
+    #draw sys unc band
+    if(sys_weights is not None or stat_weights is not None):
+        for j in range(len(weights)-1): # separate set for each observable
+            nom = ns[j]
+            uncs_up = np.zeros(nom.shape)
+            uncs_down = np.zeros(nom.shape)
+
+            if(sys_weights is not None):
+                sys_w = sys_weights[j]
+                if(len(sys_w) == 0): continue
+
+                for i in range(len(sys_w)):
+                    weights_up = sys_w[i][0]
+                    weights_down = sys_w[i][1]
+
+                    ns_sys_up, _ = np.histogram(entries[j+1], bins = bins, weights = weights_up, density =normalize )
+                    ns_sys_down, _ = np.histogram(entries[j+1], bins = bins, weights = weights_down, density =normalize )
+
+                    ns_up, ns_down = np.maximum(ns_sys_up, ns_sys_down), np.minimum(ns_sys_up, ns_sys_down)
+
+                    uncs_up += (ns_up - nom)**2
+                    uncs_down += (ns_down - nom)**2
+
+            if(stat_weights is not None):
+                stat_w = stat_weights[j]
+                if(len(stat_w) == 0): continue
+                for i in range(len(stat_w)):
+                    ns_var = []
+                    for k in range(stat_w[i].shape[1]):
+                        ns_, _ = np.histogram(entries[j+1], bins = bins, weights = stat_w[i][:,k], density =normalize )
+                        ns_var.append(ns_)
+
+                    ns_var = np.array(ns_var)
+                    std_devs = np.std(ns_var, axis=0)
+                    means = np.mean(ns_var, axis=0)
+
+                    uncs_up +=  (nom - means)**2
+                    uncs_down +=  (nom - means)**2
+
+                    uncs_up +=  std_devs**2
+                    uncs_down +=  std_devs**2
+
+            uncs_up = np.sqrt(uncs_up)
+            uncs_down = np.sqrt(uncs_down)
+
+            vals_up = nom + uncs_up
+            vals_down = nom - uncs_down
+
+            #compute ratio unc
+            ratio_up =  np.clip(data, 1e-8, None)/ np.clip(vals_up, 1e-8, None) 
+            ratio_down =  np.clip(data, 1e-8, None)/ np.clip(vals_down, 1e-8, None) 
+            
+            #Pad with dummy val
+            vals_up = np.append(vals_up, vals_up[-1])
+            vals_down = np.append(vals_down, vals_down[-1])
+
+            ratio_up = np.append(ratio_up, ratio_up[-1])
+            ratio_down = np.append(ratio_down, ratio_down[-1])
+
+            ax0.fill_between(bins, vals_down, vals_up, color = colors[j+1], alpha = 0.5, step = 'post')
+            ax1.fill_between(bins, ratio_down, ratio_up, color = colors[j+1], alpha = 0.5, step = 'post')
+
+
+
+
+
+    ax1.set_ylabel("Herwig/Pythia", fontsize= label_size)
+    ax1.set_xlabel(axis_label, fontsize = label_size)
+
+    plt.xlim([low, high])
+
+    if(type(ratio_range) == list or type(ratio_range) == tuple):
+        plt.ylim(ratio_range[0], ratio_range[1])
+    else:
+        if(ratio_range > 0):
+            plt.ylim([1-ratio_range, 1+ratio_range])
+
+    plt.grid(axis='y')
+
+    if(draw_chi2):
+        plt.sca(ax0)
+        ndof = len(bins)-1
+        y_val = ax0.get_ylim()[1] * 0.85
+        x_val = ax0.get_xlim()[1] * 0.8
+        y_val = 1.3
+        for j,chi2 in enumerate(chi2s):
+            print(chi2, ndof)
+            txt = r"$\chi^2$ / ndof = %.1f / %i" % (chi2, ndof)
+            plt.text(bins[-2], y_val, txt, color = colors[j+1], horizontalalignment = 'right', fontweight = 'bold')
+            y_val -= 0.1
+
+
+
+    if(fname != ""): 
+        plt.savefig(fname)
+        print("saving fig %s" %fname)
+
+    return 
 

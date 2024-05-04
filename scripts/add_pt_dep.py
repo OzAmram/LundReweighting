@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, '')
 sys.path.append("../")
-from Utils import *
+from utils.Utils import *
 import numpy as np
 from array import array
 
@@ -21,6 +21,7 @@ def create_func(order, label = ""):
 
 
 parser = input_options()
+parser.add_argument("--herwig", default=False, action='store_true',  help="Pythia herwig ratio (less sys)")
 options = parser.parse_args()
 
 print(options)
@@ -53,6 +54,9 @@ ratio_max = 20.0
 for h in [h_nom, h_up, h_down]:
 
     func_name_base = "func_"
+    if(not isinstance(h, ROOT.TH3)): 
+        print("Skipping")
+        continue
     if(h is h_up): func_name_base += "sys_tot_up_"
     if(h is h_down): func_name_base += "sys_tot_down_"
 

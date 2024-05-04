@@ -1,5 +1,7 @@
-from Utils import *
-import os
+import sys, os
+sys.path.insert(0, '')
+sys.path.append("../")
+from utils.Utils import *
 
 
 def ang_dist(phi1, phi2):
@@ -16,6 +18,7 @@ def get_dists(q_eta_phis, subjets_eta_phis):
             np.square(ang_dist(subjets_eta_phis[:,:,1], q_eta_phis[:,:,1] )))
 
 parser = input_options()
+parser.add_argument("--herwig", default=False, action='store_true',  help="Herwig correction")
 options = parser.parse_args()
 
 print(options)
@@ -23,31 +26,13 @@ print(options)
 
 
 outdir = options.outdir
-#f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2018/TT.h5", "r")
-f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_2017/TT.h5", "r")
+
+if(options.herwig):
+    f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_gen/TT_pythia.h5", "r")
+else:
+    f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_%i/TT.h5" % options.year, "r")
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 
-pt_max = 1000
-
-
-dr_bin_min = -1.
-dr_bin_max = 8.
-#y_bin_min = np.log(1./0.5)
-#y_bin_max = 20*y_bin_min
-#y_label = "ln(1/z)"
-kt_bin_min = -5
-kt_bin_max = np.log(pt_max)
-z_label = "ln(kt/GeV)"
-y_label = "ln(0.8/#Delta)"
-n_bins_LP = 20
-n_bins = 40
-
-kt_bins = array('f', np.linspace(kt_bin_min, kt_bin_max, num = n_bins_LP+1))
-dr_bins = array('f', np.linspace(dr_bin_min, dr_bin_max, num = n_bins_LP+1))
-
-
-n_pt_bins = 6
-pt_bins = array('f', [0., 50., 100., 175., 250., 350., 99999.])
 
 h_qs = ROOT.TH3F("l_LP", "Lund Plane MC", n_pt_bins, pt_bins, n_bins_LP,  dr_bins, n_bins_LP, kt_bins) 
 h_bs = ROOT.TH3F("b_LP", "Lund Plane MC", n_pt_bins, pt_bins, n_bins_LP,  dr_bins, n_bins_LP, kt_bins) 
@@ -61,15 +46,10 @@ h_bs.GetZaxis().SetTitle(z_label)
 h_bs.GetYaxis().SetTitle(y_label)
 
 
-subjet_rw = False
-excjet_rw = True
 sys = ""
 
 jetR = 1.0
 
-max_evts = 10000
-
-jms_corr = 1.0
 
 m_cut_top_min = 125.
 m_cut_top_max = 225.
@@ -81,7 +61,7 @@ pt_cut_top = 500.
 deltaR_cut = 0.2
 
 
-d_ttbar_top_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3, jms_corr = jms_corr)
+d_ttbar_top_match = Dataset(f_ttbar, label = "ttbar : t-matched ", color = ROOT.kOrange-3)
 
 ttbar_gen_matching = d_ttbar_top_match.f['gen_parts'][:,0]
 
@@ -91,7 +71,7 @@ t_match_cut = (ttbar_gen_matching  > 1.9) &  (ttbar_gen_matching < 2.1)
 d_ttbar_top_match.apply_cut(t_match_cut)
 
 top_jet_kinematics = d_ttbar_top_match.f['jet_kinematics'][:]
-top_msd_cut_mask = (top_jet_kinematics[:,3] * jms_corr > m_cut_top_min) & (top_jet_kinematics[:,3] * jms_corr < m_cut_top_max)
+top_msd_cut_mask = (top_jet_kinematics[:,3] > m_cut_top_min) & (top_jet_kinematics[:,3] < m_cut_top_max)
 top_pt_cut_mask = top_jet_kinematics[:,0] > pt_cut_top
 d_ttbar_top_match.apply_cut(top_msd_cut_mask & top_pt_cut_mask)
 
@@ -151,7 +131,7 @@ h_qs.Print()
 h_bs.Print()
 
 
-f_out = ROOT.TFile.Open(outdir + "ratio.root", "UPDATE")
+f_out = ROOT.TFile.Open(options.fin, "UPDATE")
 w_qs = f_out.Get("mc_nom")
 
 for i in range(1,h_qs.GetNbinsX()+1):

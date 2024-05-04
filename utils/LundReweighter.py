@@ -4,6 +4,7 @@ import fastjet as fj
 import numpy as np
 import sys
 from .PlotUtils import *
+from .Consts import *
 import ROOT
 from array import array
 import copy
@@ -54,6 +55,16 @@ def get_unc_hist(h):
                 h_unc.SetBinContent(i,j, 0.)
     return h_unc
 
+def symmetrize(up, down, nom):
+    ratio_up = up/nom
+    ratio_down = down/nom
+    if(abs(ratio_up -1.0) > abs(ratio_down -1.0)):
+        down = nom * (nom/up)
+    else:
+        up = nom * (nom/down)
+    return up,down
+
+
 def ang_dist(phi1, phi2):
     phi1 = phi1 % (2. * np.pi)
     phi2 = phi2 % (2. * np.pi)
@@ -81,38 +92,68 @@ def get_subjet_dist(q_eta_phis, subjets_eta_phis):
 
 class LundReweighter():
 
-    def __init__(self, jetR = -1, maxJets = -1, dR = 0.8, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False) :
+    def __init__(self, f_ratio = None, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False, 
+             min_kt = 0.002, max_kt = 99999., min_delta = 0.005, max_delta = 99999., LP_order = 1) :
 
         self.jetR = jetR
         self.maxJets = maxJets
         self.charge_only = charge_only
         self.dR = 0.8
-        self.pt_extrap_dir = pt_extrap_dir
         self.pt_extrap_val = pt_extrap_val
         self.pf_pt_min = pf_pt_min
         self.charge_only = charge_only
         self.max_rw = 5.
         self.min_rw = 0.2
+        self.min_kt, self.max_kt = min_kt, max_kt
+        self.min_delta, self.max_delta = min_delta, max_delta
+        self.LP_order = LP_order
         self.func_dict = {}
+
+        #nominal data/MC Lund plane ratio (3d histogram)
+        self.f_ratio = f_ratio
+
+        if(f_ratio is not None):
+            self.h_ratio = f_ratio.Get("ratio_nom")
+            self.h_mc = f_ratio.Get("mc_nom")
+            #systematic variations
+            self.h_ratio_sys_up = f_ratio.Get("ratio_sys_tot_up")
+            self.h_ratio_sys_down = f_ratio.Get("ratio_sys_tot_down")
+            if(not isinstance(self.h_ratio_sys_up, ROOT.TH3) or not isinstance(self.h_ratio_sys_down, ROOT.TH3)):
+                print("\nMissing LP sys up/down variations! Will ignore this unc.\n")
+                self.h_ratio_sys_up = self.h_ratio_sys_down = self.h_ratio
+            #MC ratio of b to light quarks
+            self.b_light_ratio = f_ratio.Get("h_bl_ratio")
+
+
+            #directory of pt extrapolation fits
+            f_ratio.cd('pt_extrap')
+            self.pt_extrap_dir = ROOT.gDirectory
+
 
 
 
     def check_bad_subjet_matching(self, gen_parts_eta_phi, subjets):
         # check if subjets fail matching criteria
-        if(gen_parts_eta_phi is None): return False
+        if(gen_parts_eta_phi is None or len(subjets) == 0): return None,None,None
 
         deltaR_cut = 0.2
+        #Matrix of quark-subjet dRs
         dists = get_subjet_dist(gen_parts_eta_phi, np.array(subjets)[:,1:3])
-        j_closest = np.amin(dists, axis = -1)
-        j_which = np.argmin(dists, axis = -1)
-        matches = j_which[j_closest < deltaR_cut]
+        #DR to closest subjet for each quark
+        subjet_closest_dR = np.amin(dists, axis = 0)
+        #index of closest subjet for each quark
+        subjet_closest_idx = np.argmin(dists, axis = 0)
+        #Which subjets are matched to a quark
+        matches = subjet_closest_idx[subjet_closest_dR < deltaR_cut]
 
-        #check all quarks within 0.2 of subjet and no two quarks matched to same subjet
-        no_match = np.sum(j_closest < deltaR_cut) != len(subjets)
+        #check if each subjet within Delta < 0.2 of a quark 
+        is_subjet_matched = [i in matches for i in range(len(subjets))]
+        #check if two quarks matched to a given subjet
+        is_subjet_double_matched = [np.sum(matches == i)>2 for i in range(len(subjets))]
+
         repeats = matches.shape[0] != np.unique(matches).shape[0]
-        bad_match = no_match or repeats
 
-        return bad_match, j_closest
+        return is_subjet_matched, is_subjet_double_matched, subjet_closest_dR
 
     def get_splittings_and_matching(self, pf_cands, gen_particles_eta_phi, ak8_jet, rescale_subjets = "", rescale_val = 1.0):
         """Given a list of pf_candidates (px, py,pz,E), and gen_particles (eta, phi), and an AK8 jet 4 vector (pt, eta,phi, M) 
@@ -125,25 +166,54 @@ class LundReweighter():
                                     'jec' multiplies each subjet by the value of rescale_val (ie a jec value). 
 
         rescale_val (optional): Value used in subjet scaling.
+
         """
 
-        bad_match = False
 
-        dRs = get_dRs(gen_particles_eta_phi, ak8_jet)
+        RO = ReclusterObj()
+        RO_prongsUp = None
+        RO_prongsDown = None
+
+        #deltaR's between AK8 jet and gen quarks
+        AK8_dRs = get_dRs(gen_particles_eta_phi, ak8_jet)
         #ensure at least 1 prong or reclustering will crash
-        n_prongs = max(1, np.sum(dRs < 0.8))
+        RO.n_prongs = max(1, np.sum(AK8_dRs < 0.8))
+
+        #check for quarks near boundary of jet
+        prongs_up = np.any((0.8 < AK8_dRs) & (AK8_dRs < 0.9))
+        prongs_down = np.any((0.7 < AK8_dRs) & (AK8_dRs < 0.8))
 
 
-        subjet, split = self.get_splittings(pf_cands, num_excjets = n_prongs, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
-
-        #check if quarks near boundary of jet
-        bad_match = (np.sum((dRs > 0.7) & (dRs < 0.9)) > 0)
+        RO.subjet, RO.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
 
         #check subjets matched to quarks
-        subjet_bad_match, subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, subjet)
-        bad_match  = bad_match or subjet_bad_match
+        RO.subjet_match, RO.subjet_double_matched, RO.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO.subjet)
 
-        return subjet, split, bad_match, dRs
+        #If any subjets not matched, or double matched, perform N+1/N-1 subjets reclustering
+        RO.badmatch = (not np.all(RO.subjet_match)) or np.any(RO.subjet_double_matched)
+
+        #Recluster with one more subjet
+        if(RO.badmatch or prongs_up):
+            RO_prongsUp = ReclusterObj()
+            RO_prongsUp.subjet, RO_prongsUp.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs+1, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
+            RO_prongsUp.n_prongs = RO.n_prongs + 1
+            RO_prongsUp.from_badmatch = RO.badmatch
+            RO_prongsUp.from_prongs_up = prongs_up
+            #check subjets matched to quarks
+            RO_prongsUp.subjet_match, RO_prongsUp.subjet_double_matched, RO_prongsUp.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsUp.subjet)
+
+        #Recluster with one less subjet
+        if(RO.badmatch or prongs_down):
+            RO_prongsDown = ReclusterObj()
+            RO_prongsDown.subjet, RO_prongsDown.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs-1, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
+            RO_prongsDown.n_prongs = RO.n_prongs - 1
+            RO_prongsDown.from_badmatch = RO.badmatch
+            RO_prongsDown.from_prongs_down = prongs_down
+            #check subjets matched to quarks
+            RO_prongsDown.subjet_match, RO_prongsDown.subjet_double_matched, RO_prongsDown.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsDown.subjet)
+
+
+        return RO, RO_prongsUp, RO_prongsDown
 
 
 
@@ -221,28 +291,40 @@ class LundReweighter():
 
         subjets = []
         splittings = []
-        #print("%i subjets " % len(js))
         total_jet = fj.PseudoJet()
         for i, j in enumerate(js):
-            #print("sj %i" % i)
             pseudojet = j
-            jet_pt = j.pt()
             subjets.append([j.pt(), j.eta(), j.phi(), j.m()])
             total_jet += j
+            j.subjet_pt = j.pt()
+            pj_cands = [j]
+            j.order = 1
             while True:
+                if(len(pj_cands) == 0): break
+                pseudojet = pj_cands.pop(0)
+
                 j1 = fj.PseudoJet()
                 j2 = fj.PseudoJet()
                 if pseudojet and pseudojet.has_parents(j1, j2):
                     # order the parents in pt
                     if (j2.pt() > j1.pt()):
                         j1, j2 = j2, j1
-                    # check if we satisfy cuts
                     delta = j1.delta_R(j2)
                     kt = j2.pt() * delta
-                    splittings.append([i, delta, kt])
-                    pseudojet = j1
+                    splittings.append([i, pseudojet.subjet_pt, pseudojet.order, delta, kt])
+                    
+                    #'harder' branch has same order
+                    j1.order = pseudojet.order
+                    j1.subjet_pt = pseudojet.subjet_pt
+                    pj_cands.append(j1)
+
+                    #softer branch is one order higher, effective a new subjet
+                    j2.order = pseudojet.order + 1
+                    if(j2.order <= self.LP_order):
+                        j2.subjet_pt = j2.pt()
+                        pj_cands.append(j2)
                 else:
-                    break
+                    continue
     
 
         #Rescale subjet momenta
@@ -254,20 +336,28 @@ class LundReweighter():
             for i in range(len(subjets)):
                 subjets[i][0] *= rescale_val
 
+
         return subjets, splittings
 
 
-    def fill_lund_plane(self, h, pf_cands = None, subjets = None,  splittings = None, num_excjets = -1, weight = 1., subjet_idx = -1,
+    def fill_lund_plane(self, h, h_subjet = None, pf_cands = None, subjets = None,  splittings = None, reclust_obj = None, num_excjets = -1, weight = 1., subjet_idx = -1,
             rescale_subjets = "vec", rescale_val = 1.0):
         """Fill Lund Plane based on splittings"""
 
         if(type(h) != list):
             hists = [h]
+            hists_subjets = [h_subjet]
             weights = [weight]
         else:
             hists = h
             weights = weight
+            hists_subjets = h_subjet
 
+        #assume matched if we don't have other info
+        subjet_match = [True,]*100
+        if(reclust_obj is not None):
+            subjets, splittings = reclust_obj.subjet, reclust_obj.split
+            subjet_match = reclust_obj.subjet_match
         if(subjets is None or splittings is None):
             subjets, splittings = self.get_splittings(pf_cands, num_excjets = num_excjets, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
             if(len(subjets) == 0): subjets = [[0,0,0,0]]
@@ -277,17 +367,23 @@ class LundReweighter():
         no_idx = (len(subjets) == 1)
         subjets_reshape = np.array(subjets).reshape(-1)
 
-        for jet_i, delta, kt in splittings:
-            if(subjet_idx >= 0 and jet_i != subjet_idx): continue
-            jet_int = int(np.round(jet_i))
-            jet_pt = subjets_reshape[0] if no_idx else subjets_reshape[jet_int*4]
+        filled = []
+        for subjet_i, subjet_pt, order, delta, kt in splittings:
+            if((subjet_idx >= 0 and subjet_i != subjet_idx) or not subjet_match[subjet_i] ): continue
             if(delta > 0. and kt > 0.):
                 for h_idx, h in enumerate(hists):
-                    if(type(h) == ROOT.TH3F): h.Fill(jet_pt, np.log(self.dR/delta), np.log(kt), weights[h_idx])
+                    if(type(h) == ROOT.TH3F): h.Fill(subjet_pt, np.log(self.dR/delta), np.log(kt), weights[h_idx])
                     else: h.Fill(np.log(self.dR/delta), np.log(kt), weights[h_idx])
+
+                #fill subjet pt once per subjet / order 
+                if((subjet_i, order) not in filled and  hists_subjets[0] is not None): 
+                    filled.append((subjet_i, order))
+                    for h_idx, h_sj in enumerate(hists_subjets): h_sj.Fill(subjet_pt, weights[h_idx])
+
+
         return subjets, splittings
     
-    def get_lund_plane_idxs(self, h,  subjets = None,  splittings = None, subjet_idx = -1):
+    def get_lund_plane_idxs(self, h,  subjets = None,  splittings = None, subjet_idx = -1, LP_order = -1):
         """Get LP bin indices  for some splittings"""
         no_idx = (len(subjets) == 1)
         subjets_reshape = np.array(subjets).reshape(-1)
@@ -296,12 +392,15 @@ class LundReweighter():
 
         binx,biny,binz = array('i', [0]), array('i', [0]), array('i', [0])
         xmax, ymax, zmax = h.GetNbinsX(), h.GetNbinsY(),h.GetNbinsZ()
-        for jet_i, delta, kt in splittings:
+        for jet_i, subjet_pt, order, delta, kt in splittings:
             if(subjet_idx >= 0 and jet_i != subjet_idx): continue
+            if(LP_order > 0 and order != LP_order): continue
+
             jet_int = int(np.round(jet_i))
             jet_pt = subjets_reshape[0] if no_idx else subjets_reshape[jet_int*4]
-            if(delta > 0. and kt > 0.):
-                bin_idx = h.FindBin(jet_pt, np.log(self.dR/delta), np.log(kt))
+            if(delta > 0. and kt > 0. and delta > self.min_delta and delta < self.max_delta 
+                    and kt > self.min_kt and kt < self.max_kt):
+                bin_idx = h.FindBin(subjet_pt, np.log(self.dR/delta), np.log(kt))
 
                 h.GetBinXYZ(bin_idx, binx, biny, binz)
                 idxs.append((int(np.clip(binx[0], 1, xmax)), int(np.clip(biny[0], 1, ymax)), int(np.clip(binz[0], 1, zmax))))
@@ -321,18 +420,15 @@ class LundReweighter():
             else:
                 f = self.pt_extrap_dir.Get(f_str)
                 self.func_dict[f_str] = f
-            #val = f.Eval(subjet_pt)
             val = f.Eval(1./subjet_pt)
             val = np.clip(val, self.min_rw, self.max_rw)
 
+            #nominal
             rw *= val 
-            #keep noise smeared vals consistent
             if(smeared_rw is not None): smeared_rw *= val
 
             if(pt_rand_noise is not None):
                 for n in range(pt_rand_noise.shape[0]):
-                #up_down = [-1., 1.]
-                #for n in range(2):
                     pars = array('d')
                     for p in range(f.GetNpar()):
                         pnom = f.GetParameter(p)
@@ -353,7 +449,6 @@ class LundReweighter():
         """Reweight based on directly measured data/MC LP ratio"""
 
         for (i,j,k) in lp_idxs:
-            #print("Rw %.3f, cont %.3f, i %i j %i k %i n %i" % (rw, h_rw.GetBinContent(i,j,k), i,j,k, n_cands))
             val = h_rw.GetBinContent(i,j,k)
             err = h_rw.GetBinError(i,j,k)
 
@@ -377,7 +472,208 @@ class LundReweighter():
 
 
 
-    def reweight_lund_plane(self, h_rw, pf_cands = None, splittings = None, subjets = None, num_excjets = -1, 
+    def get_up_down_prongs_weights(self, h_rw, reclust_prongs_up = None, reclust_prongs_down = None, nom_weight = None, do_symmetrize = False):
+    
+        prongs_up_weight = prongs_down_weight =  nom_weight
+
+        #Compute weight for prong variations if needed
+        #Separate prongs up from non-fully prongd decays and from bad matching
+        if(reclust_prongs_up is not None): 
+            prongs_up_weight, _, _ = self.reweight_lund_plane(h_rw = h_rw, reclust_obj = reclust_prongs_up)
+
+        if(reclust_prongs_down is not None): 
+            prongs_down_weight, _, _ = self.reweight_lund_plane(h_rw = h_rw, reclust_obj = reclust_prongs_down)
+
+        return prongs_up_weight, prongs_down_weight
+
+    def check_reclust_still_bad(self, reclust_prongs_up, reclust_prongs_down):
+        still_bad = False
+        if(reclust_prongs_up is not None):
+
+            if( reclust_prongs_up.from_badmatch and (np.sum(reclust_prongs_up.subjet_match) != (reclust_prongs_up.n_prongs-1) or 
+                np.sum(reclust_prongs_up.subjet_double_matched) != 0)):
+                   still_bad= True
+
+        if(reclust_prongs_down is not None):
+
+            if( reclust_prongs_down.from_badmatch and (np.sum(reclust_prongs_down.subjet_match) != (reclust_prongs_down.n_prongs) or 
+                np.sum(reclust_prongs_down.subjet_double_matched) != 0)):
+                   still_bad = True
+
+        return still_bad
+
+    def init_weight_dict(self, nEvts, nToys):
+
+        out = {
+                'nom': np.zeros((nEvts)),
+                'stat_vars': np.zeros((nEvts, nToys)),
+                'pt_vars': np.zeros((nEvts, nToys)),
+                'sys_up': np.zeros((nEvts)),
+                'sys_down': np.zeros((nEvts)),
+                'bquark_up': np.zeros((nEvts)),
+                'bquark_down': np.zeros((nEvts)),
+                'prongs_up': np.zeros((nEvts)),
+                'prongs_down': np.zeros((nEvts)),
+                'unclust_up': np.zeros((nEvts)),
+                'unclust_down': np.zeros((nEvts)),
+                'distortion_up': np.zeros((nEvts)),
+                'distortion_down': np.zeros((nEvts)),
+                'n_prongs': np.zeros((nEvts), dtype=np.int32),
+                'subjet_pts': [],
+                'bad_match': [False,]*nEvts,
+                'reclust_still_bad_match': [False,]*nEvts,
+                'reclust_nom': [],
+                'reclust_prongs_up': [],
+                'reclust_prongs_down': [],
+        }
+        return out
+
+
+    def get_all_weights(self, pf_cands, gen_parts_eta_phi, ak8_jets, gen_parts_pdg_ids = None, do_sys_weights = True, distortion_sys = True, nToys = 100):
+        """ Master function for the lund plane reweighting method. Takes in collection of events and computes nominal set of weights and variations from uncertainties
+            All weights are normalized to average to one, so that the sample normalization is preserved
+        Inputs:
+        pf_cands : List of PF candidates (px,py,pz, E) for each event
+        gen_parts_eta_phi : List of (eta, phi) of generator level quarks from the hard process (defines number of prongs for reclustering) for each event
+        ak8_jets : 4 vector (pt, eta, phi, M) of AK8 jet for each event
+        gen_parts_pdg_ids (optional): Pdg ids of the generator level quarks, used to check for the presence of b quarks which get a special uncertainty (assumes no b quarks if not given)
+        do_sys_weights (optional): Compute all the systematic weight variations (default is true)
+        distortion_sys (optional): Compute the systematic due to distortion of the Lund plane for this sample 
+                    as compared to the sample the correction was derived from (stems from imperfections in reclustering)
+                    Requires a sufficiently large sample events to get a good estimate, minimum is 1k but at least ~5k is recommended 
+        nToys (optional): Number of toys to use for pt and stat variations of weights (default is 100)
+
+
+        Output:
+            Dictionary with computed weights
+            Nominal weights are under 'nom' and variations given under other keys. Naming is relatively explanatory
+            Some additional info is also saved like number of the prongs for each event, and the reclustering object which saves the subjets and the splittings
+        """
+
+
+        nEvts = len(pf_cands)
+
+        #dict for all the outputs
+        out = self.init_weight_dict(nEvts, nToys)
+
+
+        rand_noise = np.random.normal(size = (nToys, self.h_ratio.GetNbinsX(), self.h_ratio.GetNbinsY(), self.h_ratio.GetNbinsZ()))
+        pt_rand_noise = np.random.normal(size = (nToys, self.h_ratio.GetNbinsY(), self.h_ratio.GetNbinsZ(), 3))
+
+        unclust_factor = 5.0
+
+        h_lp_signal = self.h_mc.Clone("h_lp_signal")
+        h_lp_signal.Reset()
+
+        if(distortion_sys and len(pf_cands) < 1000):
+            print("Only %i jets given, will not include LP distortion systematic" % len(pf_cands))
+
+
+        n_badmatch = 0
+        #Recluster into subjets
+        for i,cands in enumerate(pf_cands):
+            reclust_nom, reclust_prongs_up, reclust_prongs_down = self.get_splittings_and_matching(cands, gen_parts_eta_phi[i], ak8_jets[i])
+
+            out['bad_match'][i] = reclust_nom.badmatch
+            out['n_prongs'][i] = reclust_nom.n_prongs
+
+            out['reclust_nom'].append(reclust_nom)
+            out['reclust_prongs_up'].append(reclust_prongs_up)
+            out['reclust_prongs_down'].append(reclust_prongs_down)
+
+            if(distortion_sys and not out['bad_match'][i]): self.fill_lund_plane(h_lp_signal, reclust_obj = reclust_nom)
+            #print(i, reclust_nom.n_prongs, reclust_nom.subjet, reclust_nom.split[:5])
+            #exit(1)
+
+
+        #compute how much signal LP differs from W's MC used to derive correction
+        if(distortion_sys):
+            h_dummy = self.h_mc.Clone("h_dummy")
+            h_dummy.Reset()
+            #h_distortion_ratio = self.make_LP_ratio(self.h_mc, h_dummy, h_lp_signal)
+            h_distortion_ratio = self.make_LP_ratio(self.h_mc, h_dummy, h_lp_signal)
+
+        for i in range(len(out['reclust_nom'])):
+            reclust_nom, reclust_prongs_up, reclust_prongs_down = out['reclust_nom'][i], out['reclust_prongs_up'][i], out['reclust_prongs_down'][i]
+
+
+            #Gets the nominal LP reweighting factor for this event and statistical + pt extrapolation toys
+            out['nom'][i], out['stat_vars'][i], out['pt_vars'][i] = self.reweight_lund_plane(h_rw = self.h_ratio,
+                                    reclust_obj = reclust_nom, rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, )
+
+
+            
+            out['prongs_up'][i], out['prongs_down'][i]  = self.get_up_down_prongs_weights(h_rw = self.h_ratio, 
+                    reclust_prongs_up = reclust_prongs_up, reclust_prongs_down = reclust_prongs_down, nom_weight = out['nom'][i])
+
+            #quarks which are still not matched despite varying prongs up/down
+            out['reclust_still_bad_match'][i] = self.check_reclust_still_bad(reclust_prongs_up, reclust_prongs_down)
+            out['unclust_up'][i] = out['nom'][i]
+            out['unclust_down'][i] = out['nom'][i]
+
+            #un-matched quarks are not calibrated by the procedure, varying their weight up/down by conservative factor
+            if(out['reclust_still_bad_match'][i]):
+                out['unclust_up'][i] *= unclust_factor
+                out['unclust_down'][i] /= unclust_factor
+
+
+
+            for sj in reclust_nom.subjet: out['subjet_pts'].append(sj[0])
+
+            #compute systematic due to distorted LP 
+            if(distortion_sys):
+                distortion_weight,_,_ = self.reweight_lund_plane(h_rw = h_distortion_ratio, reclust_obj = reclust_nom, sys_str = 'distortion')
+
+                out['distortion_up'][i] = out['nom'][i] * distortion_weight
+                out['distortion_down'][i] = out['nom'][i] / distortion_weight
+
+
+            if(do_sys_weights):
+                #Now get systematic variations due to systemtatic uncertainties on LP
+                out['sys_up'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio_sys_up, reclust_obj = reclust_nom)
+                out['sys_down'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio_sys_down, reclust_obj = reclust_nom)
+
+                #compute special systematic for subjets matched to b quarks
+                #not needed if signal does not specifically produce b quark subjets
+                if(gen_parts_pdg_ids is None): gen_bs = []
+                else: gen_bs = [j for j in range(len(gen_parts_pdg_ids[i])) if abs(gen_parts_pdg_ids[i][j]) == B_PDG_ID]
+
+                if(len(gen_bs) == 0): b_rw = 1.0
+                else:
+                    eta_phi = np.array(gen_parts_eta_phi[i]) #this event only (ignore shape irregularities)
+                    dists = get_subjet_dist(eta_phi[gen_bs,:], np.array(reclust_nom.subjet)[:,1:3])
+
+                    deltaR_cut = 0.2
+                    b_matches = []
+                    #which subjet is each quark closest to
+                    j_closest = np.amin(dists, axis = 0)
+                    j_which = np.argmin(dists, axis = 0)
+                    b_matches = np.unique(j_which[j_closest < deltaR_cut])
+
+                    #reweight only subjets matched to b quarks
+                    if(len(b_matches) > 0):
+                        b_subjet = [reclust_nom.subjet[j] for j in range(len(reclust_nom.subjet)) if j in b_matches]
+                        b_split  = [reclust_nom.split[j]  for j in range(len(reclust_nom.split)) if reclust_nom.split[j][0] in b_matches]
+
+                        b_rw, _,_   = self.reweight_lund_plane(self.b_light_ratio, subjets = b_subjet, splittings = b_split, sys_str = 'bquark')
+
+                    else: b_rw = 1.0
+                out['bquark_up'][i] = out['nom'][i]* b_rw
+                out['bquark_down'][i] = out['nom'][i]/b_rw
+
+
+        for key in out.keys(): 
+            if(('nom' in key) or ('up' in key) or ('down' in key) or ('vars' in key)):
+                if(isinstance(out[key], np.ndarray)): out[key] = self.normalize_weights(out[key], n_prongs = out['n_prongs'])
+
+
+        return out
+
+
+
+
+
+    def reweight_lund_plane(self, h_rw, pf_cands = None, reclust_obj = None, splittings = None, subjets = None, num_excjets = -1, 
                             rand_noise = None, pt_rand_noise = None,  sys_str = "", rescale_subjets = "", rescale_val = 1.0):
         """ Main function to compute reweighting factors. Can take in already computed subjets + splittings or recluster 
         itself using the PF candidates and the num_excjets args
@@ -410,25 +706,32 @@ class LundReweighter():
 
          """
 
+        #assume matched if we don't have other info
+        subjet_match = [True,]*100
+        if(reclust_obj is not None):
+            subjets, splittings = reclust_obj.subjet, reclust_obj.split
+            subjet_match = reclust_obj.subjet_match
+
         if(subjets is None or splittings is None):
             subjets, splittings = self.get_splittings(pf_cands, num_excjets = num_excjets, rescale_subjets = rescale_subjets, rescale_val = rescale_val )
 
-
         rw = 1.0
-
         pt_smeared_rw = smeared_rw = None
 
         if(rand_noise is not None): smeared_rw = np.array([1.0]*rand_noise.shape[0])
         if(pt_rand_noise is not None): pt_smeared_rw = np.array([1.0]*pt_rand_noise.shape[0])
 
-
         #splittings save idx of associated subjet
+
         for i in range(len(subjets)):
+
+            #ignore subjets that aren't matched to anything
+            if(not subjet_match[i]): continue
 
             if(len(splittings) > 0):
                 lp_idxs = self.get_lund_plane_idxs(h_rw, subjet_idx = i, splittings = splittings, subjets = [subjets[i]])
 
-                if(self.pt_extrap_dir is None or subjets[i][0] < self.pt_extrap_val or 'bquark' in sys_str):
+                if(self.pt_extrap_dir is None or subjets[i][0] < self.pt_extrap_val or ('bquark' in sys_str) or ('distortion' in sys_str)):
                     rw, smeared_rw, pt_smeared_rw = self.reweight(h_rw, lp_idxs, rw, smeared_rw, pt_smeared_rw, rand_noise = rand_noise)
                 else:
                     rw, smeared_rw, pt_smeared_rw = self.reweight_pt_extrap(subjets[i][0], lp_idxs, rw, smeared_rw, pt_smeared_rw, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
@@ -441,9 +744,9 @@ class LundReweighter():
         """ Function to construct data/MC LP ratio"""
 
 
-        h_data.Print()
-        h_bkg.Print()
-        h_mc.Print()
+        #h_data.Print()
+        #h_bkg.Print()
+        #h_mc.Print()
 
         do_jet_pt_norm  = (h_data_subjet_pt is not None) and (h_mc_subjet_pt is not None) and (h_bkg_subjet_pt is not None)
 
@@ -464,9 +767,9 @@ class LundReweighter():
 
         if(do_jet_pt_norm):
 
-            h_data_subjet_pt.Print()
-            h_bkg_subjet_pt.Print()
-            h_mc_subjet_pt.Print()
+            #h_data_subjet_pt.Print()
+            #h_bkg_subjet_pt.Print()
+            #h_mc_subjet_pt.Print()
 
             h_data_subjet_pt_clone = h_data_subjet_pt.Clone(h_data_subjet_pt.GetName() + "_clone")
             h_bkg_subjet_pt_clone = h_bkg_subjet_pt.Clone(h_bkg_subjet_pt.GetName() + "_clone")
@@ -484,11 +787,14 @@ class LundReweighter():
             
         h_data_sub = h_data.Clone("h_data_sub")
         h_data_sub.Add(h_bkg_clone, -1.)
-        h_data_sub.Print()
+        #h_data_sub.Print()
 
 
 
         cleanup_hist(h_data_sub)
+
+        if (pt_bins is None):
+            pt_bins = np.arange(0, h_data.GetNbinsX()+1)
 
 
         for i in range(1, h_data.GetNbinsX() + 1):
@@ -515,10 +821,9 @@ class LundReweighter():
                 bkg_norm = h_bkg_proj.Integral()
                 mc_norm = h_mc_proj.Integral()
 
-            print(mc_norm, bkg_norm, data_norm)
 
 
-            h_bkg_proj.Scale(1./bkg_norm)
+            if(bkg_norm > 0): h_bkg_proj.Scale(1./bkg_norm)
 
             h_data_proj.Scale(1./data_norm)
             h_mc_proj.Scale(1./mc_norm)
@@ -536,9 +841,9 @@ class LundReweighter():
 
 
 
+
             if(save_plots): 
 
-                h_bkg_proj.SetTitle("Bkg MC pT %.0f - %.0f" % (pt_bins[i-1], pt_bins[i]))
                 h_mc_proj.SetTitle("TTbar MC pT %.0f - %.0f" % (pt_bins[i-1], pt_bins[i]))
                 h_data_proj.SetTitle("Data - Bkg pT %.0f - %.0f (N = %.0f)" % (pt_bins[i-1], pt_bins[i], data_norm))
                 h_ratio_proj.SetTitle("Ratio pT %.0f - %.0f (N = %.0f)" % (pt_bins[i-1], pt_bins[i], data_norm))
@@ -550,19 +855,21 @@ class LundReweighter():
                 c_mc.Print(outdir + "lundPlane_bin%i_MC.png" % i)
 
 
-                c_bkg = ROOT.TCanvas("c", "", 1000, 800)
-                h_bkg_proj.Draw("colz")
-                c_bkg.SetRightMargin(0.2)
-                c_bkg.Print(outdir + "lundPlane_bin%i_bkg.png" % i)
+                if(bkg_norm > 0):
+                    h_bkg_proj.SetTitle("Bkg MC pT %.0f - %.0f" % (pt_bins[i-1], pt_bins[i]))
+                    c_bkg = ROOT.TCanvas("c", "", 1000,1000)
+                    h_bkg_proj.Draw("colz")
+                    c_bkg.SetRightMargin(0.2)
+                    c_bkg.Print(outdir + "lundPlane_bin%i_bkg.png" % i)
 
-                c_data = ROOT.TCanvas("c", "", 1000, 800)
+                c_data = ROOT.TCanvas("c", "", 1000, 1000)
                 h_data_proj.Draw("colz")
                 c_data.SetRightMargin(0.2)
                 c_data.Print(outdir + "lundPlane_bin%i_data.png" %i )
 
 
 
-                c_ratio = ROOT.TCanvas("c", "", 1000, 800)
+                c_ratio = ROOT.TCanvas("c", "", 1000, 1000)
                 cleanup_ratio(h_ratio_proj, h_min =0., h_max = 2.0)
                 h_ratio_proj.Draw("colz")
                 c_ratio.SetRightMargin(0.2)
@@ -579,19 +886,44 @@ class LundReweighter():
 
         return h_ratio
 
-    def normalize_weights(self, lund_weights, w_min = 0.1, w_max = 10.):
-        """Normalize lund plane weights so average weight is 1 (necessary to preserve normalization of MC.
+    def normalize_weights(self, lund_weights, w_min = 0.1, w_max = 10., n_prongs = None):
+        """Normalize lund plane weights so average weight is 1 (necessary to preserve normalization of MC.)
+        Done separately for jets of different number of prongs, so not biased
         Also clip outlier weights so to not be dominated by statistical fluctuations. """
 
-        lund_weights = np.clip(lund_weights, 0., w_max)
-        if(len(lund_weights.shape) > 1): lund_weights /= np.mean(lund_weights, axis = 0, keepdims=True)
-        else: lund_weights /= np.mean(lund_weights)
+        #separate norm per each number of prongs (so dist is not biased)
+        if(n_prongs is None): n_prongs = np.ones_like(lund_weights, dtype=np.int32)
+        max_prongs = int(round(np.amax(n_prongs)))
 
-        lund_weights  = np.clip(lund_weights, w_min, w_max)
-        if(len(lund_weights.shape) > 1): lund_weights /= np.mean(lund_weights, axis = 0, keepdims=True)
-        else: lund_weights /= np.mean(lund_weights)
+        for n in range(1, max_prongs+1):
+            mask = (n_prongs == n)
+            weights = lund_weights[mask]
+
+            weights = np.clip(weights, 0., w_max)
+            if(len(weights.shape) > 1): weights /= np.mean(weights, axis = 0, keepdims=True)
+            else: weights /= np.mean(weights)
+
+            weights  = np.clip(weights, w_min, w_max)
+            if(len(weights.shape) > 1): weights /= np.mean(weights, axis = 0, keepdims=True)
+            else: weights /= np.mean(weights)
+
+            lund_weights[mask] = weights
 
         return lund_weights
+
+class ReclusterObj():
+    def __init__(self,subjets = None, split = None, dRs = None):
+        self.subjet = None
+        self.split = None
+        self.dRs = None
+        self.subjet_match = None #is subjet matched to a quark
+        self.subjet_double_matched = None #is subjet matched to multiple quarks
+        self.subjet_dRs = None #deltaRs between each quark and closest subjet
+        self.from_badmatch = False
+        self.from_prongs_up = False
+        self.from_prongs_down = False
+        self.n_prongs = 0
+
 
 
 
