@@ -7,14 +7,10 @@ at the `example.py` script.
 This contains an example of how to apply the method to compute the corrected efficiency
 and all components of the uncertainty on a substructure cut.
 
-It makes use of the `LundReweighter` class which does most of the heavy
-lifting.
-Specifically the `get_splittings_and_matching` and `reweight_lund_plane` functions are the main functions, and they include
-a description of the needed inputs.
-
-Keep in mind that Lund plane weights need to be normalized once they are computed for the
-full MC sample (before any substructure cuts).
-You can use the `normalize_weights` function to do this.
+It makes use of the `LundReweighter` class which does most of the heavy lifting.
+It is recommended to use the `get_all_weights` function to compute weights from the
+correction and all the associated systematic variations which encode the uncertainties
+This function contains a description of the needed inputs 
 
 A preliminary version of the data/MC Lund Jet Plane ratio (ie the main ingredient in the correction)
 can be found in the `reweighting_files` directory. 

@@ -6,7 +6,12 @@ from utils.Utils import *
 
 parser = input_options()
 parser.add_argument("--noBkg", default=False, action='store_true',  help="Ideal case, no unmerged bkg")
+parser.add_argument("--LPorder", default=1, type=int,  help="LP max order")
 options = parser.parse_args()
+
+if(options.LPorder != 1):
+    pt_bins = pt_bins_low
+    n_pt_bins = len(pt_bins_low)-1
 
 print(options)
 
@@ -15,7 +20,7 @@ lumi = 59.74
 f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_gen/"
 
 
-f_powheg = h5py.File(f_dir + "TT_powheg.h5", "r")
+f_pythia = h5py.File(f_dir + "TT_pythia.h5", "r")
 f_herwig = h5py.File(f_dir + "TT_herwig.h5", "r")
 
 
@@ -28,7 +33,7 @@ charge_only = False
 
 
 do_sys_variations = True
-do_plot = True
+do_plot = False
 
 norm = True
 
@@ -44,29 +49,29 @@ num_excjets = 2
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
-d_powheg_w_match = Dataset(f_powheg, label = "powheg : W-matched", color = ROOT.kRed, is_data = True)
-d_powheg_t_match = Dataset(f_powheg, label = "powheg : t-matched ", color = ROOT.kOrange-3, is_data = True)
-d_powheg_nomatch = Dataset(f_powheg, label = "powheg : unmatched", color = ROOT.kGreen+3, is_data = True)
+d_pythia_w_match = Dataset(f_pythia, label = "pythia : W-matched", color = ROOT.kRed, is_data = True)
+d_pythia_t_match = Dataset(f_pythia, label = "pythia : t-matched ", color = ROOT.kOrange-3, is_data = True)
+d_pythia_nomatch = Dataset(f_pythia, label = "pythia : unmatched", color = ROOT.kGreen+3, is_data = True)
 
 d_herwig = Dataset(f_herwig, label = "herwig", color = ROOT.kRed, is_data = True)
 
 
-d_powheg_nomatch.norm_unc = 0.06
+d_pythia_nomatch.norm_unc = 0.06
 
-powheg_gen_matching = d_powheg_w_match.f['gen_parts'][:,0]
+pythia_gen_matching = d_pythia_w_match.f['gen_parts'][:,0]
 
 #0 is unmatched, 1 is W matched, 2 is top matched
-nomatch_cut = powheg_gen_matching < 0.1
-w_match_cut = (powheg_gen_matching  > 0.9) &  (powheg_gen_matching < 1.1)
-t_match_cut = (powheg_gen_matching  > 1.9) &  (powheg_gen_matching < 2.1)
+nomatch_cut = pythia_gen_matching < 0.1
+w_match_cut = (pythia_gen_matching  > 0.9) &  (pythia_gen_matching < 1.1)
+t_match_cut = (pythia_gen_matching  > 1.9) &  (pythia_gen_matching < 2.1)
 
-d_powheg_w_match.apply_cut(w_match_cut)
-d_powheg_t_match.apply_cut(t_match_cut)
-d_powheg_nomatch.apply_cut(nomatch_cut)
+d_pythia_w_match.apply_cut(w_match_cut)
+d_pythia_t_match.apply_cut(t_match_cut)
+d_pythia_nomatch.apply_cut(nomatch_cut)
 
 
-sigs = [d_powheg_w_match]
-bkgs = [d_powheg_nomatch, d_powheg_t_match] 
+sigs = [d_pythia_w_match]
+bkgs = [d_pythia_nomatch, d_pythia_t_match] 
 if(options.noBkg):
     bkgs = []
     herwig_gen_matching = d_herwig.f['gen_parts'][:,0]
@@ -80,8 +85,8 @@ h_bkg = ROOT.TH3F("bkg_nom", "Lund Plane Bkg", n_pt_bins, pt_bins, n_bins_LP,  d
 h_herwig = ROOT.TH3F("herwig", "Lund Plane herwig", n_pt_bins, pt_bins, n_bins_LP, dr_bins, n_bins_LP, kt_bins) 
 
 h_herwig_subjets = ROOT.TH1F("herwig_subjet_pts", "herwig subjet pts", n_pt_bins, pt_bins)
-h_bkg_subjets = ROOT.TH1F("bkg_subjet_pts", "bkg subjet pts", n_pt_bins, pt_bins)
-h_mc_subjets = ROOT.TH1F("mc_subjet_pts", "mc subjet pts", n_pt_bins, pt_bins)
+h_bkg_subjets = ROOT.TH1F("bkg_subjet_pts_nom", "bkg subjet pts", n_pt_bins, pt_bins)
+h_mc_subjets = ROOT.TH1F("mc_subjet_pts_nom", "mc subjet pts", n_pt_bins, pt_bins)
 
 
 h_mc.GetZaxis().SetTitle(z_label)
@@ -99,7 +104,7 @@ sig_sys_variations = dict()
 sys_keys = ['PS_ISR_up', 'PS_ISR_down', 'PS_FSR_up', 'PS_FSR_down', 'unmatched_norm_up', 'unmatched_norm_down']
 if(do_sys_variations):
     for sys in sys_keys: 
-        bkg_sys_variations[sys] = h_bkg.Clone(h_bkg.GetName().replace("nom",sys))
+        bkg_sys_variations[sys] = (h_bkg.Clone(h_bkg.GetName().replace("nom",sys)), h_bkg_subjets.Clone(h_bkg_subjets.GetName().replace("nom",sys)))
 
 
 
@@ -116,15 +121,15 @@ for d in (bkgs + sigs + [d_herwig]):
 
 num_herwig = np.sum(d_herwig.get_weights())
 
-num_powheg_nomatch = np.sum(d_powheg_nomatch.get_weights())
-num_powheg_w_match = np.sum(d_powheg_w_match.get_weights())
-num_powheg_t_match = np.sum(d_powheg_t_match.get_weights())
-num_powheg_tot = num_powheg_nomatch + num_powheg_w_match + num_powheg_t_match
+num_pythia_nomatch = np.sum(d_pythia_nomatch.get_weights())
+num_pythia_w_match = np.sum(d_pythia_w_match.get_weights())
+num_pythia_t_match = np.sum(d_pythia_t_match.get_weights())
+num_pythia_tot = num_pythia_nomatch + num_pythia_w_match + num_pythia_t_match
 
-print("%i herwig, %.0f powheg (%.0f unmatched, %.0f W matched, %.0f t matched)" % ( num_herwig, num_powheg_tot,num_powheg_nomatch, 
-                                                                                          num_powheg_w_match, num_powheg_t_match))
+print("%i herwig, %.0f pythia (%.0f unmatched, %.0f W matched, %.0f t matched)" % ( num_herwig, num_pythia_tot,num_pythia_nomatch, 
+                                                                                          num_pythia_w_match, num_pythia_t_match))
 
-norm = num_herwig / (num_powheg_w_match if options.noBkg else num_powheg_tot)
+norm = num_herwig / (num_pythia_w_match if options.noBkg else num_pythia_tot)
 
 #normalize two samples to match
 for d in (bkgs + sigs):
@@ -166,22 +171,20 @@ if(do_plot):
 
 
 
-LP_rw = LundReweighter(jetR = jetR, charge_only = options.charge_only)
+LP_rw = LundReweighter(jetR = jetR, charge_only = options.charge_only, LP_order = options.LPorder)
 
-d_herwig.subjets = d_herwig.fill_LP(LP_rw, h_herwig,  num_excjets = num_excjets, prefix = CA_prefix, rescale_subjets = "vec" )
 
 for d in sigs:
-    d.subjets = d.fill_LP(LP_rw, h_mc,  num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec" )
+    d.subjets = d.fill_LP(LP_rw, h_mc,  h_subjets = h_mc_subjets, num_excjets = num_excjets, sys_variations = sig_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec" )
 
 for d in bkgs:
-    d.subjets = d.fill_LP(LP_rw, h_bkg, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec")
+    d.subjets = d.fill_LP(LP_rw, h_bkg, h_subjets = h_bkg_subjets, num_excjets = num_excjets, sys_variations = bkg_sys_variations, prefix = CA_prefix,  rescale_subjets = "vec")
+
+d_herwig.subjets = d_herwig.fill_LP(LP_rw, h_herwig,  h_subjets = h_herwig_subjets, num_excjets = num_excjets, prefix = CA_prefix, rescale_subjets = "vec" )
 
 
 for d in ([d_herwig] + sigs + bkgs): 
     d.subjet_pt = []
-    if(d is d_herwig): h_subjets = h_herwig_subjets
-    elif(d in sigs): h_subjets = h_mc_subjets
-    elif(d in bkgs): h_subjets = h_bkg_subjets
 
     weights = d.get_weights()
 
@@ -189,7 +192,7 @@ for d in ([d_herwig] + sigs + bkgs):
         sj_pts = []
         for sj in sjs: 
             sj_pts.append(sj[0])
-            h_subjets.Fill(sj[0], weights[idx])
+            #h_subjets.Fill(sj[0], weights[idx])
         d.subjet_pt.append(sj_pts)
 
 obs.append("subjet_pt")
@@ -210,34 +213,13 @@ h_herwig.Write()
 if(do_sys_variations and not options.noBkg):
     for i,sys_name in enumerate(sys_keys):
         print(sys_name)
-        h_bkg_subjets_sys = h_bkg_subjets.Clone(sys_name + "_bkg_ptnorm")
-        h_bkg_subjets_sys.Reset()
         h_mc_subjets_sys = h_mc_subjets.Clone(sys_name + "_mc_ptnorm")
 
-        sys_idx = sys_weights_map[sys_name]
-
-        #compute pt distributions for this sys
-        for d in bkgs:
-            all_sys_weights = d.get_masked('sys_weights')
-
-            if('norm' in sys): #normalization uncs split by process
-                process = sys.split("_")[0]
-                if(process in d.label and 'up' in sys): weights_sys = d.get_weights() * (1. + d.norm_unc)
-                elif(process in d.label and 'down' in sys): weights_sys = d.get_weights()  * (1. - d.norm_unc)
-                else: weights_sys = d.get_weights()
-            else:
-                weights_sys = d.get_weights() * all_sys_weights[:, sys_idx]
-
-            fill_hist(h_bkg_subjets_sys, d.subjet_pt, weights_sys)
-
-
-
-        h_bkg_sys = bkg_sys_variations[sys_name]
+        h_bkg_sys, h_bkg_subjets_sys = bkg_sys_variations[sys_name]
         h_mc_sys = h_mc
 
         sys_ratio = LP_rw.make_LP_ratio(h_herwig, h_bkg_sys, h_mc_sys, h_herwig_subjets, h_bkg_subjets_sys, h_mc_subjets_sys, pt_bins = pt_bins)
         sys_ratio.SetName("ratio_" + sys_name)
-        #sys_ratio.Print("range") 
         sys_ratio.Write()
 
 

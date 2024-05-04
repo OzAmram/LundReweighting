@@ -28,7 +28,7 @@ print(options)
 outdir = options.outdir
 
 if(options.herwig):
-    f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_gen/TT_powheg.h5", "r")
+    f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_gen/TT_pythia.h5", "r")
 else:
     f_ttbar = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_%i/TT.h5" % options.year, "r")
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
@@ -131,7 +131,7 @@ h_qs.Print()
 h_bs.Print()
 
 
-f_out = ROOT.TFile.Open(outdir + "ratio.root", "UPDATE")
+f_out = ROOT.TFile.Open(options.fin, "UPDATE")
 w_qs = f_out.Get("mc_nom")
 
 for i in range(1,h_qs.GetNbinsX()+1):

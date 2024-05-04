@@ -21,6 +21,7 @@ def create_func(order, label = ""):
 
 
 parser = input_options()
+parser.add_argument("--herwig", default=False, action='store_true',  help="Pythia herwig ratio (less sys)")
 options = parser.parse_args()
 
 print(options)

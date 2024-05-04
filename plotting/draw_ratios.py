@@ -60,9 +60,11 @@ out_dir = options.outdir
 if(not os.path.exists(out_dir)): os.system("mkdir " + out_dir)
 tdrstyle.setTDRStyle()
 
-fnames = ["data/ratio_2018.root", "data/ratio_2017.root", "data/ratio_2016.root"]
-#fnames = ["W_RW_june9/ratio.root", "W_RW_june9/ratio.root", "W_RW_june9/ratio.root"]
-weights = [59.74, 41.4, 35.9]
+#fnames = ["data/ratio_2018.root", "data/ratio_2017.root", "data/ratio_2016.root"]
+#weights = [59.74, 41.4, 35.9]
+
+fnames = ["plots/herwig_rw_W_may1/ratio.root"]
+weights = [1.0]
 #fname = "W_RW_2017_june30/ratio.root"
 
 h_3d = h_sys_up = h_sys_down = None
@@ -158,7 +160,9 @@ for i in range(1,h_3d.GetNbinsX()+1):
 
     CMS_lumi.writeExtraText = True
     CMS_loc = 11
-    period = -1
+    #period = -1
+    period = 0
+    extraText = "Simulation"
 
 
     posX = 0.58
@@ -185,8 +189,8 @@ for i in range(1,h_3d.GetNbinsX()+1):
     h_ratio_proj.SetLineColor(ROOT.kTeal-7)
     c_ratio = ROOT.TCanvas("c_unc", "", 1000, 800)
 
-    min_dR = 0.01
-    min_kt = 0.4
+    min_dR = 0.005
+    min_kt = 0.002
     max_x = np.log(0.8/min_dR)
     min_y = np.log(min_kt)
 
@@ -202,8 +206,10 @@ for i in range(1,h_3d.GetNbinsX()+1):
     h_ratio_unc.Draw("BOX same")
     #h_ratio_sys_unc.Draw("BOX same")
 
-    ratio_plot_label = "#bf{Data/Sim. Ratio}" 
-    unc_plot_label = "#bf{Data/MC Ratio Frac. Unc.}"
+    #ratio_plot_label = "#bf{Data/Sim. Ratio}" 
+    #unc_plot_label = "#bf{Data/MC Ratio Frac. Unc.}"
+    ratio_plot_label = "#bf{Herwig/Pythia Ratio}" 
+    unc_plot_label = "#bf{Herwig/Pythia Ratio Frac. Unc.}"
     subj_label = "#bf{Subjet %s GeV}" % (pt_bin_labels[i-1])
 
     #latex.DrawLatex(posX, posY, ratio_plot_label)
@@ -213,7 +219,8 @@ for i in range(1,h_3d.GetNbinsX()+1):
 
     leg = ROOT.TLegend(0.47, 0.75, 0.75, 0.85)
     leg.SetTextSize(0.03)
-    leg.AddEntry(h_ratio_proj, "Data/Sim. Ratio", "f")
+    #leg.AddEntry(h_ratio_proj, "Data/Sim. Ratio", "f")
+    leg.AddEntry(h_ratio_proj, "Herwig/Pythia Ratio", "f")
     leg.AddEntry(h_ratio_unc, "Uncertainty", "f")
     leg.SetBorderSize(0)
     leg.Draw()

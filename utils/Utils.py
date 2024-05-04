@@ -37,6 +37,8 @@ sys_weights_map = {
         #'puID_down': 28,
         'QCD_norm_up': -999,
         'QCD_norm_down': -999,
+        'tW_norm_up': -999,
+        'tW_norm_down': -999,
         'Diboson_norm_up': -999,
         'Diboson_norm_down': -999,
         'Single_norm_up': -999, #single top
@@ -115,7 +117,7 @@ def deltaR(v1, v2):
     return dR
 
 class Dataset():
-    def __init__(self, f, is_data = False, label = "", color = "", jms_corr = 1.0, dtype = 0):
+    def __init__(self, f, is_data = False, label = "", color = "", jms_corr = 1.0, dtype = 0, gen = False):
 
         self.f = f
         self.is_data = is_data
@@ -134,6 +136,7 @@ class Dataset():
 
         self.norm_unc = 0.0
         self.dtype = dtype
+        self.gen = gen
 
 
     def n(self):
@@ -157,7 +160,7 @@ class Dataset():
 
     def get_weights(self):
         max_weight = 50.
-        if(self.is_data): return np.ones(self.n()) * self.norm_factor
+        if(self.is_data or self.gen): return np.ones(self.n()) * self.norm_factor
         weights = self.get_masked('norm_weights') * self.norm_factor
         if(len(self.sys_key) > 0):
             sys_idx = sys_weights_map[self.sys_key]
@@ -176,13 +179,15 @@ class Dataset():
         self.tau21 = (feats[:,1] / (feats[:,0] + eps))
         self.tau32 = (feats[:,2] / (feats[:,1] + eps))
         self.tau43 = (feats[:,3] / (feats[:,2] + eps))
+        self.pt = kins[:,0]
+        self.nPF= feats[:,6]
+
         if(feats.shape[1] > 8): self.DeepAK8_W_MD = feats[:,8]
         if(feats.shape[1] > 9): self.DeepAK8_W = feats[:,9]
         if(feats.shape[1] > 10): self.ParticleNet_W = feats[:,10]
-        if(self.dtype == 1): self.mSoftDrop = kins[:,5] * self.jms_corr
+
+        if(self.dtype == 1 and not self.gen): self.mSoftDrop = kins[:,5] * self.jms_corr
         else: self.mSoftDrop = kins[:,3] * self.jms_corr
-        self.pt = kins[:,0]
-        self.nPF= feats[:,6]
 
     def compute_kinematics(self):
         mu = self.get_masked('mu_info')
@@ -209,13 +214,10 @@ class Dataset():
 
 
 
-    def fill_LP(self, LP_rw, h, num_excjets = 2, prefix = "2prong", sys_variations = None, rescale_subjets = "vec"):
+    def fill_LP(self, LP_rw, h, h_subjets = None, num_excjets = 2, prefix = "2prong", sys_variations = None, rescale_subjets = "vec"):
 
 
         pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
-        splittings = subjets =  split = subjet = None
-
-
 
         jet_kinematics = self.get_masked("jet_kinematics")
         nom_weights = self.get_weights()
@@ -235,6 +237,7 @@ class Dataset():
 
 
         hists = [h]
+        hists_subjet=[h_subjets]
         weights = [nom_weights]
 
         if(sys_variations is not None):
@@ -245,7 +248,6 @@ class Dataset():
             for sys in sys_variations.keys():
                 if('norm' in sys): #normalization uncs split by process
                     process = sys.split("_")[0]
-                    print(sys, self.label, process)
                     if(process in self.label and 'up' in sys): weights_sys = nom_weights * (1. + self.norm_unc)
                     elif(process in self.label and 'down' in sys): weights_sys = nom_weights  * (1. - self.norm_unc)
                     else: weights_sys = nom_weights
@@ -254,7 +256,8 @@ class Dataset():
                     weights_sys = nom_weights * all_sys_weights[:, sys_idx]
 
                 weights.append(weights_sys)
-                hists.append(sys_variations[sys])
+                hists.append(sys_variations[sys][0])
+                hists_subjet.append(sys_variations[sys][1])
 
 
             #for idx,h in enumerate(hists):
@@ -265,12 +268,8 @@ class Dataset():
         weights = np.array(weights, dtype = np.float32)
         subjets = []
         for i,pf_cand in enumerate(pf_cands):
-            if(splittings is not None):
-                split = splittings[i]
-                subjet = subjets[i]
 
-
-            subjet, _ = LP_rw.fill_lund_plane(hists, pf_cands = pf_cand, subjets = subjet, splittings = split, 
+            subjet, _ = LP_rw.fill_lund_plane(hists, h_subjet = hists_subjet, pf_cands = pf_cand, 
                     num_excjets = num_excjets, weight = weights[:,i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
             subjets.append(subjet)
 
@@ -299,16 +298,13 @@ class Dataset():
 
 
 
-    def reweight_all(self, LP_rw, num_excjets = 2, min_evts = None, max_evts = None, which_j =1, do_sys_weights = True, rescale_subjets = "vec"):
+    def reweight_all(self, LP_rw, num_excjets = -1, min_evts = None, max_evts = None, which_j =1, distortion_sys = True, do_sys_weights = True, rescale_subjets = "vec"):
 
 
         pf_cands = self.get_masked("jet%i_PFCands" % which_j).astype(np.float64)[min_evts:max_evts]
-        if(self.dtype ==1): 
-            if(which_j == 1): j_4vec = self.get_masked('jet_kinematics')[min_evts:max_evts][:,2:6].astype(np.float64)
-            else: j_4vec = self.get_masked('jet_kinematics')[min_evts:max_evts][:,6:10].astype(np.float64)
-
-        else:
-            j_4vec = self.get_masked('jet_kinematics')[min_evts:max_evts][:,:4].astype(np.float64)
+        start = 0 if (self.gen or self.dtype != 1) else 2
+        if(which_j ==2): start +=4
+        j_4vec = self.get_masked('jet_kinematics')[min_evts:max_evts][:, start : start+4].astype(np.float64)
 
         rescale_vals = [1.] * len(j_4vec)
         if(rescale_subjets == "jec"):
@@ -316,18 +312,33 @@ class Dataset():
         elif(rescale_subjets == "vec"):
             rescale_vals = j_4vec[:,0]
 
+        if(num_excjets > 0):
+            #No gen info, so don't do any systematics
 
-        num_excjets_l = [num_excjets]*len(pf_cands)
+            pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)
+            out = dict()
+            weights = []
+            for i,cands in enumerate(pf_cands):
+                subjets, splittings = LP_rw.get_splittings(cands, num_excjets = num_excjets, rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
+                rw,_,_ = LP_rw.reweight_lund_plane(h_rw = LP_rw.h_ratio, subjets = subjets, splittings = splittings)
+                weights.append(rw)
+            weights = LP_rw.normalize_weights(np.array(weights))
+            out['nom'] = weights
+            return out
+
 
         if(self.dtype == 1): #CASE h5
             gen_parts = self.get_masked('gen_info')[min_evts:max_evts]
             n_evts = gen_parts.shape[0]
-            gen_parts_eta_phi_raw = gen_parts[:,:,1:3]
-            gen_pdg_id = np.abs(gen_parts[:,:,3])
+            #First two entries store daughters 
+            start = 2 if self.gen else 0
+            gen_parts_eta_phi_raw = gen_parts[:,start:,1:3]
+            gen_pdg_id = np.abs(gen_parts[:,start:,3])
             #neutrino pdg ids are 12,14,16
             not_neutrinos = ((~np.isclose(gen_pdg_id, 12)) & (~np.isclose(gen_pdg_id, 14)) & (~np.isclose(gen_pdg_id, 16)))
             
             gen_parts_eta_phi = [gen_parts_eta_phi_raw[i][not_neutrinos[i]] for i in range(n_evts)]
+            gen_pdg_id = [gen_pdg_id[i][not_neutrinos[i]] for i in range(n_evts)]
 
 
         else:#W or t matched MC
@@ -335,132 +346,21 @@ class Dataset():
             q1_eta_phi = gen_parts[:,18:20]
             q2_eta_phi = gen_parts[:,22:24]
             b_eta_phi = gen_parts[:,26:28]
-            if(self.dtype == 2): gen_parts_eta_phi = np.stack([q1_eta_phi,q2_eta_phi], axis = 1)
-            else: gen_parts_eta_phi = np.stack([q1_eta_phi, q2_eta_phi, b_eta_phi], axis = 1)
-            gen_pdg_id = np.array([[1,2,5]] * gen_parts.shape[0])
+            if(self.dtype == 2): 
+                gen_parts_eta_phi = np.stack([q1_eta_phi,q2_eta_phi], axis = 1)
+                gen_pdg_id = np.array([[1,2]] * gen_parts.shape[0])
+            else: 
+                gen_parts_eta_phi = np.stack([q1_eta_phi, q2_eta_phi, b_eta_phi], axis = 1)
+                gen_pdg_id = np.array([[1,2,5]] * gen_parts.shape[0])
 
 
 
-        out = LP_rw.get_all_weights(pf_cands, gen_parts_eta_phi, j_4vec, gen_parts_pdg_ids = gen_pdg_id, do_sys_weights = do_sys_weights)
+
+        out = LP_rw.get_all_weights(pf_cands, gen_parts_eta_phi, j_4vec, gen_parts_pdg_ids = gen_pdg_id, do_sys_weights = do_sys_weights, distortion_sys = distortion_sys)
         return out
 
 
-    def reweight_all_up_down_prongs(self, LP_rw, h_ratio = None, reclust_prongs_up = None, reclust_prongs_down = None, nom_weights = None):
-        weights_match_up = np.copy(nom_weights)
-        weights_match_down = np.copy(nom_weights)
-        weights_prong_up = np.copy(nom_weights)
-        weights_prong_down = np.copy(nom_weights)
 
-        weights_unclust_up = np.copy(nom_weights)
-        weights_unclust_down = np.copy(nom_weights)
-
-        n_reclust_up = n_reclust_down = n_reclust_up_still_bad = n_reclust_down_still_bad = 0
-        n_tot = len(reclust_prongs_up)
-
-        for i in range(len(reclust_prongs_up)):
-            weights_prong_up[i], weights_prong_down[i], weights_match_up[i], weights_match_down[i] = LP_rw.get_up_down_prongs_weights(h_ratio, 
-                                                                                    reclust_prongs_up[i], reclust_prongs_down[i], nom_weights[i])
-            if(still_bad):
-                weights_unclust_up[i] *= 2
-                weights_unclust_down[i] *= 0.5
-
-        print("%i total. %i prong up reclust (%i still bad). %i prong down reclust (%i still bad)" % 
-                (n_tot, n_reclust_up, n_reclust_up_still_bad, n_reclust_down, n_reclust_down_still_bad))
-
-        return weights_prong_up, weights_prong_down, weights_match_up, weights_match_down, weights_unclust_up, weights_unclust_down
-
-
-
-    def reweight_all_(self, LP_rw, h_ratio, num_excjets = 2, min_evts = None, max_evts =None):
-
-        LP_weights = []
-        LP_smeared_weights = []
-        pt_smeared_weights = []
-        pf_cands = self.get_masked("jet1_PFCands").astype(np.float64)[min_evts:max_evts]
-        if('bquark' in sys_str): 
-            if(self.dtype == 1):
-                gen_parts = self.get_masked('gen_info')[min_evts:max_evts]
-            else: 
-                gen_parts = self.get_masked('gen_parts')[min_evts:max_evts]
-
-
-
-        if(reclust_objs is None):
-            reclust_objs, reclust_prongs_up, reclust_prongs_down = self.get_all_matched_splittings(LP_rw, num_excjets, min_evts = min_evts, max_evts =max_evts)
-
-        n_b_matched = 0
-        for i in range(len(pf_cands)):
-
-            ro = reclust_objs[i]
-            split, subjet = ro.split, ro.subjet
-
-            if(sys_str == 'bquark'): # systematic only for bquarks
-                deltaR_cut = 0.2
-                if(self.dtype == 1): #CASE h5 saves all gen decays with pdg ID
-                    #pick out subjets matched to a b quark
-                    gen_bs = [j for j in range(len(gen_parts[i])) if abs(gen_parts[i,j,3]) == B_PDG_ID]
-                    dists = get_subjet_dist(gen_parts[i,gen_bs,1:3], np.array(subjet)[:,1:3])
-                else: #ttbar MC saves in order
-                    b_eta_phi = gen_parts[i,26:28]
-                    dists = get_subjet_dist([b_eta_phi], np.array(subjet)[:,1:3])
-
-                b_matches = []
-
-                j_closest = np.amin(dists, axis = 0)
-                j_which = np.argmin(dists, axis = 0)
-
-                b_matches = np.unique(j_which[j_closest < deltaR_cut])
-
-                #reweight only matched subjets
-                if(len(b_matches) > 0):
-                    b_subjet = [subjet[j] for j in range(len(subjet)) if j in b_matches]
-
-                    #splittings save idx of associated subjet
-                    b_split  = [split[j]  for j in range(len(split)) if split[j][0] in b_matches]
-
-                    rw, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, subjets = b_subjet, splittings = b_split, sys_str = sys_str)
-                    n_b_matched +=1
-                else: 
-                    rw = 1.0
-
-
-            else:
-                rw, smeared_rw, pt_smeared_rw  = LP_rw.reweight_lund_plane(h_ratio, reclust_obj = ro,
-                        rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
-
-            eps = 1e-6
-            rw = max(rw, eps)
-            LP_weights.append(rw)
-            if(rand_noise is not None):
-                LP_smeared_weights.append(smeared_rw)
-            if(pt_rand_noise is not None):
-                pt_smeared_weights.append(pt_smeared_rw)
-
-
-        if(sys_str == 'bquark'):
-            print("%i / %i jets were b-matched" % (n_b_matched, len(pf_cands)))
-        if(norm):
-            LP_weights = np.clip(np.array(LP_weights), 0., LP_rw.max_rw)
-            LP_weights /= np.mean(LP_weights)
-            LP_weights = np.clip(np.array(LP_weights), LP_rw.min_rw, LP_rw.max_rw)
-            LP_weights /= np.mean(LP_weights)
-
-        if(rand_noise is None):
-            return LP_weights
-        else:
-            if(norm):
-                LP_smeared_weights = np.clip(np.array(LP_smeared_weights), 0., LP_rw.max_rw)
-                LP_smeared_weights /= np.mean(LP_smeared_weights, axis = 0)
-                LP_smeared_weights = np.clip(np.array(LP_smeared_weights), LP_rw.min_rw, LP_rw.max_rw)
-                LP_smeared_weights /= np.mean(LP_smeared_weights, axis = 0)
-
-                pt_smeared_weights = np.clip(np.array(pt_smeared_weights), 0., LP_rw.max_rw)
-                pt_smeared_weights /= np.mean(pt_smeared_weights, axis = 0)
-                pt_smeared_weights = np.clip(np.array(pt_smeared_weights), LP_rw.min_rw, LP_rw.max_rw)
-                pt_smeared_weights /= np.mean(pt_smeared_weights, axis = 0)
-
-            return LP_weights, LP_smeared_weights, pt_smeared_weights
-        
 
 def add_dset(f, key, data):
     if(key in f.keys()):

@@ -12,6 +12,7 @@ def get_diff(h_nom, h):
                 c_sys = h.GetBinContent(i,j,k)
                 eps = 1e-6
                 if(c_nom > eps):
+                    #if(i == 2 ): print(c_nom, c_sys)
                     diff = min(1.0, abs(c_nom - c_sys)/c_nom)
                     diffs.append(diff)
     return np.mean(diffs)
