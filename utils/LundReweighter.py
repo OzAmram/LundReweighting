@@ -534,7 +534,7 @@ class LundReweighter():
             All weights are normalized to average to one, so that the sample normalization is preserved
         Inputs:
         pf_cands : List of PF candidates (px,py,pz, E) for each event
-        gen_parts_eta_phi : List of (eta, phi) of generator level quarks contained inside the AK8 jet (defines number of prongs for reclustering) for each event
+        gen_parts_eta_phi : List of (eta, phi) of generator level quarks from the hard process (defines number of prongs for reclustering) for each event
         ak8_jets : 4 vector (pt, eta, phi, M) of AK8 jet for each event
         gen_parts_pdg_ids (optional): Pdg ids of the generator level quarks, used to check for the presence of b quarks which get a special uncertainty (assumes no b quarks if not given)
         do_sys_weights (optional): Compute all the systematic weight variations (default is true)

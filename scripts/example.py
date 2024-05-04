@@ -12,9 +12,7 @@ options = parser.parse_args()
 ######################## Setup 
 
 #Input file 
-#fname = "data/example_signal.h5"
-fname = "../TagNTrain/data/LundRW/YtoHH_Htott_Y5000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
-#File containing data/MC Lund Plane ratio
+fname = "data/example_signal.h5"
 f_ratio_name = 'data/ratio_2018.root'
 
 f_sig = h5py.File(fname, "r")
@@ -25,31 +23,30 @@ d = Dataset(f_sig, dtype = 1)
 d.compute_obs()
 
 #The cut we will compute a SF for 'tau21 < 0.34'
-#tag_obs = 'tau21'
-#score_thresh = 0.34
-tag_obs = 'tau43'
-score_thresh = 0.65
+tag_obs = 'tau21'
+score_thresh = 0.34
 
 
 
 #Main class for reweighting utilities
 LP_rw = LundReweighter(f_ratio = f_ratio)
 
+#use small number of events for the example, but generally advisable to use larger sample
 max_evts = 1000
 score = getattr(d, tag_obs)[:max_evts]
 score_cut = score < score_thresh
 
 ################### Compute reweighting factors
 
-#PF candidates in the AK8 jet
+#PF candidates in the AK8 jet for each event (list of (px,py,pz,E))
 pf_cands = d.get_masked("jet1_PFCands").astype(np.float64)[:max_evts]
-print(pf_cands.shape, max_evts)
 
-#Generator level quarks from hard process
+#Generator level quarks from hard process 
 gen_parts = d.get_masked('gen_info')[:max_evts]
 gen_parts_eta_phi = gen_parts[:,:,1:3]
 gen_parts_pdg_ids = gen_parts[:,:,3]
 
+#4 vector of AK8 jets we are calibrating
 ak8_jets = d.get_masked('jet_kinematics')[:max_evts][:,2:6].astype(np.float64)
 
 #Nominal event weights of the MC, (assume every event is weight '1' for this example)
@@ -156,5 +153,4 @@ tot_unc_down = tot_unc_down**0.5
 eff_str += "\n Original %.2f, Calibrated %.2f +%.2f/-%.2f \n"  % (eff_nom, eff_rw, tot_unc_up, tot_unc_down)
 
 print(eff_str)
-
 f_ratio.Close()
