@@ -32,7 +32,7 @@ score_thresh = 0.34
 LP_rw = LundReweighter(f_ratio = f_ratio)
 
 #use small number of events for the example, but generally advisable to use larger sample
-max_evts = 1000
+max_evts = 5000
 score = getattr(d, tag_obs)[:max_evts]
 score_cut = score < score_thresh
 
@@ -40,6 +40,7 @@ score_cut = score < score_thresh
 
 #PF candidates in the AK8 jet for each event (list of (px,py,pz,E))
 pf_cands = d.get_masked("jet1_PFCands").astype(np.float64)[:max_evts]
+print("Running on %i events" % len(pf_cands))
 
 #Generator level quarks from hard process 
 gen_parts = d.get_masked('gen_info')[:max_evts]
