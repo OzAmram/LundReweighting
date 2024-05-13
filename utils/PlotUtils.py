@@ -7,7 +7,8 @@ from sklearn.metrics import roc_curve,auc
 import scipy.stats
 import numpy as np
 import ROOT
-import CMS_lumi, tdrstyle
+from .CMS_lumi import *
+from .tdrstyle import *
 import copy
 from array import array
 
