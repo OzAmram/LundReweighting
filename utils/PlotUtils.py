@@ -3,7 +3,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib import gridspec
-from sklearn.metrics import roc_curve,auc
 import scipy.stats
 import numpy as np
 import ROOT
