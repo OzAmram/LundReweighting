@@ -166,6 +166,7 @@ class LundReweighter():
                                     'jec' multiplies each subjet by the value of rescale_val (ie a jec value). 
 
         rescale_val (optional): Value used in subjet scaling.
+        pf_cands_PtEtaPhiE_format (optional): Alternate representation of pf candidates (default is px,py,pz,E)
 
         """
 
@@ -230,7 +231,7 @@ class LundReweighter():
                                     'jec' multiplies each subjet by the value of rescale_val (ie a jec value). 
 
         rescale_val (optional): Value used in subjet scaling.
-        pf_cands_PtEtaPhiE_format (optional): Alternate representation of pf candidates
+        pf_cands_PtEtaPhiE_format (optional): Alternate representation of pf candidates (default is px,py,pz,E)
         """
 
         if(num_excjets == 0):
@@ -555,6 +556,7 @@ class LundReweighter():
                     as compared to the sample the correction was derived from (stems from imperfections in reclustering)
                     Requires a sufficiently large sample events to get a good estimate, minimum is 1k but at least ~5k is recommended 
         nToys (optional): Number of toys to use for pt and stat variations of weights (default is 100)
+        pf_cands_PtEtaPhiE_format (optional): Alternate representation of pf candidates (default is px,py,pz,E)
 
 
         Output:
