@@ -182,9 +182,14 @@ class Dataset():
         self.pt = kins[:,0]
         self.nPF= feats[:,6]
 
-        if(feats.shape[1] > 8): self.DeepAK8_W_MD = feats[:,8]
-        if(feats.shape[1] > 9): self.DeepAK8_W = feats[:,9]
-        if(feats.shape[1] > 10): self.ParticleNet_W = feats[:,10]
+        if(not self.gen):
+            if(feats.shape[1] > 8): self.DeepAK8_W_MD = feats[:,8]
+            if(feats.shape[1] > 9): self.DeepAK8_W = feats[:,9]
+            if(feats.shape[1] > 10): self.ParticleNet_W = feats[:,10]
+        elif(self.gen and feats.shape[1] > 5):
+            self.tau54 = (feats[:,4] / (feats[:,3] + eps))
+            self.tau65 = (feats[:,5] / (feats[:,4] + eps))
+           
 
         if(self.dtype == 1 and not self.gen): self.mSoftDrop = kins[:,5] * self.jms_corr
         else: self.mSoftDrop = kins[:,3] * self.jms_corr
@@ -339,6 +344,7 @@ class Dataset():
             
             gen_parts_eta_phi = [gen_parts_eta_phi_raw[i][not_neutrinos[i]] for i in range(n_evts)]
             gen_pdg_id = [gen_pdg_id[i][not_neutrinos[i]] for i in range(n_evts)]
+            #gen_parts_eta_phi = gen_parts_eta_phi_raw
 
 
         else:#W or t matched MC

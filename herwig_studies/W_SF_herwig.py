@@ -161,7 +161,8 @@ for idx in range(len(pythia_cuts)):
     print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
     #Add systematic differences in quadrature
-    sys_keys = ['sys', 'bquark', 'prongs', 'unclust', 'distortion']
+    sys_keys = ['sys', 'bquark', 'prongs', 'unclust']
+    if(options.topSF): sys_keys.append('distortion')
     sys_uncs = dict()
 
     diffs_up = np.abs(LP_weights['nom'] - LP_weights['prongs_up'])

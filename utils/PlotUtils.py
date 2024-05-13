@@ -1048,8 +1048,9 @@ def horizontal_bar_chart(vals, labels, fname = "", xaxis_label = ""):
 
 def compute_chi2(data, data_unc, y):
     chi2 = 0.
+    eps = 1e-8
     for i in range(len(data)):
-        if(data_unc[i] <= 0.): data_unc[i] = y[i]
+        if(data_unc[i] <= 0.): data_unc[i] = max(y[i], data[i]) + eps
         chi2 += (data[i] - y[i])**2/data_unc[i]**2
     return chi2
 
@@ -1193,14 +1194,13 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
     if(draw_chi2):
         plt.sca(ax0)
         ndof = len(bins)-1
-        y_val = ax0.get_ylim()[1] * 0.85
-        x_val = ax0.get_xlim()[1] * 0.8
-        y_val = 1.3
+        y_val = ax0.get_ylim()[1] * 0.7
+        x_val = ax0.get_xlim()[1] * 0.1
         for j,chi2 in enumerate(chi2s):
             print(chi2, ndof)
             txt = r"$\chi^2$ / ndof = %.1f / %i" % (chi2, ndof)
-            plt.text(bins[-2], y_val, txt, color = colors[j+1], horizontalalignment = 'right', fontweight = 'bold')
-            y_val -= 0.1
+            plt.text(bins[2], y_val, txt, color = colors[j+1], horizontalalignment = 'left', fontweight = 'bold')
+            y_val -= y_val * 0.05
 
 
 

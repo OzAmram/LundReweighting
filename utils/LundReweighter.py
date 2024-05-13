@@ -155,7 +155,7 @@ class LundReweighter():
 
         return is_subjet_matched, is_subjet_double_matched, subjet_closest_dR
 
-    def get_splittings_and_matching(self, pf_cands, gen_particles_eta_phi, ak8_jet, rescale_subjets = "", rescale_val = 1.0):
+    def get_splittings_and_matching(self, pf_cands, gen_particles_eta_phi, ak8_jet, rescale_subjets = "", rescale_val = 1.0, pf_cands_PtEtaPhiE_format = False):
         """Given a list of pf_candidates (px, py,pz,E), and gen_particles (eta, phi), and an AK8 jet 4 vector (pt, eta,phi, M) 
         Recluster into a number of subjets based on the number of gen-level quarks inside the AK8 jet
         Also returns the fraction of bad matches.
@@ -184,7 +184,8 @@ class LundReweighter():
         prongs_down = np.any((0.7 < AK8_dRs) & (AK8_dRs < 0.8))
 
 
-        RO.subjet, RO.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
+        RO.subjet, RO.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs, rescale_subjets = rescale_subjets, 
+                                rescale_val = rescale_val, pf_cands_PtEtaPhiE_format = pf_cands_PtEtaPhiE_format)
 
         #check subjets matched to quarks
         RO.subjet_match, RO.subjet_double_matched, RO.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO.subjet)
@@ -195,7 +196,8 @@ class LundReweighter():
         #Recluster with one more subjet
         if(RO.badmatch or prongs_up):
             RO_prongsUp = ReclusterObj()
-            RO_prongsUp.subjet, RO_prongsUp.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs+1, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
+            RO_prongsUp.subjet, RO_prongsUp.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs+1, rescale_subjets = rescale_subjets, 
+                                            rescale_val = rescale_val, pf_cands_PtEtaPhiE_format = pf_cands_PtEtaPhiE_format)
             RO_prongsUp.n_prongs = RO.n_prongs + 1
             RO_prongsUp.from_badmatch = RO.badmatch
             RO_prongsUp.from_prongs_up = prongs_up
@@ -205,7 +207,8 @@ class LundReweighter():
         #Recluster with one less subjet
         if(RO.badmatch or prongs_down):
             RO_prongsDown = ReclusterObj()
-            RO_prongsDown.subjet, RO_prongsDown.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs-1, rescale_subjets = rescale_subjets, rescale_val = rescale_val)
+            RO_prongsDown.subjet, RO_prongsDown.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs-1, rescale_subjets = rescale_subjets, 
+                    rescale_val = rescale_val, pf_cands_PtEtaPhiE_format = pf_cands_PtEtaPhiE_format)
             RO_prongsDown.n_prongs = RO.n_prongs - 1
             RO_prongsDown.from_badmatch = RO.badmatch
             RO_prongsDown.from_prongs_down = prongs_down
@@ -218,7 +221,7 @@ class LundReweighter():
 
 
 
-    def get_splittings(self, pf_cands, num_excjets = -1, rescale_subjets = "", rescale_val = 1.0):
+    def get_splittings(self, pf_cands, num_excjets = -1, rescale_subjets = "", rescale_val = 1.0, pf_cands_PtEtaPhiE_format = False):
         """Given a list of pf_candidates (px, py,pz,E), recluster into a given (num_excjets) number of subjets (-1 for variable number, not recommended). 
         the momentum of these subjets is scaled based on the rescale_subjets and rescale_val args.
 
@@ -227,13 +230,23 @@ class LundReweighter():
                                     'jec' multiplies each subjet by the value of rescale_val (ie a jec value). 
 
         rescale_val (optional): Value used in subjet scaling.
+        pf_cands_PtEtaPhiE_format (optional): Alternate representation of pf candidates
         """
 
+        if(num_excjets == 0):
+            print("Reclustering into 0 subjets?! Something went wrong")
+            return [],[]
         pjs = []
         pfs_cut = []
         for i,c in enumerate(pf_cands):
-            if(c[3] > 0.0001):
-                pj = fj.PseudoJet(c[0], c[1], c[2], c[3])
+            if(pf_cands_PtEtaPhiE_format):
+                v = ROOT.Math.PtEtaPhiEVector(c[0],c[1],c[2],c[3])
+                px,py,pz,E = v.px(), v.py(), v.pz(), v.E()
+
+            else: px,py,pz,E = c[0], c[1], c[2], c[3]
+
+            if(E > 0.0001):
+                pj = fj.PseudoJet(px,py,pz,E)
 
                 if(pj.pt() > 1.0):
                     pfs_cut.append(c)
@@ -529,7 +542,7 @@ class LundReweighter():
         return out
 
 
-    def get_all_weights(self, pf_cands, gen_parts_eta_phi, ak8_jets, gen_parts_pdg_ids = None, do_sys_weights = True, distortion_sys = True, nToys = 100):
+    def get_all_weights(self, pf_cands, gen_parts_eta_phi, ak8_jets, gen_parts_pdg_ids = None, do_sys_weights = True, distortion_sys = True, nToys = 100, pf_cands_PtEtaPhiE_format = False):
         """ Master function for the lund plane reweighting method. Takes in collection of events and computes nominal set of weights and variations from uncertainties
             All weights are normalized to average to one, so that the sample normalization is preserved
         Inputs:
@@ -567,12 +580,13 @@ class LundReweighter():
 
         if(distortion_sys and len(pf_cands) < 1000):
             print("Only %i jets given, will not include LP distortion systematic" % len(pf_cands))
+            distortion_sys = False
 
 
         n_badmatch = 0
         #Recluster into subjets
         for i,cands in enumerate(pf_cands):
-            reclust_nom, reclust_prongs_up, reclust_prongs_down = self.get_splittings_and_matching(cands, gen_parts_eta_phi[i], ak8_jets[i])
+            reclust_nom, reclust_prongs_up, reclust_prongs_down = self.get_splittings_and_matching(cands, gen_parts_eta_phi[i], ak8_jets[i], pf_cands_PtEtaPhiE_format = pf_cands_PtEtaPhiE_format)
 
             out['bad_match'][i] = reclust_nom.badmatch
             out['n_prongs'][i] = reclust_nom.n_prongs

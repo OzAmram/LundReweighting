@@ -15,15 +15,17 @@ print(options)
 outdir = options.outdir
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
 
-#fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/WkkToWRadionToWWW_M3000_Mr400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/WkkToWRadionToWWW_M3000_Mr400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/YtoHH_Htott_Y3000_H400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
-fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/ZpToTpTp_Zp5000_Tp400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+#fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/ZpToTpTp_Zp5000_Tp400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
 #fname = "test_signal_CASE.h5"
 
 
 
-label = "YtoHH"
+#label = "YtoHH"
+#h_label = label
+label = "Wkk"
 h_label = label
 #label = "ZpToTpTp"
 #h_label = 'Zp'
@@ -44,7 +46,7 @@ jetR = 1.0
 num_excjets = -1
 
 #max_evts = 20000
-max_evts = 10000
+max_evts = 1000
 #max_evts = None
 
 d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 1)
@@ -134,8 +136,8 @@ pt_toys_mean = np.mean(pt_eff_toys)
 pt_toys_std = np.std(pt_eff_toys)
 
 #if mean of toys is biased, also include it as an unc (should be zero)
-eff_stat_unc = (abs(toys_mean - eff_rw)  + toys_std) 
-eff_pt_unc = (abs(pt_toys_mean - eff_rw) + pt_toys_std)
+stat_unc = (abs(toys_mean - eff_rw)  + toys_std) / eff_nom
+pt_unc = (abs(pt_toys_mean - eff_rw) + pt_toys_std) / eff_nom
 
 print("Stat variation toys eff. avg %.3f, std dev %.3f" % (toys_mean, toys_std))
 print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
@@ -157,13 +159,14 @@ def get_uncs(cut, weights_up, weights_down, eff_baseline):
 
 for sys in sys_keys:
     unc_up, unc_down = get_uncs(score_cut, LP_weights[sys + '_up'], LP_weights[sys + '_down'], eff_rw)
-    sys_uncs[sys] = [unc_up, unc_down]
+    sys_uncs[sys] = [unc_up/eff_nom, unc_down/eff_nom]
 
 
 eff_str = "Obs is %s, cut is %.2f \n" %  (tag_obs, score_thresh)
 #Print uncertainty breakdown
-eff_str += "Calibrated efficiency  is %.2f +/- %.2f (stat) +/- %.2f (pt)" % (eff_rw, eff_stat_unc, eff_pt_unc )
-tot_unc_up = tot_unc_down = eff_stat_unc**2 + eff_pt_unc**2
+eff_str += "Original %.2f, Calibrated %.2f \n"  % (eff_nom, eff_rw)
+eff_str += "SF  is %.2f +/- %.2f (stat) +/- %.2f (pt)" % (SF, stat_unc, pt_unc )
+tot_unc_up = tot_unc_down = stat_unc**2 + pt_unc**2
 
 for sys in sys_keys:
     eff_str += " %.2f/%.2f (%s)" % (sys_uncs[sys][0], sys_uncs[sys][1], sys)
@@ -178,7 +181,7 @@ tot_unc_up = tot_unc_up**0.5
 tot_unc_down = tot_unc_down**0.5
 
 #Print final calibrated efficiency and total uncertaintiy
-eff_str += "\n Original %.2f, Calibrated %.2f +%.2f/-%.2f \n"  % (eff_nom, eff_rw, tot_unc_up, tot_unc_down)
+eff_str += "\n SF is %.2f +%.2f/-%.2f \n"  % (SF, tot_unc_up, tot_unc_down)
 
 print(eff_str)
 f_effs = open(options.outdir + "Effs.txt", "w")

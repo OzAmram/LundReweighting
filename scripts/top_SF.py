@@ -293,7 +293,7 @@ print("Stat variation toys eff. avg %.3f, std dev %.3f" % (toys_mean, toys_std))
 print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
 #Add systematic differences in quadrature
-sys_keys = ['sys', 'bquark', 'prongs', 'unclust' ]
+sys_keys = ['sys', 'bquark', 'prongs', 'unclust' , 'distortion']
 sys_uncs = dict()
 
 for sys in sys_keys: sys_uncs[sys] = [0.,0.]

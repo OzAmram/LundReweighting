@@ -8,14 +8,27 @@ parser = input_options()
 parser.add_argument("--LPorder", default=1, type=int,  help="LP max order")
 options = parser.parse_args()
 
+tau43_thresholds = [0.45, 0.55, 0.65, 0.75]
+tau54_thresholds = [0.55, 0.65, 0.75]
+
 print(options)
 
 #UL
 lumi = 59.74
 f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_gen/"
 
-f_pythia = h5py.File(f_dir + "Wkk_pythia.h5", "r")
-f_herwig = h5py.File(f_dir + "Wkk_herwig.h5", "r")
+sig_name = "Wkk"
+title = "Radion (4 pronged)"
+obs = 'tau43'
+thresholds = tau43_thresholds
+
+#sig_name = "YtoHH"
+#title = r"H$\to$tt (6 pronged)"
+#obs = 'tau54'
+#thresholds = tau54_thresholds
+
+f_pythia = h5py.File(f_dir + "%s_pythia_new.h5" %sig_name, "r")
+f_herwig = h5py.File(f_dir + "%s_herwig_new.h5" %sig_name, "r")
 
 
 f_ratio_name = ""
@@ -26,12 +39,8 @@ outdir = options.outdir
 
 do_sys_variations = not (options.no_sys)
 
-tau43_thresholds = [0.45, 0.55, 0.65, 0.75]
 
-title = "Radion (4 pronged)"
 
-obs = 'tau43'
-thresholds = tau43_thresholds
 
 max_evts = None
 pt_extrap_val = 350.
@@ -202,11 +211,14 @@ f_ratio.Close()
 tau21_start = 0.05
 tau32_start = 0.1
 tau43_start = 0.25
+tau54_start = 0.35
 obs_attrs = {
         'mSoftDrop' : (200, 500, 30, "m_{SD} [GeV]", "Events / 4 GeV"),
         'tau21' : (tau21_start, 0.8, 12, r"$\tau_{21}$", "Events  "),
         'tau32' : (tau32_start, 0.9, 15, r"$\tau_{32}$", "Events "),
         'tau43' : (tau43_start, 0.96, 12, r"$\tau_{43}$", "Events "),
+        'tau54' : (tau54_start, 1.05, 12, r"$\tau_{54}$", "Events "),
+        'tau65' : (tau54_start, 1.05, 12, r"$\tau_{65}$", "Events "),
         'nPF' : (0.5, 100.5, 50, "Num. PF Cands.", "Events " ),
         'pt' : (300., 825., 20, r"$p_{T}$", "Events "),
         }
