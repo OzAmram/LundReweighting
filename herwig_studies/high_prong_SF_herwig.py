@@ -6,29 +6,51 @@ from utils.Utils import *
 
 parser = input_options()
 parser.add_argument("--LPorder", default=1, type=int,  help="LP max order")
+parser.add_argument("--reco", default=False, action='store_true',  help="Reco level")
+parser.add_argument("--YtoHH", default=False, action='store_true',  help="YtoHH signal")
 options = parser.parse_args()
 
 tau43_thresholds = [0.45, 0.55, 0.65, 0.75]
 tau54_thresholds = [0.55, 0.65, 0.75]
 
+pt_cut = 1000
+
 print(options)
+
+if(options.YtoHH):
+    sig_name = "YtoHH"
+    title = r"H$\to$tt (6 pronged)"
+    obs = 'tau54'
+    thresholds = tau54_thresholds
+else:
+    sig_name = "Wkk"
+    title = "Radion (4 pronged)"
+    obs = 'tau43'
+    thresholds = tau43_thresholds
+
 
 #UL
 lumi = 59.74
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_gen/"
+if(not options.reco):
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_herwig/"
+    f_pythia = h5py.File(f_dir + "%s_pythia.h5" %sig_name, "r")
+    f_herwig = h5py.File(f_dir + "%s_herwig.h5" %sig_name, "r")
+elif(options.YtoHH):
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/"
+    f_herwig = h5py.File(f_dir + "Lund_output_files_herwig/YtoHH_herwig_reco.h5", "r")
+    f_pythia = h5py.File(f_dir + "Lund_output_files_herwig/YtoHH_pythia_reco.h5", "r")
+else:
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/"
+    f_herwig = h5py.File(f_dir + "Lund_output_files_herwig/Wkk_herwig_reco.h5", "r")
+    f_pythia = h5py.File(f_dir + "Lund_output_files_herwig/Wkk_pythia_reco.h5", "r")
 
-sig_name = "Wkk"
-title = "Radion (4 pronged)"
-obs = 'tau43'
-thresholds = tau43_thresholds
+    #fname = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/WkkToWRadionToWWW_M3000_Mr400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+    #f_pythia = h5py.File(fname, "r")
 
-#sig_name = "YtoHH"
-#title = r"H$\to$tt (6 pronged)"
-#obs = 'tau54'
-#thresholds = tau54_thresholds
+print(f_herwig, f_pythia)
 
-f_pythia = h5py.File(f_dir + "%s_pythia_new.h5" %sig_name, "r")
-f_herwig = h5py.File(f_dir + "%s_herwig_new.h5" %sig_name, "r")
+
+
 
 
 f_ratio_name = ""
@@ -50,21 +72,24 @@ pt_extrap_val = 350.
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
-d_pythia = Dataset(f_pythia, label = "pythia", color = ROOT.kRed,  dtype=1, gen=True)
-d_herwig = Dataset(f_herwig, label = "herwigd", color = ROOT.kRed, dtype=1, gen=True)
+d_pythia = Dataset(f_pythia, label = "pythia", color = ROOT.kRed,  dtype=1, gen=not options.reco)
+d_herwig = Dataset(f_herwig, label = "herwig", color = ROOT.kRed, dtype=1, gen=not options.reco)
 
 
 
 
 
 for d in [d_pythia, d_herwig]:
+    print(list(d.f.keys()))
     jet_kinematics = d.f['jet_kinematics'][:]
     gen_info = d.f['gen_info'][:]
-    gen_pdg_id = np.abs(gen_info[:,2:,3])
+    if(not options.reco): gen_pdg_id = np.abs(gen_info[:,2:,3])
+    else: gen_pdg_id = np.abs(gen_info[:,:,3])
     all_had = np.all(gen_pdg_id < 6, axis=-1)
     d.apply_cut(all_had)
-    #pt_cut_mask = jet_kinematics[:,0] > pt_cut
-    #d.apply_cut(pt_cut_mask)
+    if( not options.reco): pt_cut_mask = jet_kinematics[:,0] > pt_cut
+    else: pt_cut_mask = jet_kinematics[:,2] > pt_cut
+    d.apply_cut(pt_cut_mask)
     d.compute_obs()
     d.nom_weights = d.get_weights()[:max_evts]
 
@@ -217,11 +242,20 @@ obs_attrs = {
         'tau21' : (tau21_start, 0.8, 12, r"$\tau_{21}$", "Events  "),
         'tau32' : (tau32_start, 0.9, 15, r"$\tau_{32}$", "Events "),
         'tau43' : (tau43_start, 0.96, 12, r"$\tau_{43}$", "Events "),
-        'tau54' : (tau54_start, 1.05, 12, r"$\tau_{54}$", "Events "),
-        'tau65' : (tau54_start, 1.05, 12, r"$\tau_{65}$", "Events "),
         'nPF' : (0.5, 100.5, 50, "Num. PF Cands.", "Events " ),
         'pt' : (300., 825., 20, r"$p_{T}$", "Events "),
         }
+
+if(not options.reco):
+    obs_attrs['tau54'] = (tau54_start, 1.05, 12, r"$\tau_{54}$", "Events "),
+    obs_attrs['tau65'] =  (tau54_start, 1.05, 12, r"$\tau_{65}$", "Events "),
+
+else:
+    obs_attrs['ParticleNet_W'] = (0., 1., 15, r"ParticleNet W Tag Score", "Events ")
+    obs_attrs['ParticleNet_H4q'] = (0., 1., 15, r"ParticleNet H4q Tag Score", "Events ")
+    obs_attrs['DeepAK8_W'] = (0., 1., 15, r"DeepAK8 W Tag Score", "Events ")
+    obs_attrs['DeepAK8_W_MD'] = (0., 1., 15, r"DeepAK8 W MD Tag Score", "Events ")
+    obs_attrs['DeepAK8_H4q'] = (0., 1., 15, r"DeepAK8 H4q Tag Score", "Events ")
 labels = ['herwig', 'pythia', 'pythia, reweighted']
 colors = [c_red, c_lightblue, c_purple]
 

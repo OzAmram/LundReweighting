@@ -19,12 +19,44 @@ sys_weights_map = {
         'PS_ISR_down' : 10,
         'PS_FSR_up' : 11,
         'PS_FSR_down' : 12,
-        'F_up' : 13,
-        'F_down' : 14,
-        'R_up' : 15,
-        'R_down' : 16,
-        'RF_up' : 17,
-        'RF_down' : 18,
+
+        #split renorm / fac by process
+        'ttbar_F_up' : 13,
+        'ttbar_F_down' : 14,
+        'ttbar_R_up' : 15,
+        'ttbar_R_down' : 16,
+        'ttbar_RF_up' : 17,
+        'ttbar_RF_down' : 18,
+
+        'QCD_F_up' : 13,
+        'QCD_F_down' : 14,
+        'QCD_R_up' : 15,
+        'QCD_R_down' : 16,
+        'QCD_RF_up' : 17,
+        'QCD_RF_down' : 18,
+
+
+        'tW_F_up' : 13,
+        'tW_F_down' : 14,
+        'tW_R_up' : 15,
+        'tW_R_down' : 16,
+        'tW_RF_up' : 17,
+        'tW_RF_down' : 18,
+
+        'Single_F_up' : 13,
+        'Single_F_down' : 14,
+        'Single_R_up' : 15,
+        'Single_R_down' : 16,
+        'Single_RF_up' : 17,
+        'Single_RF_down' : 18,
+
+        'diboson_F_up' : 13,
+        'diboson_F_down' : 14,
+        'diboson_R_up' : 15,
+        'diboson_R_down' : 16,
+        'diboson_RF_up' : 17,
+        'diboson_RF_down' : 18,
+
         'top_ptrw_up' : 19,
         'top_ptrw_down' : 20,
         'mu_trigger_up': 21,
@@ -54,12 +86,21 @@ sig_sys = {
         'prefire_down' : 4,
         'btag_up' : 7,
         'btag_down' : 8,
-        'F_up' : 13,
-        'F_down' : 14,
-        'R_up' : 15,
-        'R_down' : 16,
-        'RF_up' : 17,
-        'RF_down' : 18,
+
+        'ttbar_F_up' : 13,
+        'ttbar_F_down' : 14,
+        'ttbar_R_up' : 15,
+        'ttbar_R_down' : 16,
+        'ttbar_RF_up' : 17,
+        'ttbar_RF_down' : 18,
+
+        'tW_F_up' : 13,
+        'tW_F_down' : 14,
+        'tW_R_up' : 15,
+        'tW_R_down' : 16,
+        'tW_RF_up' : 17,
+        'tW_RF_down' : 18,
+
         'top_ptrw_up' : 19,
         'top_ptrw_down' : 20,
         'mu_trigger_up': 21,
@@ -160,7 +201,7 @@ class Dataset():
 
     def get_weights(self):
         max_weight = 50.
-        if(self.is_data or self.gen): return np.ones(self.n()) * self.norm_factor
+        if(self.is_data or self.gen or ('norm_weights' not in self.f.keys()) ): return np.ones(self.n()) * self.norm_factor
         weights = self.get_masked('norm_weights') * self.norm_factor
         if(len(self.sys_key) > 0):
             sys_idx = sys_weights_map[self.sys_key]
@@ -183,9 +224,11 @@ class Dataset():
         self.nPF= feats[:,6]
 
         if(not self.gen):
+            if(feats.shape[1] > 7): self.DeepAK8_H4q = feats[:,7]
             if(feats.shape[1] > 8): self.DeepAK8_W_MD = feats[:,8]
             if(feats.shape[1] > 9): self.DeepAK8_W = feats[:,9]
             if(feats.shape[1] > 10): self.ParticleNet_W = feats[:,10]
+            if(feats.shape[1] > 11): self.ParticleNet_H4q = feats[:,11]
         elif(self.gen and feats.shape[1] > 5):
             self.tau54 = (feats[:,4] / (feats[:,3] + eps))
             self.tau65 = (feats[:,5] / (feats[:,4] + eps))
@@ -251,13 +294,17 @@ class Dataset():
 
 
             for sys in sys_variations.keys():
+                sys_idx = sys_weights_map[sys]
                 if('norm' in sys): #normalization uncs split by process
                     process = sys.split("_")[0]
                     if(process in self.label and 'up' in sys): weights_sys = nom_weights * (1. + self.norm_unc)
                     elif(process in self.label and 'down' in sys): weights_sys = nom_weights  * (1. - self.norm_unc)
                     else: weights_sys = nom_weights
+                elif('_F_' in sys or '_R_' in sys or '_RF_' in sys): #renorm / fac uncs split by process
+                    process = sys.split("_")[0]
+                    if(process in self.label): weights_sys = nom_weights * all_sys_weights[:,sys_idx]
+                    else: weights_sys = nom_weights
                 else:
-                    sys_idx = sys_weights_map[sys]
                     weights_sys = nom_weights * all_sys_weights[:, sys_idx]
 
                 weights.append(weights_sys)
@@ -340,10 +387,13 @@ class Dataset():
             gen_parts_eta_phi_raw = gen_parts[:,start:,1:3]
             gen_pdg_id = np.abs(gen_parts[:,start:,3])
             #neutrino pdg ids are 12,14,16
-            not_neutrinos = ((~np.isclose(gen_pdg_id, 12)) & (~np.isclose(gen_pdg_id, 14)) & (~np.isclose(gen_pdg_id, 16)))
-            
-            gen_parts_eta_phi = [gen_parts_eta_phi_raw[i][not_neutrinos[i]] for i in range(n_evts)]
-            gen_pdg_id = [gen_pdg_id[i][not_neutrinos[i]] for i in range(n_evts)]
+            #not_neutrinos = ((~np.isclose(gen_pdg_id, 12)) & (~np.isclose(gen_pdg_id, 14)) & (~np.isclose(gen_pdg_id, 16)))
+            #gen_mask = not_neutrinos
+            is_quark = np.abs(gen_pdg_id) < 6
+            gen_mask = is_quark
+
+            gen_parts_eta_phi = [gen_parts_eta_phi_raw[i][gen_mask[i]] for i in range(n_evts)]
+            gen_pdg_id = [gen_pdg_id[i][gen_mask[i]] for i in range(n_evts)]
             #gen_parts_eta_phi = gen_parts_eta_phi_raw
 
 

@@ -6,6 +6,7 @@ from utils.Utils import *
 
 parser = input_options()
 parser.add_argument("--noBkg", default=False, action='store_true',  help="Ideal case, no unmerged bkg")
+parser.add_argument("--reco", default=False, action='store_true',  help="Reco level")
 parser.add_argument("--LPorder", default=1, type=int,  help="LP max order")
 options = parser.parse_args()
 
@@ -17,11 +18,17 @@ print(options)
 
 #UL
 lumi = 59.74
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_gen/"
+if(not options.reco):
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_herwig/"
+    f_pythia = h5py.File(f_dir + "TT_pythia.h5", "r")
+    f_herwig = h5py.File(f_dir + "TT_herwig.h5", "r")
+else:
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/"
+    f_herwig = h5py.File(f_dir + "Lund_output_files_herwig/TT_herwig_reco.h5", "r")
+    f_pythia = h5py.File(f_dir + "Lund_output_files_2018/TT.h5", "r")
 
 
-f_pythia = h5py.File(f_dir + "TT_pythia.h5", "r")
-f_herwig = h5py.File(f_dir + "TT_herwig.h5", "r")
+
 
 
 
@@ -33,7 +40,7 @@ charge_only = False
 
 
 do_sys_variations = True
-do_plot = False
+do_plot = True
 
 norm = True
 
@@ -224,47 +231,6 @@ if(do_sys_variations and not options.noBkg):
 
 
 
-
-
-if(do_plot):
-    weights_rw = copy.deepcopy(weights_nom)
-
-    LP_weights = []
-    for i,d in enumerate(sigs):
-        d_LP_weights  = d.reweight_LP(LP_rw, nom_ratio,  num_excjets = num_excjets, prefix = CA_prefix)
-        LP_weights.append(d_LP_weights)
-
-        weights_rw[len(bkgs) + i] *= d_LP_weights
-
-
-    make_histogram(LP_weights[0], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 2.0),
-         normalize=False, fname=outdir + "lundPlane_weights.png")
-
-    for l in obs:
-        a = []
-        for i,d in enumerate(bkgs + sigs):
-            a.append(getattr(d, l))
-
-        o_data = getattr(d_herwig, l)
-        if(l == 'mSoftDrop'): 
-            h_range = (m_cut_min, m_cut_max)
-            n_bins_ = n_bins
-            l = 'mass'
-        elif(l == 'nPF'): 
-            h_range = (0.5,120.5)
-            n_bins_ = 40
-        elif(l == 'pt'): 
-            h_range = (pt_cut, 800.)
-            n_bins_ = n_bins
-        elif(l == 'subjet_pt'): 
-            h_range = (0., 800.)
-            n_bins_ = n_bins
-        else: 
-            n_bins_ = n_bins
-            h_range = None
-
-        make_multi_sum_ratio_histogram(data = o_data, entries = a, weights = weights_rw, labels = labels, h_range = h_range, drawSys = False, stack = False, data_label = "herwig",
-                colors = colors, axis_label = l,  title = l + " : LP Reweighting", num_bins = n_bins_, normalize = True, ratio_range = (0.5, 1.5), fname = outdir + l + '_ratio_after.png' )
 
 
 f_out.Close()

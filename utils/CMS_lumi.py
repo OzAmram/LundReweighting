@@ -9,7 +9,6 @@ import ROOT as rt
 cmsText     = "CMS";
 cmsTextFont   = 61  
 
-writeExtraText = False
 extraText   = "Preliminary"
 extraTextFont = 52 
 
@@ -31,7 +30,7 @@ lumi_sqrtS = "(13 TeV)"
 
 drawLogo      = False
 
-def CMS_lumi(pad,  iPeriod,  iPosX ):
+def CMS_lumi(pad,  iPeriod,  iPosX, writeExtraText = False ):
     outOfFrame    = False
     if(iPosX/10==0 ): outOfFrame = True
 

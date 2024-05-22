@@ -89,8 +89,12 @@ d_ttbar_w_match = Dataset(f_ttbar, label = "t#bar{t} : W-matched", color = ROOT.
 d_ttbar_t_match = Dataset(f_ttbar, label = "t#bar{t} : t-matched ", color = ROOT.kBlue-7, jms_corr = jms_corr, dtype = 3)
 d_ttbar_nomatch = Dataset(f_ttbar, label = "t#bar{t} : unmatched", color = ROOT.kGreen-6, jms_corr = jms_corr)
 
+d_tw_w_match = Dataset(f_tw, label = "tW : W-matched", color = ROOT.kMagenta, jms_corr = jms_corr)
+d_tw_nomatch = Dataset(f_tw, label = "tW : unmatched", color = ROOT.kMagenta+3, jms_corr = jms_corr)
+
 
 ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]
+tW_gen_matching = d_tw_w_match.f['gen_parts'][:,0]
 
 #0 is unmatched, 1 is W matched, 2 is top matched
 nomatch_cut = ttbar_gen_matching < 0.1
@@ -101,9 +105,14 @@ d_ttbar_w_match.apply_cut(w_match_cut)
 d_ttbar_t_match.apply_cut(t_match_cut)
 d_ttbar_nomatch.apply_cut(nomatch_cut)
 
+tW_w_match_cut = (tW_gen_matching  > 0.9) &  (tW_gen_matching < 1.1)
+d_tw_w_match.apply_cut(tW_w_match_cut)
+d_tw_nomatch.apply_cut(~tW_w_match_cut)
 
-sigs = [d_ttbar_w_match]
-bkgs = [d_diboson, d_singletop, d_wjets,  d_ttbar_t_match, d_ttbar_nomatch, d_tw]
+
+sigs = [d_ttbar_w_match, d_tw_w_match]
+bkgs = [d_ttbar_nomatch, d_ttbar_t_match, d_tw_nomatch, d_diboson, d_wjets, d_singletop]
+
 tw_idx = len(bkgs)-1
 
 
@@ -118,7 +127,7 @@ jet_kinematics_data= d_data.get_masked('jet_kinematics')
 msd_cut_data = (jet_kinematics_data[:,3] > m_cut_min) & (jet_kinematics_data[:,3] < m_cut_max)
 pt_cut_data = jet_kinematics_data[:,0] > pt_cut
 d_data.compute_kinematics()
-mu_b_dr_cut = d_data.dR_mu_bjet > 0.1
+mu_b_dr_cut = d_data.dR_mu_bjet > dR_mu_bjet_cut
 d_data.apply_cut(msd_cut_data & pt_cut_data & mu_b_dr_cut)
 d_data.compute_obs()
 
@@ -130,7 +139,7 @@ for d in (bkgs + sigs):
     jet_kinematics = d.get_masked('jet_kinematics')
     msd_cut_mask = (jet_kinematics[:,3] * jms_corr > m_cut_min) & (jet_kinematics[:,3] * jms_corr < m_cut_max)
     pt_cut_mask = jet_kinematics[:,0] > pt_cut
-    mu_b_dr_cut = d.dR_mu_bjet > 0.1
+    mu_b_dr_cut = d.dR_mu_bjet > dR_mu_bjet_cut
     d.apply_cut(msd_cut_mask & pt_cut_mask & mu_b_dr_cut)
     d.compute_obs()
 
@@ -144,13 +153,16 @@ num_ttbar_nomatch = np.sum(d_ttbar_nomatch.get_weights())
 num_ttbar_w_match = np.sum(d_ttbar_w_match.get_weights())
 num_ttbar_t_match = np.sum(d_ttbar_t_match.get_weights())
 num_ttbar_tot = num_ttbar_nomatch + num_ttbar_w_match + num_ttbar_t_match
-num_tw = np.sum(d_tw.get_weights())
+num_tw_nomatch = np.sum(d_tw_nomatch.get_weights())
+num_tw_w_match = np.sum(d_tw_w_match.get_weights())
+num_tw = num_tw_nomatch + num_tw_w_match
 
 tot_bkg = 0.
 for d in (d_diboson, d_wjets, d_singletop):
     tot_bkg += np.sum(d.get_weights())
-print("%i data, %.0f ttbar (%.0f unmatched, %.0f W matched, %.0f t matched), %.0f tW %.0f bkg" % ( num_data, num_ttbar_tot,num_ttbar_nomatch, 
-                                                                                          num_ttbar_w_match, num_ttbar_t_match, num_tw, tot_bkg))
+print("%i data, %.0f ttbar (%.0f unmatched, %.0f W matched, %.0f t matched), %.0f tW (%0.f unmatched %.0f W matched) %.0f bkg" % ( num_data, 
+            num_ttbar_tot,num_ttbar_nomatch, num_ttbar_w_match, num_ttbar_t_match, 
+            num_tw, num_tw_nomatch, num_tw_w_match, tot_bkg))
 normalization = num_data  / (num_ttbar_tot + num_tw + tot_bkg)
 print("normalization", normalization)
 
@@ -160,7 +172,7 @@ if(norm):
 
 
 
-obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt", "DeepAK8_W_MD", "DeepAK8_W"]
+obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt", "DeepAK8_W_MD", "DeepAK8_W", "ParticleNet_W"]
 
 obs_attrs = {
         'mSoftDrop' : (60, 110, 25, "m_{SD} [GeV] ", "Events / 2 GeV") if m_cut_max < 200 else (50, 230, 45, "m_{SD} [GeV]", "Events / 4 GeV"),
@@ -171,13 +183,14 @@ obs_attrs = {
         'pt' : (225, 825., 20, "p_{T}", "Events / 30 GeV"),
         'DeepAK8_W' : (0., 1., 20, "DeepAK8 (W vs. QCD)", "Events / 0.05"),
         'DeepAK8_W_MD' : (0., 1., 20, "DeepAK8-MD (W vs. QCD)", "Events / 0.05"),
+        'ParticleNet_W' : (0., 1., 20, "ParticleNet (W vs. QCD)", "Events / 0.05"),
         }
 
 
 colors = []
 weights_nom = []
 labels = []
-sig_idx = -1
+sig_idx = -2
 for d in (bkgs + sigs):
     colors.append(d.color)
     weights_nom.append(d.get_weights())
@@ -204,24 +217,23 @@ uncs = [0.1] * len(bkgs + sigs)
 
 LP_rw = LundReweighter(f_ratio = f_ratio, charge_only = options.charge_only)
 
-tw_LP_weights = d_tw.reweight_all(LP_rw, num_excjets = 2)
+tw_LP_weights = d_tw_w_match.reweight_all(LP_rw)
 
 for key in tw_LP_weights.keys():
     if('nom' in key or 'up' in key or 'down' in key):
-        if(isinstance(tw_LP_weights[key], np.ndarray)) : tw_LP_weights[key] *= d_tw.get_weights()
-weights_rw[-2] = tw_LP_weights['nom']
+        if(isinstance(tw_LP_weights[key], np.ndarray)) : tw_LP_weights[key] *= d_tw_w_match.get_weights()
+weights_rw[-1] = tw_LP_weights['nom']
 
 
-d_sig = sigs[0]
-LP_weights = d_sig.reweight_all(LP_rw)
+LP_weights = d_ttbar_w_match.reweight_all(LP_rw)
 
 make_histogram(LP_weights['nom'], "Reweighting factors", 'b', 'Weight', "Lund Plane Reweighting Factors", 20 , h_range = (0., 5.0),
      normalize=False, fname=outdir + "lundPlane_weights.png")
 
 for key in LP_weights.keys():
     if('nom' in key or 'up' in key or 'down' in key):
-        if(isinstance(LP_weights[key], np.ndarray)) : LP_weights[key] *= d_sig.get_weights()
-weights_rw[-1] = LP_weights['nom']
+        if(isinstance(LP_weights[key], np.ndarray)) : LP_weights[key] *= d_ttbar_w_match.get_weights()
+weights_rw[-2] = LP_weights['nom']
 
 for i in range(len(weights_nom)):
     print(i, np.sum(weights_nom[i]), np.sum(weights_rw[i]))
@@ -377,7 +389,7 @@ for idx,cut in enumerate(cuts):
     tot_unc = (abs(tot_unc_up) + (tot_unc_down))/2.0
     uncs[sig_idx] = tot_unc
     #apply same unc to tW
-    uncs[-2] = tot_unc
+    uncs[-1] = tot_unc
 
 
 f_SFs.close()

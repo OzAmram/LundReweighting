@@ -149,9 +149,7 @@ class LundReweighter():
         #check if each subjet within Delta < 0.2 of a quark 
         is_subjet_matched = [i in matches for i in range(len(subjets))]
         #check if two quarks matched to a given subjet
-        is_subjet_double_matched = [np.sum(matches == i)>2 for i in range(len(subjets))]
-
-        repeats = matches.shape[0] != np.unique(matches).shape[0]
+        is_subjet_double_matched = [np.sum(matches == i)>=2 for i in range(len(subjets))]
 
         return is_subjet_matched, is_subjet_double_matched, subjet_closest_dR
 
@@ -206,7 +204,7 @@ class LundReweighter():
             RO_prongsUp.subjet_match, RO_prongsUp.subjet_double_matched, RO_prongsUp.subjet_dRs = self.check_bad_subjet_matching(gen_particles_eta_phi, RO_prongsUp.subjet)
 
         #Recluster with one less subjet
-        if(RO.badmatch or prongs_down):
+        if((RO.badmatch or prongs_down) and RO.n_prongs > 1):
             RO_prongsDown = ReclusterObj()
             RO_prongsDown.subjet, RO_prongsDown.split = self.get_splittings(pf_cands, num_excjets = RO.n_prongs-1, rescale_subjets = rescale_subjets, 
                     rescale_val = rescale_val, pf_cands_PtEtaPhiE_format = pf_cands_PtEtaPhiE_format)
@@ -236,6 +234,7 @@ class LundReweighter():
 
         if(num_excjets == 0):
             print("Reclustering into 0 subjets?! Something went wrong")
+            exit(1)
             return [],[]
         pjs = []
         pfs_cut = []
@@ -429,11 +428,21 @@ class LundReweighter():
         for (i,j,k) in lp_idxs:
 
             f_str = "func_%s%i_%i" % (sys_str, j,k)
+            covar_str = "func_%scovar_%i_%i" % (sys_str, j,k)
+
             if(f_str in self.func_dict.keys()):
-                f = self.func_dict[f_str]
+                f,covar = self.func_dict[f_str]
             else:
                 f = self.pt_extrap_dir.Get(f_str)
-                self.func_dict[f_str] = f
+                if(not self.pt_extrap_dir.GetListOfKeys().Contains(covar_str)):
+                    print("Missing covariance for pt extrap in LP bin %i, %i! (setting to zero)" % (j,k))
+                    covar = 0.
+                else:
+                    covar_o = self.pt_extrap_dir.Get(covar_str)
+                    covar = covar_o.GetVal()
+                self.func_dict[f_str] = (f,covar)
+
+
             val = f.Eval(1./subjet_pt)
             val = np.clip(val, self.min_rw, self.max_rw)
 
@@ -442,17 +451,48 @@ class LundReweighter():
             if(smeared_rw is not None): smeared_rw *= val
 
             if(pt_rand_noise is not None):
-                for n in range(pt_rand_noise.shape[0]):
-                    pars = array('d')
-                    for p in range(f.GetNpar()):
-                        pnom = f.GetParameter(p)
-                        perr = f.GetParError(p)
-                        pnew = pnom + perr * pt_rand_noise[n, j-1, k-1, p]
-                        pars.append(pnew)
 
-                    smeared_val = f.EvalPar(array('d', [1./subjet_pt]), pars)
-                    smeared_val = np.clip(smeared_val, self.min_rw, self.max_rw)
-                    pt_smeared_rw[n] *= smeared_val
+                #single parameter, vary by unc
+                if(f.GetNpar() <= 1):
+                    pnom = f.GetParameter(0)
+                    perr = f.GetParError(0)
+
+                    for n in range(pt_rand_noise.shape[0]):
+                        pnew = pnom + perr * pt_rand_noise[n, j-1, k-1, 0]
+                        pars = array('d', [pnew])
+
+                        smeared_val = f.EvalPar(array('d', [1./subjet_pt]), pars)
+                        smeared_val = np.clip(smeared_val, self.min_rw, self.max_rw)
+                        pt_smeared_rw[n] *= smeared_val
+
+
+                #two parameters, need to account for covariance
+                elif(f.GetNpar() == 2):
+                    p0 = f.GetParameter(0)
+                    e0 = f.GetParError(0)
+
+                    p1 = f.GetParameter(1)
+                    e1 = f.GetParError(1)
+
+                    cov_mat = np.array([[e0**2, covar], [covar, e1**2]])
+
+                    #Use cholesky decomp to find diagonal basis 
+                    #https://github.com/numpy/numpy/blob/main/numpy/random/_generator.pyx#L3930
+                    l = np.linalg.cholesky(cov_mat)
+                    p_sampled = np.array([p0,p1]) + pt_rand_noise[:,j-1,k-1,:2].dot(l.T)
+
+                    #p_sampled = np.random.multivariate_normal([p0,p1], cov = cov_mat, size = pt_rand_noise.shape[0])
+                    for n in range(pt_rand_noise.shape[0]):
+                        pars = array('d', p_sampled[n])
+
+                        smeared_val = f.EvalPar(array('d', [1./subjet_pt]), pars)
+                        smeared_val = np.clip(smeared_val, self.min_rw, self.max_rw)
+                        pt_smeared_rw[n] *= smeared_val
+                else:
+                    print("Pt extrap function order %i not implemented!" % f.GetNpar())
+                    exit(1)
+
+
 
 
 

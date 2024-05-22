@@ -101,7 +101,7 @@ jet_kinematics_data= d_data.get_masked('jet_kinematics')
 msd_cut_data = (jet_kinematics_data[:,3] > m_cut_min) & (jet_kinematics_data[:,3] < m_cut_max)
 pt_cut_data = jet_kinematics_data[:,0] > pt_cut
 d_data.compute_kinematics()
-mu_b_dr_cut = d_data.dR_mu_bjet > 0.1
+mu_b_dr_cut = d_data.dR_mu_bjet > dR_mu_bjet_cut
 d_data.apply_cut(msd_cut_data & pt_cut_data & mu_b_dr_cut)
 d_data.compute_obs()
 
@@ -113,7 +113,7 @@ for d in (bkgs + sigs):
     jet_kinematics = d.get_masked('jet_kinematics')
     msd_cut_mask = (jet_kinematics[:,3] * jms_corr > m_cut_min) & (jet_kinematics[:,3] * jms_corr < m_cut_max)
     pt_cut_mask = jet_kinematics[:,0] > pt_cut
-    mu_b_dr_cut = d.dR_mu_bjet > 0.1
+    mu_b_dr_cut = d.dR_mu_bjet > dR_mu_bjet_cut
     d.apply_cut(msd_cut_mask & pt_cut_mask & mu_b_dr_cut)
     d.compute_obs()
 

@@ -7,19 +7,21 @@ from utils.Utils import *
 parser = input_options()
 parser.add_argument("--topSF", default=False, action='store_true',  help="Top SF")
 parser.add_argument("--LPorder", default=1, type=int,  help="LP max order")
+parser.add_argument("--reco", default=False, action='store_true',  help="Reco level")
 options = parser.parse_args()
 
 print(options)
 
 #UL
 lumi = 59.74
-f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_gen/"
-
-no_bkg = True
-
-f_pythia = h5py.File(f_dir + "TT_pythia.h5", "r")
-f_herwig = h5py.File(f_dir + "TT_herwig.h5", "r")
-
+if(not options.reco):
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/Lund_output_files_herwig/"
+    f_pythia = h5py.File(f_dir + "TT_pythia.h5", "r")
+    f_herwig = h5py.File(f_dir + "TT_herwig.h5", "r")
+else:
+    f_dir = "/uscms_data/d3/oamram/CASE_analysis/src/CASE/LundReweighting/"
+    f_herwig = h5py.File(f_dir + "Lund_output_files_herwig/TT_herwig_reco.h5", "r")
+    f_pythia = h5py.File(f_dir + "Lund_output_files_2018_new/TT.h5", "r")
 
 f_ratio_name = ""
 if(options.fin != ""): f_ratio_name = options.fin
@@ -37,11 +39,11 @@ tau32_thresholds = [0.3, 0.4, 0.5]
 
 if(not os.path.exists(outdir)): os.system("mkdir " + outdir)
 
-d_pythia_w_match = Dataset(f_pythia, label = "pythia : W-matched", color = ROOT.kRed, is_data = True)
-d_pythia_t_match = Dataset(f_pythia, label = "pythia : t-matched ", color = ROOT.kOrange-3, is_data = True)
+d_pythia_w_match = Dataset(f_pythia, label = "pythia : W-matched", color = ROOT.kRed, is_data = True, gen = not options.reco)
+d_pythia_t_match = Dataset(f_pythia, label = "pythia : t-matched ", color = ROOT.kOrange-3, is_data = True, gen = not options.reco)
 
-d_herwig_w_match = Dataset(f_herwig, label = "herwig : W-matched", color = ROOT.kRed, is_data = True)
-d_herwig_t_match = Dataset(f_herwig, label = "herwig : t-matched ", color = ROOT.kOrange-3, is_data = True)
+d_herwig_w_match = Dataset(f_herwig, label = "herwig : W-matched", color = ROOT.kRed, is_data = True, gen = not options.reco)
+d_herwig_t_match = Dataset(f_herwig, label = "herwig : t-matched ", color = ROOT.kOrange-3, is_data = True, gen = not options.reco)
 
 
 pythia_gen_matching = d_pythia_w_match.f['gen_parts'][:,0]
@@ -76,7 +78,7 @@ else:
 
 
 for d in [d_pythia, d_herwig]:
-    jet_kinematics = d.f['jet_kinematics'][:]
+    jet_kinematics = d.get_masked('jet_kinematics')
     pt_cut_mask = jet_kinematics[:,0] > pt_cut
     d.apply_cut(pt_cut_mask)
     d.compute_obs()
@@ -88,7 +90,8 @@ print("%i pythia, %i herwig evts" % (len(d_pythia.nom_weights), len(d_herwig.nom
 LP_rw = LundReweighter(jetR = jetR, f_ratio = f_ratio, charge_only = options.charge_only, LP_order = options.LPorder)
 
 #don't do distortion sys for W's
-LP_weights = d_pythia.reweight_all(LP_rw, do_sys_weights = do_sys_variations, distortion_sys = options.topSF)
+#LP_weights = d_pythia.reweight_all(LP_rw, do_sys_weights = do_sys_variations, distortion_sys = options.topSF)
+LP_weights = d_pythia.reweight_all(LP_rw, do_sys_weights = do_sys_variations)
 
 for key in LP_weights.keys():
     if('nom' in key or 'up' in key or 'down' in key):
@@ -162,7 +165,8 @@ for idx in range(len(pythia_cuts)):
 
     #Add systematic differences in quadrature
     sys_keys = ['sys', 'bquark', 'prongs', 'unclust']
-    if(options.topSF): sys_keys.append('distortion')
+    #if(options.topSF): sys_keys.append('distortion')
+    sys_keys.append('distortion')
     sys_uncs = dict()
 
     diffs_up = np.abs(LP_weights['nom'] - LP_weights['prongs_up'])
@@ -228,6 +232,13 @@ obs_attrs = {
         'nPF' : (0.5, 100.5, 50, "Num. PF Cands.", "Events " ),
         'pt' : (pt_cut, 825., 20, r"$p_{T}$", "Events "),
         }
+if(options.reco):
+    obs_attrs['ParticleNet_W'] = (0., 1., 15, r"ParticleNet W Tag Score", "Events ")
+    obs_attrs['ParticleNet_H4q'] = (0., 1., 15, r"ParticleNet H4q Tag Score", "Events ")
+    obs_attrs['DeepAK8_W'] = (0., 1., 15, r"DeepAK8 W Tag Score", "Events ")
+    obs_attrs['DeepAK8_W_MD'] = (0., 1., 15, r"DeepAK8 W MD Tag Score", "Events ")
+    obs_attrs['DeepAK8_H4q'] = (0., 1., 15, r"DeepAK8 H4q Tag Score", "Events ")
+
 labels = ['herwig', 'pythia', 'pythia, reweighted']
 colors = [c_red, c_lightblue, c_purple]
 

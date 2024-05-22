@@ -40,6 +40,7 @@ f_ratio.Write()
 
 
 
+max_order = 1
 write_out = True
 diffs = []
 x_bin1 = 2
@@ -48,6 +49,7 @@ base_order = 0
 
 ROOT.gStyle.SetOptFit(1110)
 order_dict = {0:0, 1:0, 2:0, 3:0, 4:0}
+lin_orders = []
 
 ratio_max = 20.0
 
@@ -62,8 +64,8 @@ for h in [h_nom, h_up, h_down]:
 
     for j in range(1,h.GetNbinsY()+1):
         for k in range(1,h.GetNbinsZ()+1):
-    #for j in [5]:
-        #for k in [8]:
+    #for j in [4]:
+        #for k in [10]:
             x = array('d')
             ex_up = array('d')
             ex_down = array('d')
@@ -140,7 +142,7 @@ for h in [h_nom, h_up, h_down]:
                     if(order == base_order or (F_prob < thresh)):
                         #This order is preferred
                         #if( (nbin - order) <= 1 or chi2_new / (nbin - order) < 1.1):
-                        if( (nbin - order) <= 1 or chi2_prob > 0.3):
+                        if( (nbin - order) <= 1 or chi2_prob > 0.3 or order >= max_order):
                         #if( (nbin - order) <= 1):
                             #stop now
                             break
@@ -157,14 +159,22 @@ for h in [h_nom, h_up, h_down]:
 
                 if(h is h_nom and nbin > 2):
                     order_dict [order] += 1
+                if(order == 1):
+                    lin_orders.append((j,k))
 
 
                 if(write_out):
                     func = create_func(order, fit_label)
                     fit_res = g.Fit(func, "0 S +")
+                    cov = fit_res.GetCovarianceMatrix()
+                    covar_val = ROOT.TMatrixDRow(cov, 0)(1)
+                    covar = ROOT.TParameter("float")(func_name_base +"covar_%i_%i" % (j,k), covar_val)
+
+                    print('covariance :', covar_val)
 
                     f_ratio.cd("pt_extrap")
                     func.SetName(func_name_base + ("%i_%i" % (j,k)) )
+                    covar.Write()
                     func.Write()
 
                     if(h is h_nom):
@@ -186,5 +196,7 @@ for h in [h_nom, h_up, h_down]:
 
 print("Summary of functional orders:")
 print(order_dict)
+print("Linear order keys")
+print(lin_orders)
 f_ratio.Write()
 f_ratio.Close()

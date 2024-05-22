@@ -418,7 +418,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
         print(histlist)
         return 0
 
-    tdrstyle.setTDRStyle()
+    setTDRStyle()
 
     myCan = ROOT.TCanvas(name,name,width,height)
     myCan.Divide(padx,pady)
@@ -775,11 +775,11 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
                 if(prelim): 
                     print("Prelim")
-                    CMS_lumi.writeExtraText = True
-                else: CMS_lumi.writeExtraText = False
+                    writeExtraText = True
+                else: writeExtraText = False
                 if(CMS_align_right): CMS_loc = 33
                 else: CMS_loc = 11
-                CMS_lumi.CMS_lumi(mains[hist_index], year, CMS_loc)
+                CMS_lumi(mains[hist_index], year, CMS_loc, writeExtraText = writeExtraText)
 
     print("Creating " + fname)
     myCan.Print(fname)
