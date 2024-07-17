@@ -53,8 +53,12 @@ d_ttbar_w_match = Dataset(f_ttbar, label = "t#bar{t} : W-matched", color = ROOT.
 d_ttbar_t_match = Dataset(f_ttbar, label = "t#bar{t} : t-matched ", color = ROOT.kBlue-7, dtype = 3)
 d_ttbar_nomatch = Dataset(f_ttbar, label = "t#bar{t} : unmatched", color = ROOT.kGreen-6, )
 
+d_tw_w_match = Dataset(f_tw, label = "tW : W-matched", color = ROOT.kMagenta )
+d_tw_nomatch = Dataset(f_tw, label = "tW : unmatched", color = ROOT.kMagenta+3) 
+
 
 ttbar_gen_matching = d_ttbar_w_match.f['gen_parts'][:,0]
+tW_gen_matching = d_tw_w_match.f['gen_parts'][:,0]
 
 #0 is unmatched, 1 is W matched, 2 is top matched
 nomatch_cut = ttbar_gen_matching < 0.1
@@ -65,9 +69,14 @@ d_ttbar_w_match.apply_cut(w_match_cut)
 d_ttbar_t_match.apply_cut(t_match_cut)
 d_ttbar_nomatch.apply_cut(nomatch_cut)
 
-samples = [d_diboson, d_singletop, d_wjets, d_ttbar_t_match, d_ttbar_nomatch, d_ttbar_w_match, d_tw]
+tW_w_match_cut = (tW_gen_matching  > 0.9) &  (tW_gen_matching < 1.1)
+d_tw_w_match.apply_cut(tW_w_match_cut)
+d_tw_nomatch.apply_cut(~tW_w_match_cut)
 
-m_cut_min = 50.
+
+samples = [d_diboson, d_singletop, d_wjets, d_ttbar_t_match, d_ttbar_nomatch, d_tw_nomatch, d_ttbar_w_match, d_tw_w_match]
+
+m_cut_min = 60.
 m_cut_max = 250.
 #m_cut_max = 65.
 pt_cut = 225.
@@ -81,9 +90,26 @@ for d in (samples + [d_data]):
     pt_cut_mask = jet_kinematics[:,0] > pt_cut
     d.apply_cut(msd_cut_mask & pt_cut_mask)
     d.compute_kinematics()
-    d.apply_cut(d.dR_mu_bjet > 0.1)
+    d.apply_cut(d.dR_mu_bjet > dR_mu_bjet_cut)
     d.compute_kinematics()
     d.compute_obs()
+
+
+tot_data = np.sum(d_data.get_weights())
+print(tot_data)
+
+tot_mc = 0.
+for d in (samples):
+    tot_mc += np.sum(d.get_weights())
+
+norm = tot_data / tot_mc
+
+print("Norm is %.2f" % norm)
+
+
+for d in (samples):
+    d.norm_factor *= norm
+
 
 
 obs = ["mSoftDrop", "mu_pt", "mu_eta", "mu_phi", "met_pt", "w_cand_pt", "bjet_pt", "bjet_eta", "bjet_phi", 
@@ -95,13 +121,13 @@ obs_attrs = {
         'mu_eta' : (-2.4, 2.4, 20, "Muon #eta", "Events / bin"),
         'mu_phi' : (-pi, pi, 20, "Muon #phi", "Events / bin"),
         'met_pt' : (50, 500., 20, "MET [GeV]", "Events / bin"),
-        'w_cand_pt' : (80, 500., 20, "Leptonic W Cand. p_{T} [GeV]", "Events / bin"),
+        'w_cand_pt' : (100, 500., 20, "Leptonic W Cand. p_{T} [GeV]", "Events / bin"),
         'bjet_pt' : (50, 500., 20, "AK4 jet p_{T} [GeV]", "Events / bin"),
         'bjet_eta' : (-2.4, 2.4, 20, "AK4 jet  #eta", "Events / bin"),
         'bjet_phi' : (-pi, pi, 20, "AK4 jet #phi", "Events / bin"),
         'ak8_eta' : (-2.4, 2.4, 20, "AK8 jet  #eta", "Events / bin"),
         'ak8_phi' : (-pi, pi, 20, "AK8 jet #phi", "Events / bin"),
-        'mSoftDrop' : (60, 110, 25, "m_{SD} [GeV] ", "Events / 2 GeV") if m_cut_max < 200 else (50, 230, 45, "m_{SD} [GeV]", "Events / 4 GeV"),
+        'mSoftDrop' : (60, 110, 25, "m_{SD} [GeV] ", "Events / 2 GeV") if m_cut_max < 200 else (60, 240, 45, "m_{SD} [GeV]", "Events / 4 GeV"),
         'ak8_pt' : (225, 825., 20, "AK8 Jet p_{T} [GeV]", "Events / 30 GeV"),
         'dphi_mu_ak8' : (0, pi, 20, "Muon - AK8 jet |#Delta#phi|", "Events / bin"),
         'dphi_mu_bjet' : (0, pi, 20, "Muon - AK4 jet |#Delta#phi|", "Events / bin"),

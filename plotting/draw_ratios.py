@@ -58,13 +58,14 @@ options = parser.parse_args()
 
 out_dir = options.outdir
 if(not os.path.exists(out_dir)): os.system("mkdir " + out_dir)
-tdrstyle.setTDRStyle()
+setTDRStyle()
 
-#fnames = ["data/ratio_2018.root", "data/ratio_2017.root", "data/ratio_2016.root"]
-#weights = [59.74, 41.4, 35.9]
+fnames = ["data/ratio_2018.root", "data/ratio_2017.root", "data/ratio_2016.root"]
+#fnames = ["plots/top_RW_2018_june12/ratio.root", "plots/top_RW_2017_june12/ratio.root", "plots/top_RW_2016_june12/ratio.root"]
+weights = [59.74, 41.4, 35.9]
 
-fnames = ["plots/herwig_rw_W_may1/ratio.root"]
-weights = [1.0]
+#fnames = ["plots/herwig_rw_W_may1/ratio.root"]
+#weights = [1.0]
 #fname = "W_RW_2017_june30/ratio.root"
 
 h_3d = h_sys_up = h_sys_down = None
@@ -118,9 +119,8 @@ ext = ".png"
 ROOT.gStyle.SetPalette(ROOT.kViridis)
 
 
-pt_bin_labels = [ "0 < p_{T} < 50", " 50 < p_{T} < 100", "100 < p_{T} < 175", "175 < p_{T} < 250", "250 < p_{T} < 350", " p_{T} > 350"]
+pt_bin_labels = [ "15 < p_{T} < 65", " 65 < p_{T} < 110", "110 < p_{T} < 175", "175 < p_{T} < 240", "240 < p_{T} < 300", " p_{T} > 300"]
 
-pt_bins = array('f', [0., 50., 100., 175., 250., 350., 99999.])
 
 
 latex = ROOT.TLatex()
@@ -158,7 +158,7 @@ for i in range(1,h_3d.GetNbinsX()+1):
     style(h_ratio_proj)
     style(h_ratio_unc)
 
-    CMS_lumi.writeExtraText = True
+    writeExtraText = True
     CMS_loc = 11
     #period = -1
     period = 0
@@ -190,7 +190,7 @@ for i in range(1,h_3d.GetNbinsX()+1):
     c_ratio = ROOT.TCanvas("c_unc", "", 1000, 800)
 
     min_dR = 0.005
-    min_kt = 0.002
+    min_kt = 0.02
     max_x = np.log(0.8/min_dR)
     min_y = np.log(min_kt)
 
@@ -226,7 +226,7 @@ for i in range(1,h_3d.GetNbinsX()+1):
     leg.Draw()
 
     c_ratio.SetRightMargin(0.2)
-    CMS_lumi.CMS_lumi(c_ratio, period, CMS_loc)
+    CMS_lumi(c_ratio, period, CMS_loc, writeExtraText = True)
     c_ratio.Print(out_dir + ("lundPlane_bin%i_ratio" % i) + ext)
 
 

@@ -11,6 +11,7 @@ parser.add_argument("--YtoHH", default=False, action='store_true',  help="YtoHH 
 options = parser.parse_args()
 
 tau43_thresholds = [0.45, 0.55, 0.65, 0.75]
+DeepH4q_thresholds = [0.3, 0.4, 0.6, 0.7]
 tau54_thresholds = [0.55, 0.65, 0.75]
 
 pt_cut = 1000
@@ -19,14 +20,22 @@ print(options)
 
 if(options.YtoHH):
     sig_name = "YtoHH"
-    title = r"H$\to$tt (6 pronged)"
-    obs = 'tau54'
-    thresholds = tau54_thresholds
+    title = r"H$\to t\bar{t}$ (6 pronged)"
+    if(options.reco):
+        obs = 'DeepAK8_H4q'
+        thresholds = DeepH4q_thresholds
+    else:
+        obs = 'tau54'
+        thresholds = tau54_thresholds
 else:
     sig_name = "Wkk"
-    title = "Radion (4 pronged)"
-    obs = 'tau43'
-    thresholds = tau43_thresholds
+    title = r"R $\to WW$ (4 pronged)"
+    if(options.reco):
+        obs = 'DeepAK8_H4q'
+        thresholds = DeepH4q_thresholds
+    else:
+        obs = 'tau43'
+        thresholds = tau43_thresholds
 
 
 #UL
@@ -65,7 +74,6 @@ do_sys_variations = not (options.no_sys)
 
 
 max_evts = None
-pt_extrap_val = 350.
 
 
 
@@ -96,7 +104,7 @@ for d in [d_pythia, d_herwig]:
 nom_weights = d_pythia.nom_weights
 print("%i pythia, %i herwig evts" % (len(d_pythia.nom_weights), len(d_herwig.nom_weights)))
 
-LP_rw = LundReweighter(jetR = jetR, f_ratio = f_ratio, charge_only = options.charge_only, LP_order = options.LPorder, pt_extrap_val = pt_extrap_val)
+LP_rw = LundReweighter(jetR = jetR, f_ratio = f_ratio, charge_only = options.charge_only, LP_order = options.LPorder )
 
 LP_weights = d_pythia.reweight_all(LP_rw, do_sys_weights = do_sys_variations, max_evts = max_evts)
 
@@ -135,8 +143,8 @@ pt_bins = array('d', np.linspace(0., 800., num_bins + 1))
 h_subjet_pts = make_root_hist(data = subjet_pts, name = 'h_W_subjetpt', num_bins = num_bins, bins = pt_bins)
 
 #compute 'Scalefactor'
-pythia_cuts = [getattr(d_pythia, obs)[:max_evts] < thresh for thresh in thresholds]
-herwig_cuts = [getattr(d_herwig, obs)[:max_evts] < thresh for thresh in thresholds]
+pythia_cuts = [getattr(d_pythia, obs)[:max_evts] < thresh for thresh in thresholds] if 'Deep' not in obs else  [getattr(d_pythia, obs)[:max_evts] > thresh for thresh in thresholds]
+herwig_cuts = [getattr(d_herwig, obs)[:max_evts] < thresh for thresh in thresholds] if 'Deep' not in obs else  [getattr(d_herwig, obs)[:max_evts] > thresh for thresh in thresholds]
 
 f_effs = open(options.outdir + "Effs.txt", "w")
 
@@ -238,12 +246,12 @@ tau32_start = 0.1
 tau43_start = 0.25
 tau54_start = 0.35
 obs_attrs = {
-        'mSoftDrop' : (200, 500, 30, "m_{SD} [GeV]", "Events / 4 GeV"),
-        'tau21' : (tau21_start, 0.8, 12, r"$\tau_{21}$", "Events  "),
-        'tau32' : (tau32_start, 0.9, 15, r"$\tau_{32}$", "Events "),
-        'tau43' : (tau43_start, 0.96, 12, r"$\tau_{43}$", "Events "),
-        'nPF' : (0.5, 100.5, 50, "Num. PF Cands.", "Events " ),
-        'pt' : (300., 825., 20, r"$p_{T}$", "Events "),
+        'mSoftDrop' : (200, 500, 30, r"$m_\mathrm{SD}$ [GeV]", "Events / 4 GeV", 'upper left'),
+        'tau21' : (tau21_start, 0.8, 12, r"$\tau_{21}$", "Events  ", 'upper left'),
+        'tau32' : (tau32_start, 0.9, 15, r"$\tau_{32}$", "Events ", 'upper left'),
+        'tau43' : (tau43_start, 0.96, 12, r"$\tau_{43}$", "Events ", 'upper left'),
+        'nPF' : (0.5, 100.5, 50, "Num. PF Cands.", "Events ", 'upper left' ),
+        'pt' : (300., 825., 20, r"$p_{T}$", "Events ", 'upper left'),
         }
 
 if(not options.reco):
@@ -251,11 +259,11 @@ if(not options.reco):
     obs_attrs['tau65'] =  (tau54_start, 1.05, 12, r"$\tau_{65}$", "Events "),
 
 else:
-    obs_attrs['ParticleNet_W'] = (0., 1., 15, r"ParticleNet W Tag Score", "Events ")
-    obs_attrs['ParticleNet_H4q'] = (0., 1., 15, r"ParticleNet H4q Tag Score", "Events ")
-    obs_attrs['DeepAK8_W'] = (0., 1., 15, r"DeepAK8 W Tag Score", "Events ")
-    obs_attrs['DeepAK8_W_MD'] = (0., 1., 15, r"DeepAK8 W MD Tag Score", "Events ")
-    obs_attrs['DeepAK8_H4q'] = (0., 1., 15, r"DeepAK8 H4q Tag Score", "Events ")
+    obs_attrs['ParticleNet_W'] = (0., 1., 15, r"ParticleNet W Tag Score", "Events ", 'upper left')
+    obs_attrs['ParticleNet_H4q'] = (0., 1., 15, r"ParticleNet H4q Tag Score", "Events ", 'upper left')
+    obs_attrs['DeepAK8_W'] = (0., 1., 15, r"DeepAK8 W Tag Score", "Events ", 'upper left')
+    obs_attrs['DeepAK8_W_MD'] = (0., 1., 15, r"DeepAK8 W MD Tag Score", "Events ", 'upper left')
+    obs_attrs['DeepAK8_H4q'] = (0., 1., 15, r"DeepAK8 H4q Tag Score", "Events ", 'upper left')
 labels = ['herwig', 'pythia', 'pythia, reweighted']
 colors = [c_red, c_lightblue, c_purple]
 
@@ -274,10 +282,10 @@ for l in obs_attrs.keys():
     print(l)
     a = []
 
-    low,high, nbins_, label, ylabel = obs_attrs.get(l, (None, None, 20, l, ""))
+    low,high, nbins_, label, ylabel, leg_loc = obs_attrs.get(l, (None, None, 20, l, "", "best"))
     obs = [getattr(d_herwig, l)[:max_evts], getattr(d_pythia, l)[:max_evts], getattr(d_pythia, l)[:max_evts]]
 
     make_herwig_ratio_histogram(obs, weights = hist_weights, sys_weights = hist_sys_weights, stat_weights = hist_stat_weights, first_like_data = True, 
-            labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high),
+            labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high), leg_loc = leg_loc,
             normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir + l + "_cmp.png" )
 

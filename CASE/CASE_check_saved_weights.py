@@ -1,5 +1,7 @@
-from Utils import *
-import os
+import sys, os
+sys.path.insert(0, '')
+sys.path.append("../")
+from utils.Utils import *
 
 
 
@@ -9,10 +11,11 @@ options = parser.parse_args()
 
 outdir = options.outdir
 if(not os.path.exists(outdir)): os.system("mkdir %s" % outdir)
-jet_str = 'CA'
 
 #fname = "test_signal_CASE.h5"
-fname = "/eos/uscms/store/user/oamram/case/sig_files/LundRW/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+#fname = "test_signal_CASE.h5"
+#fname = "/eos/uscms/store/user/oamram/case/sig_files/LundRW/XToYYprimeTo4Q_MX3000_MY170_MYprime170_narrow_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5"
+fname = options.fin
 label = "XtoYY"
 
 f_sig = h5py.File(fname, "r")
@@ -57,9 +60,6 @@ weights_pt = d.f['lund_weights_pt_var'][:max_evts]
 #multiply sys variations  by nominal weight
 weights_sys = d.f['lund_weights_sys_var'][:max_evts] * np.expand_dims(weights_rw, -1)
 
-#matching unc (single number)
-bad_match_frac = d.f['lund_weights_matching_unc'][0]
-
 
 #compute nominal 'Scalefactor' for our selection
 eff_nom = np.average(score_cut, weights = weights_nom)
@@ -93,44 +93,52 @@ pt_toys_std = np.std(pt_eff_toys)
 
 print("Pt variation toys avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
-SF_stat_unc = abs(toys_mean - eff_rw)/eff_nom + toys_std /eff_nom
-SF_pt_unc = abs(pt_toys_mean - eff_rw)/eff_nom + pt_toys_std /eff_nom
+sf_stat_unc = abs(toys_mean - eff_rw)/eff_nom + toys_std /eff_nom
+sf_pt_unc = abs(pt_toys_mean - eff_rw)/eff_nom + pt_toys_std /eff_nom
+
+sys_keys = ['sys', 'bquark', 'prongs', 'unclust' , 'distortion']
+sys_uncs = dict()
+
+for sys in sys_keys: sys_uncs[sys] = [0.,0.]
+
+#Compute difference in efficiency due to weight variations as uncertainty
+def get_uncs(score_cut, weights_up, weights_down, eff_baseline):
+    eff_up =  np.average(score_cut, weights = weights_up)
+    eff_down =  np.average(score_cut, weights = weights_down)
+
+    unc_up = eff_up - eff_baseline
+    unc_down = eff_down - eff_baseline 
+    return unc_up, unc_down
+
+for j,sys in enumerate(sys_keys):
+    unc_up, unc_down = get_uncs(score_cut, weights_sys[:,j], weights_sys[:,j+1], eff_rw)
+    sys_uncs[sys] = [unc_up/eff_nom, unc_down/eff_nom]
 
 
-#Compute systematics for two up/down variations
-sys_unc_up = sys_unc_down = 0.
+sf_nom = eff_rw / eff_nom
 
-#Regular sys unc. on Lund Plane
-eff_sys_tot_up = np.average(score_cut, weights = weights_sys[:,0])
-eff_sys_tot_down = np.average(score_cut, weights = weights_sys[:,1])
-SF_sys_unc_up = abs(eff_sys_tot_up - eff_rw)/eff_nom
-SF_sys_unc_down = abs(eff_sys_tot_down - eff_rw)/eff_nom
-SF_sys_unc = (SF_sys_unc_up + SF_sys_unc_down) / 2.0
+SF_str = "SF is %.2f +/- %.2f (stat) +/- %.2f (pt)" % (sf_nom, sf_stat_unc, sf_pt_unc )
+tot_unc_up = tot_unc_down = sf_stat_unc**2 + sf_pt_unc**2
 
-#b-quark specific variations
-eff_bquark_up = np.average(score_cut, weights = weights_sys[:,2])
-eff_bquark_down = np.average(score_cut, weights = weights_sys[:,3])
-SF_bquark_up = abs(eff_bquark_up - eff_rw)/eff_nom
-SF_bquark_down = abs(eff_bquark_down - eff_rw)/eff_nom
-SF_bquark_unc = (SF_bquark_up + SF_bquark_down) /2.0
+for sys in sys_keys:
+    SF_str += " %.2f/%.2f (%s)" % (sys_uncs[sys][0], sys_uncs[sys][1], sys)
+    up_var = max(sys_uncs[sys][0], sys_uncs[sys][1])
+    down_var = min(sys_uncs[sys][0], sys_uncs[sys][1])
+    tot_unc_up += up_var**2
+    tot_unc_down += down_var**2
 
-#fraction of evts with bad match, take as fractional unc on SF
-bad_matching_unc =  bad_match_frac * SF
+tot_unc_up = tot_unc_up**0.5
+tot_unc_down = tot_unc_down**0.5
 
-print("\n\nSF (%s val %.2f ) is %.2f +/- %.2f  (stat) +/- %.2f (sys) +/- %.2f (pt) +/- %.2f (bquark) +/- %.2f (matching) \n\n"  
-        % (tag_obs, score_thresh, SF, SF_stat_unc, SF_sys_unc, SF_pt_unc, SF_bquark_unc, bad_matching_unc))
-
-
-overall_unc = (SF_stat_unc **2 + SF_sys_unc**2 + SF_pt_unc**2 + SF_bquark_unc**2 + bad_matching_unc**2) **0.5 
-print("overall unc +/- %.3f" % overall_unc)
-
+SF_str += "\n Overall %.2f +%.2f/-%.2f \n\n"  % (sf_nom, tot_unc_up, tot_unc_down)
+print(SF_str)
 
 
 #Make plots of different observables before vs after reweighting
 #also include up/down shape variations from the sys variation 
-weights = [  weights_nom, weights_rw, weights_sys[:,0], weights_sys[:,1]]
-labels = ["Nom", "RW", "RW Sys. Up", "RW Sys. Down"]
-colors = ['gray','black', 'blue', 'red']
+weights = [  weights_nom, weights_rw, weights_sys[:,0], weights_sys[:,1],  weights_sys[:,4], weights_sys[:,5], weights_sys[:,6], weights_sys[:,7], weights_sys[:,8], weights_sys[:,9],]
+labels = ["Nom", "RW", "RW Sys. Up", "RW Sys. Down", "RW prongs up", "RW prongs down", "RW unclust up", "RW unclust down", "RW distort up", "RW distort down"]
+colors = ['gray','black', 'blue', 'blue', 'red', 'red', 'green', 'green', 'purple', 'purple']
 ratio_range = [0.5, 1.5]
 
 
@@ -145,6 +153,6 @@ for l in obs:
 
     x = getattr(d,l)[:max_evts]
 
-    make_multi_ratio_histogram([x]*4, labels, colors, l, "%s : Before vs. After Lund Plane Reweighting" % l, n_bins,
+    make_multi_ratio_histogram([x]*len(weights), labels, colors, l, "%s : Before vs. After Lund Plane Reweighting" % l, n_bins,
          ratio_range = ratio_range, normalize=True, weights = weights, fname=outdir + "%s_before_vs_after.png" %l )
 

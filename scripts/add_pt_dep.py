@@ -24,8 +24,11 @@ parser = input_options()
 parser.add_argument("--herwig", default=False, action='store_true',  help="Pythia herwig ratio (less sys)")
 options = parser.parse_args()
 
+non_const_plots = False
+
 print(options)
 if(not os.path.exists(options.outdir)): os.system("mkdir %s" % options.outdir)
+else: os.system("rm %s/*" % options.outdir)
 
 
 f_ratio = ROOT.TFile.Open(options.fin, "UPDATE")
@@ -40,7 +43,7 @@ f_ratio.Write()
 
 
 
-max_order = 1
+max_order = 2
 write_out = True
 diffs = []
 x_bin1 = 2
@@ -54,6 +57,7 @@ lin_orders = []
 ratio_max = 20.0
 
 for h in [h_nom, h_up, h_down]:
+#for h in [h_nom]:
 
     func_name_base = "func_"
     if(not isinstance(h, ROOT.TH3)): 
@@ -64,8 +68,8 @@ for h in [h_nom, h_up, h_down]:
 
     for j in range(1,h.GetNbinsY()+1):
         for k in range(1,h.GetNbinsZ()+1):
-    #for j in [4]:
-        #for k in [10]:
+    #for j in [10]:
+        #for k in [6]:
             x = array('d')
             ex_up = array('d')
             ex_down = array('d')
@@ -73,7 +77,7 @@ for h in [h_nom, h_up, h_down]:
             ey = array('d')
             nbin = 0
             for i in range(1,h.GetNbinsX()+1):
-                eps = 1e-6
+                eps = 1e-4
 
                 c1 = h.GetBinContent(i,j,k)
                 e1 = h.GetBinError(i,j,k)
@@ -90,14 +94,14 @@ for h in [h_nom, h_up, h_down]:
 
                 center = h.GetXaxis().GetBinCenter(i)
                 width = h.GetXaxis().GetBinWidth(i)
-                if(center > 300):
+                if(center >= 290):
                     #center overflow bin on range of actual data
-                    center = 400
+                    center = 350
                     width = 50
 
 
                 x_val = transform(center)
-                xmin = transform(max(center - width/2., 5.))
+                xmin = transform(max(center - width/2., 20.))
                 xmax = transform(center + width/2.)
                 x_err_up = abs(x_val - xmax)
                 x_err_down = abs(x_val - xmin)
@@ -105,12 +109,15 @@ for h in [h_nom, h_up, h_down]:
                 if(xmin > xmax): x_err_up, x_err_down = x_err_down, x_err_up
 
                 x.append(x_val)
-                ex_up.append(x_err_up)
-                ex_down.append(x_err_down)
+                #ex_up.append(x_err_up)
+                #ex_down.append(x_err_down)
+                ex_up.append(0.0)
+                ex_down.append(0.0)
                 y.append(c1)
                 ey.append(e1)
 
             if(len(x) > 1):
+                print(x,y,ex_up, ey)
 
                 g = ROOT.TGraphAsymmErrors(len(x), x, y, ex_down, ex_up, ey, ey)
                 order = base_order
@@ -124,7 +131,7 @@ for h in [h_nom, h_up, h_down]:
                     g_clone = g.Clone(g.GetName() + "clone")
 
                     func = create_func(order, fit_label)
-                    fit_res = g_clone.Fit(func, "0 S +")
+                    fit_res = g_clone.Fit(func, "0 S E EX0 +")
                     chi2_new = fit_res.Chi2()
 
                     #corrs = fit_res.GetCorrelationMatrix()
@@ -177,22 +184,43 @@ for h in [h_nom, h_up, h_down]:
                     covar.Write()
                     func.Write()
 
-                    if(h is h_nom):
-                        fout  = options.outdir + "fit_%i_%i.png" % (j, k)
-                    else:
-                        continue
-                        fout  = options.outdir + "fit_%s_%i_%i.png" % (func_name_base, j, k)
+                    if( (not non_const_plots) or order >=1):
 
-                    c = ROOT.TCanvas("c", "", 800, 800)
-                    g.SetTitle("Fit Bin %i,%i" %(j, k))
-                    g.GetYaxis().SetTitle("Correction Factor")
-                    g.GetYaxis().CenterTitle()
-                    g.GetXaxis().SetTitle("1 / Subjet pT")
-                    g.GetXaxis().CenterTitle()
-                    g.GetXaxis().SetRangeUser(0., 0.1)
-                    g.Draw("AP")
-                    func.Draw("same")
-                    c.Print(fout)
+                        if(h is h_nom):
+                            fout  = options.outdir + "fit_%i_%i.png" % (j, k)
+                        else:
+                            continue
+                            fout  = options.outdir + "fit_%s_%i_%i.png" % (func_name_base, j, k)
+
+                        c = ROOT.TCanvas("c", "", 800, 800)
+                        g.SetTitle("Fit Bin %i,%i" %(j, k))
+                        g.GetYaxis().SetTitle("Correction Factor")
+                        g.GetYaxis().CenterTitle()
+                        g.GetXaxis().SetTitle("1 / Subjet pT")
+                        g.GetXaxis().CenterTitle()
+                        g.GetXaxis().SetRangeUser(0., 0.1)
+                        g.Draw("AP")
+                        func.Draw("same")
+                        c.Print(fout)
+                
+    if(h is h_nom):
+        h_clone1 = h_nom.Clone("clone" )
+        h_clone1.GetXaxis().SetRange(i,i)
+        h_slopes = h_clone1.Project3D("zy")
+        h_slopes.Reset()
+
+
+        for (j,k) in lin_orders:
+
+            f_str = "pt_extrap/func_%i_%i" % (j,k)
+            func = f_ratio.Get(f_str)
+            slope = func.GetParameter(1)
+            h_slopes.SetBinContent(k,j, slope)
+
+        c = ROOT.TCanvas("c", "", 800, 800)
+        h_slopes.Draw("colz")
+        h_slopes.SetTitle("Slopes of pt Extrap Fits")
+        c.Print(options.outdir + "slope_summary.png")
 
 print("Summary of functional orders:")
 print(order_dict)
@@ -200,3 +228,7 @@ print("Linear order keys")
 print(lin_orders)
 f_ratio.Write()
 f_ratio.Close()
+
+
+
+

@@ -2,7 +2,7 @@ from .LundReweighter import *
 from .Consts import *
 
 ROOT.gROOT.SetBatch(True)
-ROOT.gStyle.SetOptStat(False)
+#ROOT.gStyle.SetOptStat(False)
 h_dummy = None
 
 sys_weights_map = {
@@ -210,6 +210,7 @@ class Dataset():
             np.clip(reweighting, 0., 10.0)
             reweighting /= np.mean(reweighting)
             weights *=  reweighting
+        weights = np.nan_to_num(weights)
         weights = np.clip(weights, -max_weight, max_weight)
         return weights
 
@@ -350,7 +351,8 @@ class Dataset():
 
 
 
-    def reweight_all(self, LP_rw, num_excjets = -1, min_evts = None, max_evts = None, which_j =1, distortion_sys = True, do_sys_weights = True, rescale_subjets = "vec"):
+    def reweight_all(self, LP_rw, num_excjets = -1, min_evts = None, max_evts = None, which_j =1, distortion_sys = True, do_sys_weights = True, rescale_subjets = "vec", 
+            rand_noise = None, pt_rand_noise = None, normalize = True):
 
 
         pf_cands = self.get_masked("jet%i_PFCands" % which_j).astype(np.float64)[min_evts:max_evts]
@@ -412,7 +414,8 @@ class Dataset():
 
 
 
-        out = LP_rw.get_all_weights(pf_cands, gen_parts_eta_phi, j_4vec, gen_parts_pdg_ids = gen_pdg_id, do_sys_weights = do_sys_weights, distortion_sys = distortion_sys)
+        out = LP_rw.get_all_weights(pf_cands, gen_parts_eta_phi, j_4vec, gen_parts_pdg_ids = gen_pdg_id, do_sys_weights = do_sys_weights, distortion_sys = distortion_sys, 
+                rand_noise = rand_noise, pt_rand_noise = pt_rand_noise, normalize = normalize)
         return out
 
 

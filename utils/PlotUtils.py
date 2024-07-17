@@ -10,6 +10,7 @@ from .CMS_lumi import *
 from .tdrstyle import *
 import copy
 from array import array
+import mplhep as hep
 
 #colors from CAT
 #https://gitlab.cern.ch/cms-analysis/analysisexamples/plotting-demo/-/blob/master/1-tutorial_CAT_recommendations.ipynb?ref_type=heads
@@ -20,6 +21,13 @@ c_red = "#e42536"
 c_purple = "#964a8b"
 c_grey = "#9c9ca1"
 c_indigo = "#7a21dd"
+
+CMS_lightblue = ROOT.TColor.GetColor("#5709FC")
+CMS_orange = ROOT.TColor.GetColor("#F89C20")
+CMS_red = ROOT.TColor.GetColor("#E42536")
+CMS_purple = ROOT.TColor.GetColor("#964A8B")
+CMS_grey = ROOT.TColor.GetColor("#9C9CA1")
+CMS_indico = ROOT.TColor.GetColor("#7A21DD")
 
 fig_size = (12,9)
 
@@ -287,7 +295,7 @@ def make_ratio_histogram(entries, labels, colors, axis_label, title, num_bins, n
     else:
         low,high = h_range
 
-    print(title, low,high)
+    #print(title, low,high)
 
 
     ns, bins, patches  = ax0.hist(entries, bins=num_bins, range=h_range, color=colors, alpha=alpha,label=labels, 
@@ -1055,12 +1063,19 @@ def compute_chi2(data, data_unc, y):
     return chi2
 
 def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins=10, normalize = False, h_range = None, first_like_data = True,
-        weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None, stat_weights = None, draw_chi2 = True):
+        weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None, stat_weights = None, draw_chi2 = True, leg_loc = 'best'):
     h_type= 'step'
     alpha = 1.
     fontsize = 22
     label_size = 18
+
     lw = 3
+    hep.style.use("CMS")
+
+
+
+
+
     fig = plt.figure(figsize = fig_size)
     gs = gridspec.GridSpec(2,1, height_ratios = [3,1])
     ax0 =  plt.subplot(gs[0])
@@ -1088,7 +1103,6 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
     plt.xlim(h_range)
 
     if(logy): plt.yscale("log")
-    plt.title(title, fontsize=fontsize)
 
     bin_size = bins[1] - bins[0]
     bincenters = 0.5*(bins[1:]+bins[:-1]) 
@@ -1110,7 +1124,8 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
 
     print(chi2s)
 
-    leg = ax0.legend(loc='best', fontsize = 14)
+    leg = ax0.legend(loc=leg_loc, fontsize = 18)
+    leg.set_title(title)
 
     #draw sys unc band
     if(sys_weights is not None or stat_weights is not None):
@@ -1178,8 +1193,18 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
 
 
 
+    plt.sca(ax1)
     ax1.set_ylabel("Herwig/Pythia", fontsize= label_size)
-    ax1.set_xlabel(axis_label, fontsize = label_size)
+    xlabel_size = 24
+    if('tau' in axis_label): xlabel_size *= 1.5
+    ax1.set_xlabel(axis_label, fontsize = xlabel_size)
+    plt.subplots_adjust(top=1.0)
+
+
+    ax0.tick_params(which="minor", axis="x", bottom=False, top=False)
+    ax0.tick_params(which="major", axis="x", bottom=False, top=False)
+    plt.setp(ax0.get_xticklabels(), visible=False)
+
 
     plt.xlim([low, high])
 
@@ -1190,22 +1215,42 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
             plt.ylim([1-ratio_range, 1+ratio_range])
 
     plt.grid(axis='y')
+    plt.sca(ax0)
+    y_max = ax0.get_ylim()[1] * 1.5
+    plt.ylim([None, y_max])
 
+    #plt.title(title, fontsize=fontsize)
     if(draw_chi2):
         plt.sca(ax0)
+        plt.gcf().canvas.draw()
+        if(leg_loc == 'best'):
+            y_val = ax0.get_ylim()[1] * 0.7 - ax0.get_ylim()[0]
+            x_val = ax0.get_xlim()[1] * 0.1 - ax0.get_xlim()[0]
+        elif(leg_loc == 'upper left'):
+            y_val = 0.82 * (ax0.get_ylim()[1] - ax0.get_ylim()[0]) + ax0.get_ylim()[0]
+            x_val = 0.44 * (ax0.get_xlim()[1] - ax0.get_xlim()[0]) + ax0.get_xlim()[0]
+        elif(leg_loc == 'upper right'):
+            y_val = 0.82 * ( ax0.get_ylim()[1] - ax0.get_ylim()[0]) +  ax0.get_ylim()[0]
+            x_val = 0.4 * ( ax0.get_xlim()[1] - ax0.get_xlim()[0]) +  ax0.get_xlim()[0]
+
+        print("Locs", x_val, y_val)
+
+
         ndof = len(bins)-1
-        y_val = ax0.get_ylim()[1] * 0.7
-        x_val = ax0.get_xlim()[1] * 0.1
-        for j,chi2 in enumerate(chi2s):
+        for j in list(reversed(range(len(chi2s)))):
+            chi2 = chi2s[j]
             print(chi2, ndof)
             txt = r"$\chi^2$ / ndof = %.1f / %i" % (chi2, ndof)
-            plt.text(bins[2], y_val, txt, color = colors[j+1], horizontalalignment = 'left', fontweight = 'bold')
-            y_val -= y_val * 0.05
+            plt.text(x_val, y_val, txt, color = colors[j+1], horizontalalignment = 'left', fontweight = 'bold', fontsize = 18)
+            y_val -= y_val * 0.06
 
 
+    hep.cms.lumitext(ax=ax0, text=f"(13 TeV)")
+
+    hep.cms.label("Preliminary", ax=ax0, loc=0)
 
     if(fname != ""): 
-        plt.savefig(fname)
+        plt.savefig(fname, bbox_inches = "tight")
         print("saving fig %s" %fname)
 
     return 

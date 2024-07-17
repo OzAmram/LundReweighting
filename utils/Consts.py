@@ -4,7 +4,7 @@ import numpy as np
 #Define constants used in method (ie binning)
 jetR = 1.0
 n_pt_bins = 6
-pt_bins_reg = array('f', [0., 50., 100., 175., 250., 350., 99999.])
+pt_bins_reg = array('f', [10., 65., 110., 175., 240., 300., 99999.])
 pt_bins_low = array('f', [0., 10., 20., 30, 50., 70., 100., 130., 175., 250., 350., 99999.])
 pt_bins = pt_bins_reg
 

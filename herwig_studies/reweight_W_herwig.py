@@ -45,7 +45,7 @@ do_plot = True
 norm = True
 
 
-m_cut_min = 60.
+m_cut_min = 70.
 m_cut_max = 110.
 #m_cut_min = 80.
 #m_cut_max = 81.

@@ -3,13 +3,12 @@ sys.path.insert(0, '')
 sys.path.append("../")
 from utils.Utils import *
 
-
-
 parser = input_options()
 options = parser.parse_args()
-tdrstyle.setTDRStyle()
 
 print(options)
+
+ROOT.TGaxis.SetMaxDigits(3);
 
 #UL
 if(options.year == 2018):
@@ -58,6 +57,7 @@ norm = True
 jms_corr = 1.0
 
 #m_cut_min = 125.
+#m_cut_min = 150.
 m_cut_min = 150.
 m_cut_max = 225.
 pt_cut = 500.
@@ -150,7 +150,7 @@ obs = ["tau21", "tau32", "tau43", "nPF", "mSoftDrop", "pt"]
 
 
 obs_attrs = {
-        'mSoftDrop' : (125, 225, 25, "m_{SD} [GeV]", "Events / 4 GeV"),
+        'mSoftDrop' : (150, 225, 25, "m_{SD} [GeV]", "Events / 3 GeV"),
         'tau21' : (0.05, 0.8, 15, "#tau_{21}", "Events / 0.05" ),
         'tau32' : (0.2, 0.95, 15, "#tau_{32}", "Events / 0.05"),
         'tau43' : (0.6, 0.96, 18, "#tau_{43}", "Events / 0.02"),

@@ -12,8 +12,8 @@ print(options)
 if(not os.path.exists(options.outdir)): os.system("mkdir %s" % options.outdir)
 jet_str = 'CA'
 
-#f_sig = h5py.File("/uscms_data/d3/oamram/CASE_analysis/src/CASE/TagNTrain/data/LundRW/WkkToWRadionToWWW_M3000_Mr400_TuneCP5_13TeV-madgraph-pythia8_TIMBER_Lund.h5", "r")
-f_sig = h5py.File("/uscms_data/d3/oamram/CMSSW_12_4_0/src/CASE/CASEUtils/H5_maker/Wkk_M3000_R170_2018_UL.h5", "r")
+#f_sig = h5py.File("/eos/uscms/store/user/oamram/case/sig_files/WkkToWRadionToWWW_M3000_Mr170_TuneCP5_13TeV-madgraph-pythia8_TIMBER.h5", "r")
+f_sig = h5py.File("/uscms_data/d3/oamram/CMSSW_12_4_0/src/CASE/CASEUtils/H5_maker/Wkk_M3000_R170.h5", "r")
 f_ratio = ROOT.TFile.Open(options.fin)
 label = "Radion"
 n_prongs = (4,2)
@@ -26,7 +26,7 @@ j_idx = 0
 jetR = 1.0
 num_excjets = -1
 
-max_evts = None
+max_evts = 10000
 #max_evts = 10
 
 d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 1)

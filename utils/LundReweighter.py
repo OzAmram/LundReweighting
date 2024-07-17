@@ -93,7 +93,7 @@ def get_subjet_dist(q_eta_phis, subjets_eta_phis):
 class LundReweighter():
 
     def __init__(self, f_ratio = None, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False, 
-             min_kt = 0.002, max_kt = 99999., min_delta = 0.005, max_delta = 99999., LP_order = 1) :
+             min_kt = 0.02, max_kt = 99999., min_delta = 0.005, max_delta = 99999., LP_order = 1) :
 
         self.jetR = jetR
         self.maxJets = maxJets
@@ -104,6 +104,7 @@ class LundReweighter():
         self.charge_only = charge_only
         self.max_rw = 5.
         self.min_rw = 0.2
+        self.min_pt = 10.
         self.min_kt, self.max_kt = min_kt, max_kt
         self.min_delta, self.max_delta = min_delta, max_delta
         self.LP_order = LP_order
@@ -401,6 +402,8 @@ class LundReweighter():
         no_idx = (len(subjets) == 1)
         subjets_reshape = np.array(subjets).reshape(-1)
 
+       
+
         idxs = []
 
         binx,biny,binz = array('i', [0]), array('i', [0]), array('i', [0])
@@ -408,6 +411,10 @@ class LundReweighter():
         for jet_i, subjet_pt, order, delta, kt in splittings:
             if(subjet_idx >= 0 and jet_i != subjet_idx): continue
             if(LP_order > 0 and order != LP_order): continue
+
+            if(subjet_pt < self.min_pt): 
+                #print("WARNING subjet found with pt %.1f GeV is below correction minimum of %.1f, rescaling to minimum" % (subjet_pt, self.min_pt))
+                subjet_pt = self.min_pt + 1.0
 
             jet_int = int(np.round(jet_i))
             jet_pt = subjets_reshape[0] if no_idx else subjets_reshape[jet_int*4]
@@ -527,6 +534,7 @@ class LundReweighter():
 
 
     def get_up_down_prongs_weights(self, h_rw, reclust_prongs_up = None, reclust_prongs_down = None, nom_weight = None, do_symmetrize = False):
+        """Sys variations for up/down number of prongs. Nom. weight used if no up/down reclustering performed"""
     
         prongs_up_weight = prongs_down_weight =  nom_weight
 
@@ -541,6 +549,7 @@ class LundReweighter():
         return prongs_up_weight, prongs_down_weight
 
     def check_reclust_still_bad(self, reclust_prongs_up, reclust_prongs_down):
+        """Check if up/down variations of num. prongs produced a reclustering with better matching"""
         still_bad = False
         if(reclust_prongs_up is not None):
 
@@ -583,7 +592,8 @@ class LundReweighter():
         return out
 
 
-    def get_all_weights(self, pf_cands, gen_parts_eta_phi, ak8_jets, gen_parts_pdg_ids = None, do_sys_weights = True, distortion_sys = True, nToys = 100, pf_cands_PtEtaPhiE_format = False):
+    def get_all_weights(self, pf_cands, gen_parts_eta_phi, ak8_jets, gen_parts_pdg_ids = None, do_sys_weights = True, distortion_sys = True, 
+            nToys = 100, rand_noise = None, pt_rand_noise = None, normalize = True, pt_norm = True, pf_cands_PtEtaPhiE_format = False):
         """ Master function for the lund plane reweighting method. Takes in collection of events and computes nominal set of weights and variations from uncertainties
             All weights are normalized to average to one, so that the sample normalization is preserved
         Inputs:
@@ -596,6 +606,9 @@ class LundReweighter():
                     as compared to the sample the correction was derived from (stems from imperfections in reclustering)
                     Requires a sufficiently large sample events to get a good estimate, minimum is 1k but at least ~5k is recommended 
         nToys (optional): Number of toys to use for pt and stat variations of weights (default is 100)
+        rand_noise and pt_rand_noise (optional): Supply the random values used for stat and pt variations
+        normalize (optional): Normalize weights to average to one, perserves sample normalization (default is True)
+        pt_norm (optional): Normalize weights to remove variation with jet pt  (default is True)
         pf_cands_PtEtaPhiE_format (optional): Alternate representation of pf candidates (default is px,py,pz,E)
 
 
@@ -611,9 +624,13 @@ class LundReweighter():
         #dict for all the outputs
         out = self.init_weight_dict(nEvts, nToys)
 
+        skip_bquark_unc = not isinstance(self.b_light_ratio, ROOT.TH3)
+        if(skip_bquark_unc): print("Missing b/light ratio. Skipping this systematic")
 
-        rand_noise = np.random.normal(size = (nToys, self.h_ratio.GetNbinsX(), self.h_ratio.GetNbinsY(), self.h_ratio.GetNbinsZ()))
-        pt_rand_noise = np.random.normal(size = (nToys, self.h_ratio.GetNbinsY(), self.h_ratio.GetNbinsZ(), 3))
+
+
+        if(rand_noise is None): rand_noise = np.random.normal(size = (nToys, self.h_ratio.GetNbinsX(), self.h_ratio.GetNbinsY(), self.h_ratio.GetNbinsZ()))
+        if(pt_rand_noise is None): pt_rand_noise = np.random.normal(size = (nToys, self.h_ratio.GetNbinsY(), self.h_ratio.GetNbinsZ(), 3))
 
         unclust_factor = 5.0
 
@@ -646,7 +663,6 @@ class LundReweighter():
         if(distortion_sys):
             h_dummy = self.h_mc.Clone("h_dummy")
             h_dummy.Reset()
-            #h_distortion_ratio = self.make_LP_ratio(self.h_mc, h_dummy, h_lp_signal)
             h_distortion_ratio = self.make_LP_ratio(self.h_mc, h_dummy, h_lp_signal)
 
         for i in range(len(out['reclust_nom'])):
@@ -694,7 +710,7 @@ class LundReweighter():
                 if(gen_parts_pdg_ids is None): gen_bs = []
                 else: gen_bs = [j for j in range(len(gen_parts_pdg_ids[i])) if abs(gen_parts_pdg_ids[i][j]) == B_PDG_ID]
 
-                if(len(gen_bs) == 0): b_rw = 1.0
+                if(len(gen_bs) == 0 or skip_bquark_unc): b_rw = 1.0
                 else:
                     eta_phi = np.array(gen_parts_eta_phi[i]) #this event only (ignore shape irregularities)
                     dists = get_subjet_dist(eta_phi[gen_bs,:], np.array(reclust_nom.subjet)[:,1:3])
@@ -718,9 +734,11 @@ class LundReweighter():
                 out['bquark_down'][i] = out['nom'][i]/b_rw
 
 
-        for key in out.keys(): 
-            if(('nom' in key) or ('up' in key) or ('down' in key) or ('vars' in key)):
-                if(isinstance(out[key], np.ndarray)): out[key] = self.normalize_weights(out[key], n_prongs = out['n_prongs'])
+        if(normalize):
+            for key in out.keys(): 
+                if(('nom' in key) or ('up' in key) or ('down' in key) or ('vars' in key)):
+                    if(isinstance(out[key], np.ndarray)): 
+                        out[key] = self.normalize_weights(out[key], n_prongs = out['n_prongs'], pt_norm = pt_norm, ak8_pts = ak8_jets[:,0])
 
 
         return out
@@ -845,6 +863,8 @@ class LundReweighter():
         h_data_sub.Add(h_bkg_clone, -1.)
         #h_data_sub.Print()
 
+        eps = 1e-6
+
 
 
         cleanup_hist(h_data_sub)
@@ -869,13 +889,13 @@ class LundReweighter():
 
             #normalize by number of subjets rather than number of splittings
             if(do_jet_pt_norm):
-                mc_norm = h_mc_subjet_pt_clone.GetBinContent(i)
-                bkg_norm = h_bkg_subjet_pt_clone.GetBinContent(i)
-                data_norm = h_data_subjet_pt_clone.GetBinContent(i) - bkg_norm
+                mc_norm = h_mc_subjet_pt_clone.GetBinContent(i) + eps
+                bkg_norm = h_bkg_subjet_pt_clone.GetBinContent(i) + eps
+                data_norm = h_data_subjet_pt_clone.GetBinContent(i) - bkg_norm + eps
             else:
-                data_norm = h_data_proj.Integral()
-                bkg_norm = h_bkg_proj.Integral()
-                mc_norm = h_mc_proj.Integral()
+                data_norm = h_data_proj.Integral() + eps
+                bkg_norm = h_bkg_proj.Integral() + eps
+                mc_norm = h_mc_proj.Integral() + eps
 
 
 
@@ -942,7 +962,42 @@ class LundReweighter():
 
         return h_ratio
 
-    def normalize_weights(self, lund_weights, w_min = 0.1, w_max = 10., n_prongs = None):
+    def compute_pt_weights(self, pts, weights, outlier_percentage = 3):
+        """Ensure weights do not change pt distribution"""
+        nBins = len(pts)//500
+        nBins = np.clip(nBins, 10, 100)
+        pts = np.clip(pts, np.percentile(pts, outlier_percentage), np.percentile(pts, 100. - outlier_percentage) )
+
+
+        save_plots = True
+        colors = ['black', 'blue']
+        labels = ['orig', 'rw']
+        rw_vals = np.ones_like(weights)
+        if(len(weights.shape) > 1):
+            for i in range(weights.shape[1]):
+                weights_nom = np.ones_like(weights[:,i])
+                bins, ratio = make_ratio_histogram([pts, pts], labels, colors, '', " Pt distribution", nBins,
+                        normalize=True, weights = [weights[:,i], weights_nom])
+                plt.close()
+                rw_idxs = np.digitize(pts, bins = bins) - 1
+
+                rw_idxs = np.clip(rw_idxs, 0, len(ratio)-1) #handle overflows
+                rw_vals[:,i] = 1./ratio[rw_idxs]
+        else:
+            weights_nom = np.ones_like(weights)
+            bins, ratio = make_ratio_histogram([pts, pts], labels, colors, '', " Pt distribution", nBins,
+                            normalize=True, weights = [weights, weights_nom])
+            plt.close()
+            rw_idxs = np.digitize(pts, bins = bins) - 1
+
+            rw_idxs = np.clip(rw_idxs, 0, len(ratio)-1) #handle overflows
+            rw_vals = 1./ratio[rw_idxs]
+
+        return rw_vals
+
+
+
+    def normalize_weights(self, lund_weights, w_min = 0.1, w_max = 10., n_prongs = None, pt_norm = True, ak8_pts = None):
         """Normalize lund plane weights so average weight is 1 (necessary to preserve normalization of MC.)
         Done separately for jets of different number of prongs, so not biased
         Also clip outlier weights so to not be dominated by statistical fluctuations. """
@@ -954,6 +1009,7 @@ class LundReweighter():
         for n in range(1, max_prongs+1):
             mask = (n_prongs == n)
             weights = lund_weights[mask]
+            if(len(weights) == 0): continue
 
             weights = np.clip(weights, 0., w_max)
             if(len(weights.shape) > 1): weights /= np.mean(weights, axis = 0, keepdims=True)
@@ -963,11 +1019,23 @@ class LundReweighter():
             if(len(weights.shape) > 1): weights /= np.mean(weights, axis = 0, keepdims=True)
             else: weights /= np.mean(weights)
 
+            if(pt_norm and (ak8_pts is not None) and len(ak8_pts[mask]) > 500):
+                orig = np.average(ak8_pts[mask])
+                rw = np.average(ak8_pts[mask], weights = weights) if len(weights.shape) == 1 else 1.0
+                pt_weights = self.compute_pt_weights(ak8_pts[mask], weights)
+                weights *= pt_weights
+                if(len(weights.shape) > 1): weights /= np.mean(weights, axis = 0, keepdims=True)
+                else: weights /= np.mean(weights)
+                new = np.average(ak8_pts[mask], weights = weights) if len(weights.shape) == 1 else 1.0
+
+
+
             lund_weights[mask] = weights
 
         return lund_weights
 
 class ReclusterObj():
+    """Main object storing reclustering of jet"""
     def __init__(self,subjets = None, split = None, dRs = None):
         self.subjet = None
         self.split = None
