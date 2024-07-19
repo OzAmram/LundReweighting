@@ -176,6 +176,11 @@ class LundReweighter():
 
         #deltaR's between AK8 jet and gen quarks
         AK8_dRs = get_dRs(gen_particles_eta_phi, ak8_jet)
+        RO.n_prongs = np.sum(AK8_dRs < 0.8)
+        if(RO.n_prongs == 0):
+            print("Jet with zero quarks inside? Not attempting to recluster")
+            RO.badmatch = True
+            return RO, RO_prongsUp, RO_prongsDown
         #ensure at least 1 prong or reclustering will crash
         RO.n_prongs = max(1, np.sum(AK8_dRs < 0.8))
 
@@ -1037,12 +1042,13 @@ class LundReweighter():
 class ReclusterObj():
     """Main object storing reclustering of jet"""
     def __init__(self,subjets = None, split = None, dRs = None):
-        self.subjet = None
-        self.split = None
-        self.dRs = None
-        self.subjet_match = None #is subjet matched to a quark
-        self.subjet_double_matched = None #is subjet matched to multiple quarks
-        self.subjet_dRs = None #deltaRs between each quark and closest subjet
+        self.subjet = []
+        self.split = []
+        self.dRs = []
+        self.subjet_match = [] #is subjet matched to a quark
+        self.subjet_double_matched = [] #is subjet matched to multiple quarks
+        self.subjet_dRs = [] #deltaRs between each quark and closest subjet
+        self.badmatch = False
         self.from_badmatch = False
         self.from_prongs_up = False
         self.from_prongs_down = False
