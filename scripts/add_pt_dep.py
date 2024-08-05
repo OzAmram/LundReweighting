@@ -43,7 +43,7 @@ f_ratio.Write()
 
 
 
-max_order = 2
+max_order = 1
 write_out = True
 diffs = []
 x_bin1 = 2
