@@ -11,7 +11,7 @@ from utils.PlotUtils import *
 
 
 
-fout = "plots/SF_plot.png"
+fout = "plots/SF_plot.pdf"
 
 plt.style.use(hep.style.CMS)
 plt.figure(figsize=(12,9))
@@ -44,7 +44,7 @@ plt.gca().yaxis.set_minor_locator(y_minor)
 plt.ylim(0.3, 1.5)
 plt.xlim(0.5, 5.5)
 plt.xticks([1,2,3,4,5], labels)
-hep.cms.label( data = True, lumi = 138)
+hep.cms.label( data = True, lumi = 138, label="Preliminary")
 
 leg1 = plt.legend(loc = 'upper left')
 
