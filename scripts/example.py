@@ -115,7 +115,7 @@ print("Stat variation toys eff. avg %.3f, std dev %.3f" % (toys_mean, toys_std))
 print("Pt variation toys eff. avg %.3f, std dev %.3f" % (pt_toys_mean, pt_toys_std))
 
 #Other systematics come from up/down variations of the weights
-sys_keys = ['sys', 'bquark', 'prongs', 'unclust', 'distortion']
+sys_keys = ['sys', 'bquark', 'prongs', 'unclust', 'distortion', 'jet_mom']
 sys_uncs = dict()
 
 for sys in sys_keys: sys_uncs[sys] = [0.,0.]

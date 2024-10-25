@@ -253,7 +253,7 @@ if(do_sys_variations):
         h_bkg_sys, h_bkg_subjets_sys = bkg_sys_variations[sys_name]
 
         #Some systematics only for bkgs not signal (want denom of ratio to be consistent)
-        if(sys in sig_sys):
+        if(sys_name in sig_sys):
             h_mc_sys, h_mc_subjets_sys = sig_sys_variations[sys_name]
         else:
             h_mc_sys = h_mc

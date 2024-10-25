@@ -97,7 +97,6 @@ class LundReweighter():
 
         self.jetR = jetR
         self.maxJets = maxJets
-        self.charge_only = charge_only
         self.dR = 0.8
         self.pt_extrap_val = pt_extrap_val
         self.pf_pt_min = pf_pt_min
@@ -226,7 +225,9 @@ class LundReweighter():
 
 
 
-    def get_splittings(self, pf_cands, num_excjets = -1, rescale_subjets = "", rescale_val = 1.0, pf_cands_PtEtaPhiE_format = False):
+    def get_splittings(self, pf_cands, num_excjets = -1, rescale_subjets = "", rescale_val = 1.0, 
+                                pf_cands_PtEtaPhiE_format = False, CA_recluster = False, sys = ""):
+
         """Given a list of pf_candidates (px, py,pz,E), recluster into a given (num_excjets) number of subjets (-1 for variable number, not recommended). 
         the momentum of these subjets is scaled based on the rescale_subjets and rescale_val args.
 
@@ -236,6 +237,7 @@ class LundReweighter():
 
         rescale_val (optional): Value used in subjet scaling.
         pf_cands_PtEtaPhiE_format (optional): Alternate representation of pf candidates (default is px,py,pz,E)
+        CA_recluster (optional): Recluster found kt jets with CA
         """
 
         if(num_excjets == 0):
@@ -251,10 +253,12 @@ class LundReweighter():
 
             else: px,py,pz,E = c[0], c[1], c[2], c[3]
 
+
+
             if(E > 0.0001):
                 pj = fj.PseudoJet(px,py,pz,E)
 
-                if(pj.pt() > 1.0):
+                if(pj.pt() > self.pf_pt_min):
                     pfs_cut.append(c)
 
                 pjs.append(pj)
@@ -273,38 +277,38 @@ class LundReweighter():
         else:
             js = list(fj.sorted_by_pt(cs.exclusive_jets_up_to(int(num_excjets))))
 
-            #for kt jets, recluster to get CA splittings
-            if (jet_algo is fj.kt_algorithm):
-                CA_R = 1000.
-                js_new = []
-                clust_seqs = []
-                for i, j in enumerate(js):
-                    CA_jet_def = fj.JetDefinition(fj.cambridge_algorithm, CA_R)
-                    constituents = j.validated_cs().constituents(j)
+        #for kt jets, recluster to get CA splittings
+        if (CA_recluster):
+            CA_R = 1000.
+            js_new = []
+            clust_seqs = []
+            for i, j in enumerate(js):
+                CA_jet_def = fj.JetDefinition(fj.cambridge_algorithm, CA_R)
+                constituents = j.validated_cs().constituents(j)
 
-                    cs_CA = []
-                    for c in constituents:
-                        #apply a cut on the constituents
-                        if(c.pt() > self.pf_pt_min):
-                            if(self.charge_only):
-                                pf = find_matching_pf(pfs_cut, c)
-                                if(pf is None):
-                                    print("NO match!")
-                                    print(c)
-                                    print(pfs)
-                                    exit(1)
-                                #4th entry is PUPPI weight, 5th entry is charge of PFCand
-                                eps = 1e-4
-                                if(pf is not None and abs(pf[5] ) > eps):
-                                    cs_CA.append(c)
-                            else:
+                cs_CA = []
+                for c in constituents:
+                    #apply a cut on the constituents
+                    if(c.pt() > self.pf_pt_min):
+                        if(self.charge_only):
+                            pf = find_matching_pf(pfs_cut, c)
+                            if(pf is None):
+                                print("NO match!")
+                                print(c)
+                                print(pfs)
+                                exit(1)
+                            #4th entry is PUPPI weight, 5th entry is charge of PFCand
+                            eps = 1e-4
+                            if(pf is not None and abs(pf[5] ) > eps):
                                 cs_CA.append(c)
+                        else:
+                            cs_CA.append(c)
 
-                    if(len(cs_CA) > 0):
-                        CA_cs = fj.ClusterSequence(cs_CA, CA_jet_def)
-                        CA_jet = fj.sorted_by_pt(CA_cs.inclusive_jets())
-                        js_new.append(j)
-                        clust_seqs.append(CA_cs) #prevent from going out of scope
+                if(len(cs_CA) > 0):
+                    CA_cs = fj.ClusterSequence(cs_CA, CA_jet_def)
+                    CA_jet = fj.sorted_by_pt(CA_cs.inclusive_jets())
+                    js_new.append(CA_jet)
+                    clust_seqs.append(CA_cs) #prevent from going out of scope
 
                 js = js_new
 
@@ -382,9 +386,7 @@ class LundReweighter():
             if(len(subjets) == 0): subjets = [[0,0,0,0]]
 
 
-
         no_idx = (len(subjets) == 1)
-        subjets_reshape = np.array(subjets).reshape(-1)
 
         filled = []
         for subjet_i, subjet_pt, order, delta, kt in splittings:
@@ -586,6 +588,8 @@ class LundReweighter():
                 'unclust_down': np.zeros((nEvts)),
                 'distortion_up': np.zeros((nEvts)),
                 'distortion_down': np.zeros((nEvts)),
+                'jet_mom_up': np.zeros((nEvts)),
+                'jet_mom_down': np.zeros((nEvts)),
                 'n_prongs': np.zeros((nEvts), dtype=np.int32),
                 'subjet_pts': [],
                 'bad_match': [False,]*nEvts,
@@ -598,7 +602,7 @@ class LundReweighter():
 
 
     def get_all_weights(self, pf_cands, gen_parts_eta_phi, ak8_jets, gen_parts_pdg_ids = None, do_sys_weights = True, distortion_sys = True, 
-            nToys = 100, rand_noise = None, pt_rand_noise = None, normalize = True, pt_norm = True, pf_cands_PtEtaPhiE_format = False):
+            nToys = 100, rand_noise = None, pt_rand_noise = None, normalize = True, pt_norm = True, pf_cands_PtEtaPhiE_format = False, momentum_scale_sys = False):
         """ Master function for the lund plane reweighting method. Takes in collection of events and computes nominal set of weights and variations from uncertainties
             All weights are normalized to average to one, so that the sample normalization is preserved
         Inputs:
@@ -737,6 +741,18 @@ class LundReweighter():
                     else: b_rw = 1.0
                 out['bquark_up'][i] = out['nom'][i]* b_rw
                 out['bquark_down'][i] = out['nom'][i]/b_rw
+
+            
+            if(momentum_scale_sys):
+                reclust_mom_up = copy.deepcopy(reclust_nom)
+                reclust_mom_down = copy.deepcopy(reclust_nom)
+
+                reclust_mom_up.subjet = 1.05 * np.array(reclust_nom.subjet)
+                reclust_mom_down.subjet = 0.95 * np.array(reclust_nom.subjet)
+
+                out['jet_mom_up'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio, reclust_obj = reclust_mom_up)
+                out['jet_mom_down'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio, reclust_obj = reclust_mom_down)
+
 
 
         if(normalize):

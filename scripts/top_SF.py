@@ -197,63 +197,6 @@ for key in LP_weights.keys():
         if(isinstance(LP_weights[key], np.ndarray)) : LP_weights[key] *= d_sig.get_weights()
 weights_rw[-1] = LP_weights['nom']
 
-#subjet_responses = []
-#jet_responses = []
-#
-#gen_parts_raw = d_sig.get_masked('gen_parts')[:]
-#top = gen_parts_raw[:,1:5]
-#antitop = gen_parts_raw[:,5:9]
-#W = gen_parts_raw[:,9:13]
-#antiW = gen_parts_raw[:,13:17]
-#q1 = gen_parts_raw[:,17:20]
-#q2 = gen_parts_raw[:,21:24]
-#b = gen_parts_raw[:,25:28]
-#gen_parts = np.stack([q1, q2, b], axis = 1)
-#
-#
-#j_4vec = d_sig.get_masked('jet_kinematics')[:,:4].astype(np.float64)
-#
-#
-#
-#for i,sjs in enumerate(subjets):
-#
-#    if(bad_match[i]): continue
-#    if(deltaR(top[i], j_4vec[i]) < deltaR(antitop[i], j_4vec[i])):
-#        jet_responses.append(j_4vec[i][0] / top[i][0])
-#
-#    else:
-#        jet_responses.append(j_4vec[i][0] / antitop[i][0])
-#
-#    subjet_responses.append(d_sig.get_pt_response(gen_parts[i], subjets[i]))
-#
-#make_histogram(np.array(subjet_responses).reshape(-1), "Top subjets", 'b', 'Subjet pt / gen pt', "Subjet pt response ", 20 , h_range = (0.5, 1.5),
-#     normalize=True, fname=outdir + "subjet_response.png", mean_std = True)
-#
-#make_histogram(np.array(jet_responses).reshape(-1), "Top jets", 'b', 'Top jet pt / gen pt', "Top jet pt response ", 20 , h_range = (0.5, 1.5),
-#     normalize=True, fname=outdir + "jet_response.png", mean_std = True)
-
-
-#Save subjet pts and deltaR
-#subjet_pts =  []
-#deltaRs = np.reshape(deltaRs, -1)
-#
-#for i,sjs in enumerate(subjets):
-#    for sj in sjs:
-#        subjet_pts.append(sj[0])
-#    
-#num_bins = 40
-#pt_bins = array('d', np.linspace(0., 800., num_bins + 1))
-#response_bins = array('d', np.linspace(0.5, 1.5, num_bins + 1))
-#dR_bins = array('d', np.linspace(0., 0.8, num_bins + 1))
-#
-#h_subjet_pts = make_root_hist(data = subjet_pts, name = 'h_top_subjetpt', num_bins = num_bins, bins = pt_bins)
-##h_subjet_response = make_root_hist(data = subjet_responses, name = 'subjet_responses', num_bins = num_bins, bins = response_bins)
-#h_dRs = make_root_hist(data = deltaRs, name = 'h_top_dRs', num_bins = num_bins, bins = dR_bins)
-#f_ptout = ROOT.TFile.Open(outdir + "subjet_pt_dR.root", "RECREATE")
-#h_subjet_pts.Write()
-#h_dRs.Write()
-#f_ptout.Close()
-#print("Fraction of subjets with pt > 350 : %.3f" % (np.mean( np.array(subjet_pts).reshape(-1) > 350.)))
 
 #Fraction of prongs that are not well matched to subjets (want this to be low)
 print("Bad match frac %.2f" % np.mean(LP_weights['bad_match']))

@@ -77,6 +77,12 @@ sys_weights_map = {
         'Single_norm_down': -999,
         'unmatched_norm_up': -999, #unmatched ttbar
         'unmatched_norm_down': -999,
+
+
+        'charged_momentum_up': -999, 
+        'charged_momentum_down': -999, 
+        'neutral_momentum_up': -999, 
+        'neutral_momentum_down': -999, 
         }
 
 sig_sys = {
@@ -111,6 +117,12 @@ sig_sys = {
         'mu_iso_down': 26,
         'puID_up': 27,
         'puID_down': 28,
+
+
+        #'charged_momentum_up': -999, 
+        #'charged_momentum_down': -999, 
+        #'neutral_momentum_up': -999, 
+        #'neutral_momentum_down': -999, 
         }
 
         
@@ -138,6 +150,30 @@ def input_options():
 def convert_4vec(vec):
     rvec = ROOT.Math.PtEtaPhiMVector(vec[0], vec[1], vec[2], vec[3])
     return [rvec.Px(), rvec.Py(), rvec.Pz(), rvec.E()]
+
+#Systematically vary momentum scale of different types of PF cands by their uncertainty
+def rescale_pf_cands(pf_cands, sys):
+
+    charges = pf_cands[:,5]
+
+    eps = 0.1
+    if('charged_momentum' in sys):
+        mask = np.abs(charges) > eps
+        shift = 0.01
+    elif('neutral_momentum' in sys):
+        mask = np.abs(charges) < eps
+        shift = 0.03
+    else:
+        print("Unknown rescaling sys %s" % sys)
+        return None
+
+    if('up' in sys): sign = 1.0
+    else: sign = -1.0
+
+    cands_new = copy.deepcopy(pf_cands)
+    cands_new[mask] *=  (1.0 + shift*sign)
+
+    return cands_new
 
 
 
@@ -296,26 +332,24 @@ class Dataset():
 
             for sys in sys_variations.keys():
                 sys_idx = sys_weights_map[sys]
-                if('norm' in sys): #normalization uncs split by process
-                    process = sys.split("_")[0]
-                    if(process in self.label and 'up' in sys): weights_sys = nom_weights * (1. + self.norm_unc)
-                    elif(process in self.label and 'down' in sys): weights_sys = nom_weights  * (1. - self.norm_unc)
-                    else: weights_sys = nom_weights
-                elif('_F_' in sys or '_R_' in sys or '_RF_' in sys): #renorm / fac uncs split by process
-                    process = sys.split("_")[0]
-                    if(process in self.label): weights_sys = nom_weights * all_sys_weights[:,sys_idx]
-                    else: weights_sys = nom_weights
-                else:
-                    weights_sys = nom_weights * all_sys_weights[:, sys_idx]
+                if('momentum' not in sys): #systematics handled by event weights
+                    if('norm' in sys): #normalization uncs split by process
+                        process = sys.split("_")[0]
+                        if(process in self.label and 'up' in sys): weights_sys = nom_weights * (1. + self.norm_unc)
+                        elif(process in self.label and 'down' in sys): weights_sys = nom_weights  * (1. - self.norm_unc)
+                        else: weights_sys = nom_weights
 
-                weights.append(weights_sys)
-                hists.append(sys_variations[sys][0])
-                hists_subjet.append(sys_variations[sys][1])
+                    elif('_F_' in sys or '_R_' in sys or '_RF_' in sys): #renorm / fac uncs split by process
+                        process = sys.split("_")[0]
+                        if(process in self.label): weights_sys = nom_weights * all_sys_weights[:,sys_idx]
+                        else: weights_sys = nom_weights
 
+                    else:
+                        weights_sys = nom_weights * all_sys_weights[:, sys_idx]
 
-            #for idx,h in enumerate(hists):
-            #    h.Print()
-            #    print(weights[idx][:10])
+                    weights.append(weights_sys)
+                    hists.append(sys_variations[sys][0])
+                    hists_subjet.append(sys_variations[sys][1])
 
 
         weights = np.array(weights, dtype = np.float32)
@@ -325,6 +359,23 @@ class Dataset():
             subjet, _ = LP_rw.fill_lund_plane(hists, h_subjet = hists_subjet, pf_cands = pf_cand, 
                     num_excjets = num_excjets, weight = weights[:,i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
             subjets.append(subjet)
+
+
+        #special reclustering for momentum scale variations
+        if(sys_variations is not None):
+            for sys_idx, sys in enumerate(sys_variations.keys()):
+                if('momentum' in sys): #momentum scale variation of PF cands, not a reweighting
+                    for i,pf_cand in enumerate(pf_cands):
+                        pf_cand_altered = rescale_pf_cands(pf_cand, sys)
+
+                        h_lp = sys_variations[sys][0]
+                        h_subjets = sys_variations[sys][1]
+
+
+                        subjet, _ = LP_rw.fill_lund_plane(h_lp, h_subjet = h_subjets, pf_cands = pf_cand_altered, 
+                                num_excjets = num_excjets, weight = weights[0,i], rescale_subjets = rescale_subjets, rescale_val = rescale_vals[i])
+
+
 
         return subjets
             
