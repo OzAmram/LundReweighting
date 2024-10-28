@@ -30,6 +30,7 @@ def cleanup_ratio(h, h_min = 0., h_max = 2.):
     for i in range(0, h.GetNbinsX() + 2):
         for j in range(0, h.GetNbinsY() + 2):
             cont = h.GetBinContent(i,j)
+            if(np.isnan(cont)): cont = h_max
             cont = max(h_min, min(cont, h_max))
             h.SetBinContent(i,j,cont)
     #h.GetZAxis().SetRangeUser(h_min, h_max);
@@ -669,6 +670,7 @@ class LundReweighter():
             h_dummy = self.h_mc.Clone("h_dummy")
             h_dummy.Reset()
             h_distortion_ratio = self.make_LP_ratio(self.h_mc, h_dummy, h_lp_signal)
+            cleanup_ratio(h_distortion_ratio, h_min=0.2, h_max = 5.0)
 
         for i in range(len(out['reclust_nom'])):
             reclust_nom, reclust_prongs_up, reclust_prongs_down = out['reclust_nom'][i], out['reclust_prongs_up'][i], out['reclust_prongs_down'][i]
