@@ -264,7 +264,8 @@ else:
     obs_attrs['DeepAK8_W'] = (0., 1., 15, r"DeepAK8 W Tag Score", "Events ", 'upper left')
     obs_attrs['DeepAK8_W_MD'] = (0., 1., 15, r"DeepAK8 W MD Tag Score", "Events ", 'upper left')
     obs_attrs['DeepAK8_H4q'] = (0., 1., 15, r"DeepAK8 H4q Tag Score", "Events ", 'upper left')
-labels = ['herwig', 'pythia', 'pythia, reweighted']
+#labels = [r'$\textsc{HERWIG}$', r'$\textsc{PYTHIA}$', r'$\textsc{PYTHIA}$, reweighted']
+labels = ['HERWIG', 'PYTHIA', 'PYTHIA, reweighted']
 colors = [c_red, c_lightblue, c_purple]
 
 

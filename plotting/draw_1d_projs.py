@@ -20,10 +20,10 @@ def make_graph(xs, xerrs, ys, yerrs_stat, yerrs_sys, xlabel = "", title= "", fna
     yerrs_tot = [ [add_quad(yerrs_sys[i][0], yerrs_stat[i]), add_quad(yerrs_sys[i][1], yerrs_stat[i])] for i in range(len(yerrs_sys))]
     yerrs_tot = np.transpose(yerrs_tot, axes=[1,0])
 
-    plt.scatter(xs[0], ys[0], marker='o', color = 'black', label = 'Data/MC Ratio', s = 25 )
+    plt.scatter(xs[0], ys[0], marker='o', color = 'black', label = 'Data/Sim. ratio', s = 25 )
     
-    plt.errorbar(xs, ys, xerr=xerrs, yerr=yerrs_tot, fmt='o', color = 'black', ecolor = 'blue', label = 'Total Error', linewidth = 3, markersize = 5, capsize = 5)
-    plt.errorbar(xs, ys, xerr=xerrs, yerr=yerrs_stat, fmt='o', color = 'black', ecolor = 'black', label = 'Statistical Error', linewidth = 3, markersize = 5, capsize=5)
+    plt.errorbar(xs, ys, xerr=xerrs, yerr=yerrs_tot, fmt='o', color = 'black', ecolor = 'blue', label = 'Total error', linewidth = 3, markersize = 5, capsize = 5)
+    plt.errorbar(xs, ys, xerr=xerrs, yerr=yerrs_stat, fmt='o', color = 'black', ecolor = 'black', label = 'Statistical error', linewidth = 3, markersize = 5, capsize=5)
     leg = plt.legend(loc='upper left', fontsize = fontsize)
     leg.set_title(title)
 
@@ -35,7 +35,7 @@ def make_graph(xs, xerrs, ys, yerrs_stat, yerrs_sys, xlabel = "", title= "", fna
     #plt.text(x_val, y_val, title, horizontalalignment = 'left', fontweight = 'bold', fontsize = 18)
 
     plt.xlabel(xlabel, fontsize = fontsize*1.5)
-    plt.ylabel("Lund Plane Data/MC Ratio", fontsize = fontsize*1.5)
+    plt.ylabel("Lund plane data/sim. ratio", fontsize = fontsize*1.5)
 
 
     hep.cms.lumitext(ax=ax, text=r"138 fb$^{-1}$                   ")
@@ -127,5 +127,6 @@ for i in range(1, h_nom.GetNbinsX()+1):
 
         if(len(xs) > 0):
             make_graph(xs, x_errs, vals, errs_stat, errs_sys, title = title, fname = options.outdir + "pt_bin%i_bin%i.png"  % (i,k), xlabel = r"ln(0.8/$\Delta$)")
+            make_graph(xs, x_errs, vals, errs_stat, errs_sys, title = title, fname = options.outdir + "pt_bin%i_bin%i.pdf"  % (i,k), xlabel = r"ln(0.8/$\Delta$)")
 
 

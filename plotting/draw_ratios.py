@@ -54,6 +54,7 @@ def get_sys_unc_hist(h, up, down):
     return h_unc
 
 parser = input_options()
+parser.add_argument("--herwig", default=False, action='store_true',  help="Reco level")
 options = parser.parse_args()
 
 out_dir = options.outdir
@@ -109,7 +110,7 @@ err = h_3d.GetBinError(3,5,11)
 val_sys = h_sys_up.GetBinContent(3,5,11)
 print(val, err, val_sys)
 
-ext = ".png"
+exts = [".png", ".pdf"]
 
 
     
@@ -206,10 +207,11 @@ for i in range(1,h_3d.GetNbinsX()+1):
     h_ratio_unc.Draw("BOX same")
     #h_ratio_sys_unc.Draw("BOX same")
 
-    #ratio_plot_label = "#bf{Data/Sim. Ratio}" 
-    #unc_plot_label = "#bf{Data/MC Ratio Frac. Unc.}"
-    ratio_plot_label = "#bf{Herwig/Pythia Ratio}" 
-    unc_plot_label = "#bf{Herwig/Pythia Ratio Frac. Unc.}"
+    ratio_plot_label = "#bf{Data/Sim. Ratio}" 
+    unc_plot_label = "#bf{Data/MC Ratio Frac. Unc.}"
+    if(options.herwig):
+        ratio_plot_label = "#bf{Herwig/Pythia Ratio}" 
+        unc_plot_label = "#bf{Herwig/Pythia Ratio Frac. Unc.}"
     subj_label = "#bf{Subjet %s GeV}" % (pt_bin_labels[i-1])
 
     #latex.DrawLatex(posX, posY, ratio_plot_label)
@@ -219,15 +221,16 @@ for i in range(1,h_3d.GetNbinsX()+1):
 
     leg = ROOT.TLegend(0.47, 0.75, 0.75, 0.85)
     leg.SetTextSize(0.03)
-    #leg.AddEntry(h_ratio_proj, "Data/Sim. Ratio", "f")
-    leg.AddEntry(h_ratio_proj, "Herwig/Pythia Ratio", "f")
+    if(options.herwig): leg.AddEntry(h_ratio_proj, "Herwig/Pythia Ratio", "f")
+    else: leg.AddEntry(h_ratio_proj, "Data/Sim. Ratio", "f")
     leg.AddEntry(h_ratio_unc, "Uncertainty", "f")
     leg.SetBorderSize(0)
     leg.Draw()
 
     c_ratio.SetRightMargin(0.2)
     CMS_lumi(c_ratio, period, CMS_loc, writeExtraText = True)
-    c_ratio.Print(out_dir + ("lundPlane_bin%i_ratio" % i) + ext)
+    for ext in exts:
+        c_ratio.Print(out_dir + ("lundPlane_bin%i_ratio" % i) + ext)
 
 
     #c_ratio_unc = ROOT.TCanvas("c_unc", "", 800, 800)

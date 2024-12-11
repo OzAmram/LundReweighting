@@ -31,13 +31,13 @@ offset = 0.1
 
 lund_errs = np.array(list(zip(y_lund_errs_up, y_lund_errs_down))).T
 
-plt.errorbar(xs[:4] - offset, y_compare, yerr = y_compare_errs, fmt = 's', color = c_lightblue, label = "Standard Calibration Technique", capsize = 2.0) 
-plt.errorbar([5 - offset], y_triboson, yerr = y_triboson_err, fmt = 'x', color = c_red, label = "CMS Triboson Search", capsize = 2.0) 
-plt.errorbar(xs+offset, y_lund, yerr = lund_errs, fmt = 'o', color = c_purple, label = "Lund Jet Plane Reweighting", capsize = 2.0) 
+plt.errorbar(xs[:4] - offset, y_compare, yerr = y_compare_errs, fmt = 's', color = c_lightblue, label = "SM-proxy-based techniques", capsize = 2.0) 
+plt.errorbar([5 - offset], y_triboson, yerr = y_triboson_err, fmt = 'x', color = c_red, label = "CMS triboson search", capsize = 2.0) 
+plt.errorbar(xs+offset, y_lund, yerr = lund_errs, fmt = 'o', color = c_purple, label = "Lund jet plane reweighting", capsize = 2.0) 
                
 
-plt.xlabel("Jet Type (Tagging Variable)", labelpad =20)
-plt.ylabel("Correction Factor")
+plt.xlabel("Jet type (Tagging variable)", labelpad =20)
+plt.ylabel("Correction factor")
 plt.gca().minorticks_off()
 y_minor = matplotlib.ticker.MultipleLocator(1)
 plt.gca().yaxis.set_minor_locator(y_minor)

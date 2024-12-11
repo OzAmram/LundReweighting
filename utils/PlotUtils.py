@@ -255,7 +255,7 @@ def make_multi_ratio_histogram(entries, labels = None, colors = None, axis_label
 
     
 
-    label_size = 18
+    label_size = 24
     ax1.set_ylabel("Ratio", fontsize= label_size)
     ax1.set_xlabel(axis_label, fontsize = label_size)
 
@@ -505,7 +505,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     y_size = 0.2 + 0.025*(len(bkglist[0])+len(signals))
                     x_size = 0.53
                     if(leg_align_right):
-                        x_start = 0.4
+                        x_start = 0.37
                     else:
                         x_start = 0.2
 
@@ -568,11 +568,13 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 # Set y max of all hists to be the same to accomodate the tallest
                 max_scaling = 2.5
 
-                yMax = histList[0].GetMaximum()
+                yMax = totlist[0].GetBinContent(totlist[0].GetMaximumBin())
                 maxHist = histList[0]
                 for h in range(1,len(histList)):
-                    if histList[h].GetMaximum() > yMax:
-                        yMax = histList[h].GetMaximum()
+                    if(h is ROOT.TH1): hmax = histList[h].GetBinContent(h.GetMaximumBin())
+                    else: hmax = 0.
+                    if hmax > yMax:
+                        yMax = hmax 
                         maxHist = histList[h]
                 for h in histList:
                     h.SetMaximum(yMax*max_scaling)
@@ -667,6 +669,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     ratio_sig, _ = makeRatio(hist, signals[hist_index])
                     ratio_sig.SetLineColor(sig_color)
                     ratio_sig.SetMarkerColor(sig_color)
+                    ratio_sig.SetMarkerStyle(ROOT.kOpenSquare)
 
                 chi2 = chi2_sig = 0.
 
@@ -1066,14 +1069,15 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
         weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None, stat_weights = None, draw_chi2 = True, leg_loc = 'best'):
     h_type= 'step'
     alpha = 1.
-    fontsize = 22
-    label_size = 18
+    fontsize = 28
+    label_size = 24
+    leg_size = 22
+
 
     lw = 3
     hep.style.use("CMS")
 
-
-
+    #matplotlib.rcParams['text.usetex'] =  True
 
 
     fig = plt.figure(figsize = fig_size)
@@ -1124,7 +1128,7 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
 
     print(chi2s)
 
-    leg = ax0.legend(loc=leg_loc, fontsize = 18)
+    leg = ax0.legend(loc=leg_loc, fontsize = leg_size)
     leg.set_title(title)
 
     #draw sys unc band
@@ -1194,8 +1198,8 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
 
 
     plt.sca(ax1)
-    ax1.set_ylabel("Herwig/Pythia", fontsize= label_size)
-    xlabel_size = 24
+    ax1.set_ylabel("Ratio", fontsize= label_size, loc = 'center')
+    xlabel_size = label_size * 1.2
     if('tau' in axis_label): xlabel_size *= 1.5
     ax1.set_xlabel(axis_label, fontsize = xlabel_size)
     plt.subplots_adjust(top=1.0)
@@ -1216,7 +1220,7 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
 
     plt.grid(axis='y')
     plt.sca(ax0)
-    y_max = ax0.get_ylim()[1] * 1.5
+    y_max = ax0.get_ylim()[1] * 1.7
     plt.ylim([None, y_max])
 
     #plt.title(title, fontsize=fontsize)
@@ -1228,7 +1232,7 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
             x_val = ax0.get_xlim()[1] * 0.1 - ax0.get_xlim()[0]
         elif(leg_loc == 'upper left'):
             y_val = 0.82 * (ax0.get_ylim()[1] - ax0.get_ylim()[0]) + ax0.get_ylim()[0]
-            x_val = 0.44 * (ax0.get_xlim()[1] - ax0.get_xlim()[0]) + ax0.get_xlim()[0]
+            x_val = 0.48 * (ax0.get_xlim()[1] - ax0.get_xlim()[0]) + ax0.get_xlim()[0]
         elif(leg_loc == 'upper right'):
             y_val = 0.82 * ( ax0.get_ylim()[1] - ax0.get_ylim()[0]) +  ax0.get_ylim()[0]
             x_val = 0.4 * ( ax0.get_xlim()[1] - ax0.get_xlim()[0]) +  ax0.get_xlim()[0]
@@ -1251,6 +1255,8 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
 
     if(fname != ""): 
         plt.savefig(fname, bbox_inches = "tight")
+        fname_pdf = fname.replace(".png", ".pdf")
+        plt.savefig(fname_pdf, bbox_inches = "tight")
         print("saving fig %s" %fname)
 
     return 

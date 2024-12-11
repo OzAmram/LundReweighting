@@ -1,9 +1,10 @@
-from PlotUtils import *
-from Utils import *
-import os
-import sys
+import sys, os
+sys.path.insert(0, '')
+sys.path.append("../")
+from utils.Utils import *
+from utils.PlotUtils import *
 
-out_dir = "subjet_pt_dR_july14/"
+out_dir = "subjet_pt_dR_nov26/"
 
 dsets = [
         ("W_SF_may5/subjet_pt_dR.root", "W"),

@@ -14,7 +14,7 @@ def unique(a):
 parser = input_options()
 options = parser.parse_args()
 
-ext = ".png"
+exts = [".png", ".pdf"]
 
 
 ratio_range = (0.2, 1.8)
@@ -37,11 +37,11 @@ if(options.mode == 'top'):
         ]
     labels = [
             #"Single Top",
-            "W+Jets + QCD",
+            "W + QCD",
             "tW",
-            "t#bar{t} : W-matched",
-            "t#bar{t} : unmatched",
-            "t#bar{t} : t-matched",
+            "t#bar{t} (W-matched)  ",
+            "t#bar{t} (unmatched)  ",
+            "t#bar{t} (t-matched)  ",
         ]
     colors = [
         #ROOT.kMagenta-1,
@@ -81,12 +81,12 @@ elif(options.mode == "kinematics"):
             "Diboson",
             "Single t",
             "W+Jets + QCD",
-            "t#bar{t} : t-matched",
-            "t#bar{t} + tW : unmatched",
-            "t#bar{t} + tW : W-matched",
+            "t#bar{t} (t-matched)  ",
+            "t#bar{t} + tW (unmatched)  ",
+            "t#bar{t} + tW (W-matched)  ",
 
-            "t#bar{t} + tW : unmatched",
-            "t#bar{t} + tW : W-matched",
+            "t#bar{t} + tW (unmatched)  ",
+            "t#bar{t} + tW (W-matched)  ",
         ]
 
     colors = [
@@ -122,12 +122,12 @@ else:
             "Diboson",
             "Single t",
             "W+Jets + QCD",
-            "t#bar{t} : t-matched",
-            "t#bar{t} + tW : unmatched",
-            "t#bar{t} + tW : W-matched",
+            "t#bar{t} (t-matched)  ",
+            "t#bar{t} + tW (unmatched)    ",
+            "t#bar{t} + tW (W-matched)      ",
 
-            "t#bar{t} + tW : unmatched",
-            "t#bar{t} + tW : W-matched",
+            "t#bar{t} + tW (unmatched)    ",
+            "t#bar{t} + tW (W-matched)      ",
         ]
 
     colors = [
@@ -157,7 +157,7 @@ else:
 
 for obs in obs_attrs.keys():
     plt_name = obs
-    if(options.mode != "kinematics"): plt_name += "_ratio"
+    if(options.mode != "kinematics"): plt_name += "_ratio_"
     
     h_tot_after = h_data = None
 
@@ -175,7 +175,7 @@ for obs in obs_attrs.keys():
                 h_tot_after.Add(h_tot_after_file)
             f_after.Close()
 
-        label = "_before" if (options.mode != "kinematics") else ""
+        label = "before" if (options.mode != "kinematics") else ""
         f_before = ROOT.TFile.Open(dir_in + plt_name + label + ".root")
 
         h_data_file = f_before.Get("data")
@@ -202,21 +202,22 @@ for obs in obs_attrs.keys():
     h_tot_before.Reset()
     for k,h in hists.items(): 
         h_tot_before.Add(h)
-    fname = options.outdir + plt_name + "comb" + ext
+    for ext in exts:
+        fname = options.outdir + plt_name + "comb" + ext
 
-    xstart, xstop, nbins, label, ylabel = obs_attrs[obs]
+        xstart, xstop, nbins, label, ylabel = obs_attrs[obs]
 
 
-    #for h in hist_list:
-    #    h.GetXaxis().SetRangeUser(xstart, xstop)
-    #h_tot_after.GetXaxis().SetRangeUser(xstart, xstop)
-    #h_tot_before.GetXaxis().SetRangeUser(xstart, xstop)
-    #h_data.GetXaxis().SetRangeUser(xstart, xstop)
-    outlines = [h_tot_after] if incl_after else []
-    labels_new = unique(labels)
-    hist_list = [hists[l] for l in labels_new]
-    
+        #for h in hist_list:
+        #    h.GetXaxis().SetRangeUser(xstart, xstop)
+        #h_tot_after.GetXaxis().SetRangeUser(xstart, xstop)
+        #h_tot_before.GetXaxis().SetRangeUser(xstart, xstop)
+        #h_data.GetXaxis().SetRangeUser(xstart, xstop)
+        outlines = [h_tot_after] if incl_after else []
+        labels_new = unique(labels)
+        hist_list = [hists[l] for l in labels_new]
+        
 
-    makeCan("temp", fname, [h_data], bkglist = [hist_list], totlist = [h_tot_before], signals = outlines, colors = colors, bkgNames = labels_new, titles = [""], logy = False, xtitle = label,
-        ytitle = ylabel, drawSys = False, ratio_range = ratio_range, stack = True, draw_chi2 = draw_chi2, prelim = True, year = -1)
+        makeCan("temp", fname, [h_data], bkglist = [hist_list], totlist = [h_tot_before], signals = outlines, colors = colors, bkgNames = labels_new, titles = [""], logy = False, xtitle = label,
+            ytitle = ylabel, drawSys = False, ratio_range = ratio_range, stack = True, draw_chi2 = draw_chi2, prelim = True, year = -1)
 

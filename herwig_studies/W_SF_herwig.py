@@ -247,7 +247,8 @@ if(options.reco):
     obs_attrs['DeepAK8_W_MD'] = (0., 1., 15, r"DeepAK8 W MD Tag Score", "Events ")
     obs_attrs['DeepAK8_H4q'] = (0., 1., 15, r"DeepAK8 H4q Tag Score", "Events ")
 
-labels = ['herwig', 'pythia', 'pythia, reweighted']
+#labels = [r'\textsc{HERWIG}', r'\textsc{PYTHIA}', r'\textsc{PYTHIA}, reweighted']
+labels = ['HERWIG', 'PYTHIA', 'PYTHIA, reweighted']
 colors = [c_red, c_lightblue, c_purple]
 
 
@@ -267,4 +268,9 @@ for l in obs_attrs.keys():
     make_herwig_ratio_histogram(obs, weights = hist_weights, sys_weights = hist_sys_weights, first_like_data = True, 
             labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high), leg_loc = 'upper left',
             normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir +title + '_' + l + "_cmp.png" )
+
+    make_herwig_ratio_histogram(obs, weights = hist_weights, sys_weights = hist_sys_weights, first_like_data = True, 
+            labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high), leg_loc = 'upper left',
+            normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir +title + '_' + l + "_cmp.pdf" )
+
 
