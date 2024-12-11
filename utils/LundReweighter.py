@@ -93,12 +93,13 @@ def get_subjet_dist(q_eta_phis, subjets_eta_phis):
 
 class LundReweighter():
 
-    def __init__(self, f_ratio = None, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 1.0, charge_only = False, 
-             min_kt = 0.02, max_kt = 99999., min_delta = 0.005, max_delta = 99999., LP_order = 1) :
+    def __init__(self, f_ratio = None, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 0.0, charge_only = False, 
+             min_kt = 0.02, max_kt = 99999., min_delta = 0.005, max_delta = 99999., LP_order = 1, use_CA = False) :
 
         self.jetR = jetR
         self.maxJets = maxJets
         self.charge_only = charge_only
+        self.use_CA = use_CA
         self.dR = 0.8
         self.pt_extrap_val = pt_extrap_val
         self.pf_pt_min = pf_pt_min
@@ -262,7 +263,6 @@ class LundReweighter():
 
         if(self.jetR < 0): R = 1000.0
         else: R = self.jetR
-        #jet_algo = fj.cambridge_algorithm
         jet_algo = fj.kt_algorithm
         jet_def = fj.JetDefinition(jet_algo, R)
         cs = fj.ClusterSequence(pjs, jet_def)
@@ -274,8 +274,8 @@ class LundReweighter():
         else:
             js = list(fj.sorted_by_pt(cs.exclusive_jets_up_to(int(num_excjets))))
 
-            #for kt jets, recluster to get CA splittings
-            if (jet_algo is fj.kt_algorithm):
+            #recluster to get CA splittings
+            if (self.use_CA):
                 CA_R = 1000.
                 js_new = []
                 clust_seqs = []
@@ -304,7 +304,7 @@ class LundReweighter():
                     if(len(cs_CA) > 0):
                         CA_cs = fj.ClusterSequence(cs_CA, CA_jet_def)
                         CA_jet = fj.sorted_by_pt(CA_cs.inclusive_jets())
-                        js_new.append(j)
+                        js_new.append(CA_jets[0])
                         clust_seqs.append(CA_cs) #prevent from going out of scope
 
                 js = js_new
