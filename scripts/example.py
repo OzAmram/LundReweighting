@@ -19,6 +19,7 @@ f_sig = h5py.File(fname, "r")
 f_ratio = ROOT.TFile.Open(f_ratio_name)
 
 #Class to help read input dataset 
+#NOTE using this class or data format is not required for using the method
 d = Dataset(f_sig, dtype = 1)
 d.compute_obs()
 

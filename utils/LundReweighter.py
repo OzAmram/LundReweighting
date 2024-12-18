@@ -709,15 +709,15 @@ class LundReweighter():
 
             if(do_sys_weights):
                 #Now get systematic variations due to systemtatic uncertainties on LP
-                out['sys_up'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio_sys_up, reclust_obj = reclust_nom)
-                out['sys_down'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio_sys_down, reclust_obj = reclust_nom)
+                out['sys_up'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio_sys_up, reclust_obj = reclust_nom, sys_str = 'sys_tot_up_')
+                out['sys_down'][i],_,_ = self.reweight_lund_plane(h_rw = self.h_ratio_sys_down, reclust_obj = reclust_nom, sys_str = 'sys_tot_down_')
 
                 #compute special systematic for subjets matched to b quarks
                 #not needed if signal does not specifically produce b quark subjets
                 if(gen_parts_pdg_ids is None): gen_bs = []
                 else: gen_bs = [j for j in range(len(gen_parts_pdg_ids[i])) if abs(gen_parts_pdg_ids[i][j]) == B_PDG_ID]
 
-                if(len(gen_bs) == 0 or skip_bquark_unc): b_rw = 1.0
+                if(len(gen_bs) == 0 or skip_bquark_unc or len(reclust_nom.subjet) == 0): b_rw = 1.0
                 else:
                     eta_phi = np.array(gen_parts_eta_phi[i]) #this event only (ignore shape irregularities)
                     dists = get_subjet_dist(eta_phi[gen_bs,:], np.array(reclust_nom.subjet)[:,1:3])
