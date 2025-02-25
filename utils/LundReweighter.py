@@ -93,7 +93,7 @@ def get_subjet_dist(q_eta_phis, subjets_eta_phis):
 
 class LundReweighter():
 
-    def __init__(self, f_ratio = None, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_val = 350., pf_pt_min = 0.0, charge_only = False, 
+    def __init__(self, f_ratio = None, jetR = -1, maxJets = -1, pt_extrap_dir = None, pt_extrap_min = 15., pt_extrap_max = 350., pf_pt_min = 0.0, charge_only = False, 
              min_kt = 0.02, max_kt = 99999., min_delta = 0.005, max_delta = 99999., LP_order = 1, use_CA = False) :
 
         self.jetR = jetR
@@ -101,7 +101,8 @@ class LundReweighter():
         self.charge_only = charge_only
         self.use_CA = use_CA
         self.dR = 0.8
-        self.pt_extrap_val = pt_extrap_val
+        self.pt_extrap_min = pt_extrap_min
+        self.pt_extrap_max = pt_extrap_max
         self.pf_pt_min = pf_pt_min
         self.charge_only = charge_only
         self.max_rw = 5.
@@ -812,7 +813,7 @@ class LundReweighter():
             if(len(splittings) > 0):
                 lp_idxs = self.get_lund_plane_idxs(h_rw, subjet_idx = i, splittings = splittings, subjets = [subjets[i]])
 
-                if(self.pt_extrap_dir is None or subjets[i][0] < self.pt_extrap_val or ('bquark' in sys_str) or ('distortion' in sys_str)):
+                if(self.pt_extrap_dir is None or (subjets[i][0] > self.pt_extrap_min and subjets[i][0] < self.pt_extrap_max) or ('bquark' in sys_str) or ('distortion' in sys_str)):
                     rw, smeared_rw, pt_smeared_rw = self.reweight(h_rw, lp_idxs, rw, smeared_rw, pt_smeared_rw, rand_noise = rand_noise)
                 else:
                     rw, smeared_rw, pt_smeared_rw = self.reweight_pt_extrap(subjets[i][0], lp_idxs, rw, smeared_rw, pt_smeared_rw, pt_rand_noise = pt_rand_noise, sys_str = sys_str)
