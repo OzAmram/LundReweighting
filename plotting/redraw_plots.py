@@ -29,27 +29,36 @@ if(options.mode == 'top'):
 
     keys = [
             #"Single Top",
-            "W+Jets + QCD",
             "tW",
+            "W+Jets + QCD",
             "t#bar{t} : W-matched",
             "t#bar{t} : unmatched",
             "t#bar{t} : t-matched",
         ]
     labels = [
             #"Single Top",
-            "W + QCD",
             "tW",
+            "W + QCD",
             "t#bar{t} (W-matched)  ",
             "t#bar{t} (unmatched)  ",
             "t#bar{t} (t-matched)  ",
         ]
+
+    label_order = [
+            #"Single Top",
+            "tW",
+            "t#bar{t} (W-matched)  ",
+            "W + QCD",
+            "t#bar{t} (unmatched)  ",
+            "t#bar{t} (t-matched)  ",
+        ]
+
     colors = [
-        #ROOT.kMagenta-1,
-        ROOT.kOrange-3,
-        ROOT.kYellow-7,
-        ROOT.kRed -7,
-        ROOT.kGreen-6,
-        ROOT.kBlue -7, 
+        CMS_grey,
+        CMS_orange,
+        CMS_red,
+        CMS_purple,
+        CMS_lightblue, 
         ]
 
 
@@ -68,35 +77,40 @@ elif(options.mode == "kinematics"):
     dirs = ["plots/kinematics_2016/", "plots/kinematics_2017/", "plots/kinematics_2018/"]
     keys = [
             "Diboson",
-            "Single Top",
             "W+Jets + QCD",
-            "t#bar{t} : t-matched",
             "t#bar{t} : unmatched",
+            "t#bar{t} : t-matched",
             "t#bar{t} : W-matched",
             "tW : unmatched",
             "tW : W-matched",
             ]
-
     labels = [
             "Diboson",
-            "Single t",
             "W+Jets + QCD",
-            "t#bar{t} (t-matched)  ",
             "t#bar{t} + tW (unmatched)  ",
+            "t#bar{t} (t-matched)  ",
             "t#bar{t} + tW (W-matched)  ",
 
             "t#bar{t} + tW (unmatched)  ",
             "t#bar{t} + tW (W-matched)  ",
         ]
 
+    label_order = [
+            "t#bar{t} + tW (unmatched)  ",
+            "W+Jets + QCD",
+            "t#bar{t} (t-matched)  ",
+
+            "Diboson",
+            "t#bar{t} + tW (W-matched)  ",
+
+        ]
+
     colors = [
-        ROOT.kCyan,
-        ROOT.kMagenta-1,
-        ROOT.kOrange-3,
-        ROOT.kBlue -7, 
-        ROOT.kGreen-6,
-        #ROOT.kYellow-7,
-        ROOT.kRed -7,
+        CMS_brown,
+        CMS_orange,
+        CMS_purple,
+        CMS_lightblue, 
+        CMS_red
         ]
 
     obs_attrs = {
@@ -105,11 +119,11 @@ elif(options.mode == "kinematics"):
     draw_chi2 = False
     incl_after = False
 
+#W mode
 else:
     dirs = ["plots/W_SF_2016_june17/", "plots/W_SF_2017_june17/", "plots/W_SF_2018_june17/"]
     keys = [
             "Diboson",
-            "Single Top",
             "W+Jets + QCD",
             "t#bar{t} : t-matched",
             "t#bar{t} : unmatched",
@@ -120,24 +134,29 @@ else:
 
     labels = [
             "Diboson",
-            "Single t",
             "W+Jets + QCD",
             "t#bar{t} (t-matched)  ",
-            "t#bar{t} + tW (unmatched)    ",
-            "t#bar{t} + tW (W-matched)      ",
+            "t#bar{t} + tW (unmatched)",
+            "t#bar{t} + tW (W-matched)",
 
-            "t#bar{t} + tW (unmatched)    ",
-            "t#bar{t} + tW (W-matched)      ",
+            "t#bar{t} + tW (unmatched)",
+            "t#bar{t} + tW (W-matched)",
+        ]
+
+    label_order = [
+            "W+Jets + QCD",
+            "t#bar{t} + tW (unmatched)",
+            "Diboson",
+            "t#bar{t} (t-matched)  ",
+            "t#bar{t} + tW (W-matched)",
         ]
 
     colors = [
-        ROOT.kCyan,
-        ROOT.kMagenta-1,
-        ROOT.kOrange-3,
-        ROOT.kBlue -7, 
-        ROOT.kGreen-6,
-        #ROOT.kYellow-7,
-        ROOT.kRed -7,
+        CMS_brown,
+        CMS_orange,
+        CMS_lightblue, 
+        CMS_purple,
+        CMS_red
         ]
 
     obs_attrs = {
@@ -169,7 +188,7 @@ for obs in obs_attrs.keys():
             if(h_tot_after is None):
                 h_tot_after = h_tot_after_file
                 h_tot_after.SetDirectory(0)
-                h_tot_after.SetName("Total Reweighted Sim.")
+                h_tot_after.SetName("Total Corr. Sim.")
                 h_tot_after.SetFillStyle(0)
             else:
                 h_tot_after.Add(h_tot_after_file)
@@ -219,5 +238,5 @@ for obs in obs_attrs.keys():
         
 
         makeCan("temp", fname, [h_data], bkglist = [hist_list], totlist = [h_tot_before], signals = outlines, colors = colors, bkgNames = labels_new, titles = [""], logy = False, xtitle = label,
-            ytitle = ylabel, drawSys = False, ratio_range = ratio_range, stack = True, draw_chi2 = draw_chi2, prelim = True, year = -1)
+            ytitle = ylabel, drawSys = False, ratio_range = ratio_range, stack = True, draw_chi2 = draw_chi2, prelim = False, year = -1, label_order = label_order)
 

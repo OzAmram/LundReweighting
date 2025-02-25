@@ -45,8 +45,8 @@ j_idx = 0
 jetR = 1.0
 num_excjets = -1
 
-max_evts = 20000
-#max_evts = 1000
+#max_evts = 20000
+max_evts = 10000
 #max_evts = None
 
 d = Dataset(f_sig, label = label, color = ROOT.kRed, dtype = 1)
@@ -203,8 +203,10 @@ dR_bins = array('d', np.linspace(0., 0.8, num_bins + 1))
 h_subjet_pts = make_root_hist(data = LP_weights['subjet_pts'], name = 'h_%s_subjetpt' %h_label, num_bins = num_bins, bins = pt_bins)
 f_ptout = ROOT.TFile.Open(outdir + "subjet_pt_dR.root", "RECREATE")
 h_subjet_pts.Write()
-#h_dRs = make_root_hist(data = deltaRs, name = 'h_%s_dRs' %h_label, num_bins = num_bins, bins = dR_bins)
-#h_dRs.Write()
+deltaRs = [ro.subjet_dRs for ro in LP_weights['reclust_nom']]
+
+h_dRs = make_root_hist(data = deltaRs, name = 'h_%s_dRs' %h_label, num_bins = num_bins, bins = dR_bins)
+h_dRs.Write()
 f_ptout.Close()
 
 make_histogram([LP_weights['subjet_pts']], ["Subjets"], colors = ['blue'], xaxis_label = 'Subjet pt (GeV)', 

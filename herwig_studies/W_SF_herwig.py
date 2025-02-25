@@ -66,6 +66,7 @@ if(options.topSF):
     d_pythia, d_herwig = d_pythia_t_match, d_herwig_t_match
     thresholds = tau32_thresholds
     title="Top-matched (3 pronged)"
+    file_label = "top"
     obs = 'tau32'
     pt_cut = 500.
     m_cut_min = 150.
@@ -74,6 +75,7 @@ else:
     d_pythia, d_herwig = d_pythia_w_match, d_herwig_w_match
     thresholds = tau21_thresholds
     title="W-matched (2 pronged)"
+    file_label = "W"
     obs = 'tau21'
     pt_cut = 225.
     m_cut_min = 70.
@@ -235,17 +237,17 @@ tau43_start = 0.4 if options.topSF else 0.6
 obs_attrs = {
         'mSoftDrop' : (50, 230, 45, "m_{SD} [GeV]", "Events / 4 GeV"),
         'tau21' : (tau21_start, 0.8, 12, r"$\tau_{21}$", "Events  "),
-        'tau32' : (tau32_start, 0.9, 15, r"$\tau_{32}$", "Events "),
+        'tau32' : (tau32_start, 0.9, 12, r"$\tau_{32}$", "Events "),
         'tau43' : (tau43_start, 0.96, 12, r"$\tau_{43}$", "Events "),
         'nPF' : (0.5, 100.5, 50, "Num. PF Cands.", "Events " ),
         'pt' : (pt_cut, 825., 20, r"$p_{T}$", "Events "),
         }
 if(options.reco):
-    obs_attrs['ParticleNet_W'] = (0., 1., 15, r"ParticleNet W Tag Score", "Events ")
-    obs_attrs['ParticleNet_H4q'] = (0., 1., 15, r"ParticleNet H4q Tag Score", "Events ")
-    obs_attrs['DeepAK8_W'] = (0., 1., 15, r"DeepAK8 W Tag Score", "Events ")
-    obs_attrs['DeepAK8_W_MD'] = (0., 1., 15, r"DeepAK8 W MD Tag Score", "Events ")
-    obs_attrs['DeepAK8_H4q'] = (0., 1., 15, r"DeepAK8 H4q Tag Score", "Events ")
+    obs_attrs['ParticleNet_W'] = (0., 1., [0.,0.4, 0.6, 0.7,0.8, 0.85,0.9,0.95, 1.0], r"ParticleNet W Tag Score", "Events ")
+    obs_attrs['ParticleNet_H4q'] = (0., 1., 12, r"ParticleNet H4q Tag Score", "Events ")
+    obs_attrs['DeepAK8_W'] = (0., 1., [0.,0.4,0.6, 0.7,0.8, 0.85,0.9, 0.95, 1.0], r"DeepAK8 W Tag Score", "Events ")
+    obs_attrs['DeepAK8_W_MD'] = (0., 1., 10, r"DeepAK8 W MD Tag Score", "Events ")
+    obs_attrs['DeepAK8_H4q'] = (0., 1., 12, r"DeepAK8 H4q Tag Score", "Events ")
 
 #labels = [r'\textsc{HERWIG}', r'\textsc{PYTHIA}', r'\textsc{PYTHIA}, reweighted']
 labels = ['HERWIG', 'PYTHIA', 'PYTHIA, reweighted']
@@ -266,11 +268,11 @@ for l in obs_attrs.keys():
     obs = [getattr(d_herwig, l), getattr(d_pythia, l), getattr(d_pythia, l)]
 
     make_herwig_ratio_histogram(obs, weights = hist_weights, sys_weights = hist_sys_weights, first_like_data = True, 
-            labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high), leg_loc = 'upper left',
-            normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir +title + '_' + l + "_cmp.png" )
+            labels = labels, colors = colors, axis_label = label, bins = nbins_, h_range = (low, high), leg_loc = 'upper left',
+            normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir +file_label + '_' + l + "_cmp.png" )
 
     make_herwig_ratio_histogram(obs, weights = hist_weights, sys_weights = hist_sys_weights, first_like_data = True, 
-            labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high), leg_loc = 'upper left',
-            normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir +title + '_' + l + "_cmp.pdf" )
+            labels = labels, colors = colors, axis_label = label, bins = nbins_, h_range = (low, high), leg_loc = 'upper left',
+            normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir +file_label + '_' + l + "_cmp.pdf" )
 
 

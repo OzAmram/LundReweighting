@@ -11,14 +11,15 @@ from utils.PlotUtils import *
 
 
 
-fout = "plots/SF_plot.pdf"
+fout = "plots/SF_plot.png"
+fout2 = "plots/SF_plot.pdf"
 
 plt.style.use(hep.style.CMS)
 plt.figure(figsize=(12,9))
 
 
 legend_elems = []
-labels = ["W \n" r"($\tau_{21}$)", "W\n(DeepAK8-MD)", "W\n(ParticleNet)", "top\n" r"($\tau_{32})$", r"R $\rightarrow$ WW" "\n(DeepAK8)"]
+labels = ["W \n" r"($\tau_{21}$)", "W\n(DeepAK8-MD)  ", "W\n(ParticleNet)", "top\n" r"($\tau_{32})$", r"R $\rightarrow$ WW" "\n(DeepAK8)"]
 y_compare =         [0.85, 0.86, 0.99, 0.91]
 y_compare_errs =    [0.04, 0.06, 0.06, 0.02 ] 
 y_lund =           [0.85, 0.88, 0.94, 0.86,  0.99, ]
@@ -31,22 +32,25 @@ offset = 0.1
 
 lund_errs = np.array(list(zip(y_lund_errs_up, y_lund_errs_down))).T
 
-plt.errorbar(xs[:4] - offset, y_compare, yerr = y_compare_errs, fmt = 's', color = c_lightblue, label = "SM-proxy-based techniques", capsize = 2.0) 
-plt.errorbar([5 - offset], y_triboson, yerr = y_triboson_err, fmt = 'x', color = c_red, label = "CMS triboson search", capsize = 2.0) 
-plt.errorbar(xs+offset, y_lund, yerr = lund_errs, fmt = 'o', color = c_purple, label = "Lund jet plane reweighting", capsize = 2.0) 
+plt.errorbar(xs[:4] - offset, y_compare, yerr = y_compare_errs, fmt = 's', color = c_lightblue, label = "SM-proxy-based techniques", markersize = 10.0, capsize = 10.0, linewidth=5, mew=3) 
+plt.errorbar([5 - offset], y_triboson, yerr = y_triboson_err, fmt = 'x', color = c_red, label = "CMS triboson search", markersize = 16.0, capsize = 10.0, linewidth=5, mew=3) 
+plt.errorbar(xs+offset, y_lund, yerr = lund_errs, fmt = 'o', color = c_purple, label = "Lund jet plane reweighting", markersize = 10.0, capsize = 10.0, linewidth=5, mew=3) 
+
+fontsize = 28
                
 
-plt.xlabel("Jet type (Tagging variable)", labelpad =20)
-plt.ylabel("Correction factor")
+plt.xlabel("Jet type (Tagging variable)", labelpad =20, fontsize = fontsize*1.2)
+plt.ylabel("Correction factor", fontsize = fontsize*1.2)
 plt.gca().minorticks_off()
 y_minor = matplotlib.ticker.MultipleLocator(1)
 plt.gca().yaxis.set_minor_locator(y_minor)
 plt.ylim(0.3, 1.5)
 plt.xlim(0.5, 5.5)
 plt.xticks([1,2,3,4,5], labels)
-hep.cms.label( data = True, lumi = 138, label="Preliminary")
+hep.cms.label( data = True, lumi = 138, label="")
 
-leg1 = plt.legend(loc = 'upper left')
+leg1 = plt.legend(loc = 'upper left', fontsize = fontsize)
 
 plt.savefig(fout , bbox_inches="tight")
+plt.savefig(fout2 , bbox_inches="tight")
 plt.close()

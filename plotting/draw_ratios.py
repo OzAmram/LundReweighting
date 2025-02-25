@@ -13,13 +13,18 @@ def style(h):
     x_label = "ln(0.8/#Delta)"
     y_label = "ln(k_{T}/GeV)"
 
-    #h.GetXaxis().SetTitleOffset(0.)
-    #h.GetYaxis().SetTitleOffset(0.)
-    h.GetXaxis().SetTitleSize(0.05)
-    h.GetYaxis().SetTitleSize(0.05)
-    h.GetZaxis().SetTitleSize(0.05)
+    h.GetXaxis().SetTitleOffset(0.8)
+    h.GetYaxis().SetTitleOffset(0.8)
+    h.GetXaxis().SetTitleSize(0.07)
+    h.GetYaxis().SetTitleSize(0.07)
+    h.GetZaxis().SetTitleSize(0.07)
+
     h.GetXaxis().SetTitle(x_label)
     h.GetYaxis().SetTitle(y_label)
+
+    h.GetXaxis().SetLabelSize(0.05)
+    h.GetYaxis().SetLabelSize(0.05)
+
     h.GetXaxis().CenterTitle(True)
     h.GetYaxis().CenterTitle(True)
     h.GetZaxis().CenterTitle(True)
@@ -124,15 +129,6 @@ pt_bin_labels = [ "15 < p_{T} < 65", " 65 < p_{T} < 110", "110 < p_{T} < 175", "
 
 
 
-latex = ROOT.TLatex()
-latex.SetNDC()
-latex.SetTextAngle(0)
-latex.SetTextColor(ROOT.kBlack)    
-latex.SetTextSize(0.04)
-
-latex.SetTextFont(42)
-latex.SetTextAlign(21) 
-
 
 for i in range(1,h_3d.GetNbinsX()+1):
     h_3d_clone = h_3d.Clone("h%i"%i)
@@ -159,16 +155,7 @@ for i in range(1,h_3d.GetNbinsX()+1):
     style(h_ratio_proj)
     style(h_ratio_unc)
 
-    writeExtraText = True
-    CMS_loc = 11
-    #period = -1
-    period = 0
-    extraText = "Simulation"
 
-
-    posX = 0.58
-    posY = 0.88
-    shiftY = 0.04
 
     ROOT.gStyle.SetHatchesLineWidth(1)
     ROOT.gStyle.SetHatchesSpacing(0.7)
@@ -190,13 +177,15 @@ for i in range(1,h_3d.GetNbinsX()+1):
     h_ratio_proj.SetLineColor(ROOT.kTeal-7)
     c_ratio = ROOT.TCanvas("c_unc", "", 1000, 800)
 
+    c_ratio.SetTopMargin(0.06)
+
     min_dR = 0.005
     min_kt = 0.02
     max_x = np.log(0.8/min_dR)
     min_y = np.log(min_kt)
 
 
-    h_ratio_proj.GetYaxis().SetRangeUser(min_y,6)
+    h_ratio_proj.GetYaxis().SetRangeUser(min_y, 7.5)
     h_ratio_proj.GetXaxis().SetRangeUser(0,max_x)
     h_ratio_proj.GetZaxis().SetRangeUser(0,2)
     h_ratio_proj.SetMaximum(2.0)
@@ -217,10 +206,26 @@ for i in range(1,h_3d.GetNbinsX()+1):
     #latex.DrawLatex(posX, posY, ratio_plot_label)
     h_ratio_proj.GetZaxis().SetTitle(ratio_plot_label)
 
+    posX = 0.53
+    posY = 0.88
+    shiftY = 0.04
+
+    latex = ROOT.TLatex()
+    latex.SetNDC()
+    latex.SetTextAngle(0)
+    latex.SetTextColor(ROOT.kBlack)    
+    latex.SetTextSize(0.05)
+
+    latex.SetTextFont(42)
+    latex.SetTextAlign(21) 
+
+
+
     latex.DrawLatex(posX, posY, subj_label)
 
-    leg = ROOT.TLegend(0.47, 0.75, 0.75, 0.85)
-    leg.SetTextSize(0.03)
+    leg = ROOT.TLegend(0.32, 0.75, 0.6, 0.85)
+    leg.SetTextFont(42)
+    leg.SetTextSize(0.05)
     if(options.herwig): leg.AddEntry(h_ratio_proj, "Herwig/Pythia Ratio", "f")
     else: leg.AddEntry(h_ratio_proj, "Data/Sim. Ratio", "f")
     leg.AddEntry(h_ratio_unc, "Uncertainty", "f")
@@ -228,7 +233,11 @@ for i in range(1,h_3d.GetNbinsX()+1):
     leg.Draw()
 
     c_ratio.SetRightMargin(0.2)
-    CMS_lumi(c_ratio, period, CMS_loc, writeExtraText = True)
+
+    CMS_loc = 0
+    period = -1
+
+    CMS_lumi(c_ratio, period, CMS_loc, writeExtraText = False, extraTextRight=True)
     for ext in exts:
         c_ratio.Print(out_dir + ("lundPlane_bin%i_ratio" % i) + ext)
 

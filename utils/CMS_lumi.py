@@ -9,19 +9,18 @@ import ROOT as rt
 cmsText     = "CMS";
 cmsTextFont   = 61  
 
-extraText   = "Preliminary"
 extraTextFont = 52 
 
 lumiTextSize     = 0.75
 lumiTextOffset   = 0.2
 
-cmsTextSize      = 0.9
+cmsTextSize      = 1.0
 
 relPosX    = 0.045
 relPosY    = 0.045
 relExtraDY = 1.0
 
-extraOverCmsTextSize  = 0.7
+extraOverCmsTextSize  = 0.85
 
 lumi_13TeV = "35.9 fb^{-1}"
 lumi_8TeV  = "19.7 fb^{-1}" 
@@ -30,9 +29,9 @@ lumi_sqrtS = "(13 TeV)"
 
 drawLogo      = False
 
-def CMS_lumi(pad,  iPeriod,  iPosX, writeExtraText = False ):
+def CMS_lumi(pad,  iPeriod,  iPosX, writeExtraText = False, extraTextRight = False, extraText="Preliminary"):     
     outOfFrame    = False
-    if(iPosX/10==0 ): outOfFrame = True
+    if(iPosX//10==0 ): outOfFrame = True
 
     alignY_=3
     alignX_=2
@@ -71,7 +70,7 @@ def CMS_lumi(pad,  iPeriod,  iPosX, writeExtraText = False ):
         lumiText += lumi_13TeV
         lumiText += " (13 TeV)"
     elif ( iPeriod==7 ):
-        if( outOfFrame ):lumiText += "#scale[0.85]{"
+        #if( outOfFrame ):lumiText += "#scale[0.85]{"
         lumiText += lumi_13TeV 
         lumiText += " (13 TeV)"
         lumiText += " + "
@@ -80,7 +79,7 @@ def CMS_lumi(pad,  iPeriod,  iPosX, writeExtraText = False ):
         lumiText += " + "
         lumiText += lumi_7TeV
         lumiText += " (7 TeV)"
-        if( outOfFrame): lumiText += "}"
+        #if( outOfFrame): lumiText += "}"
     elif ( iPeriod==12 ):
         lumiText += "8 TeV"
     elif ( iPeriod==0 ):
@@ -150,10 +149,11 @@ def CMS_lumi(pad,  iPeriod,  iPosX, writeExtraText = False ):
                 latex.SetTextFont(extraTextFont)
                 latex.SetTextAlign(align_)
                 latex.SetTextSize(extraTextSize*t)
-                latex.DrawLatex(posX_, posY_- relExtraDY*cmsTextSize*t, extraText)
+                if(not extraTextRight): latex.DrawLatex(posX_, posY_- relExtraDY*cmsTextSize*t, extraText)
+                else: latex.DrawLatex(posX_ +  relPosX*(1-posX_-r) + 0.07, posY_ - 0.015, extraText)
     elif( writeExtraText ):
         if( iPosX==0):
-            posX_ =   posX_ +  relPosX*(1-posX_-r) + 0.05
+            posX_ =   posX_ +  relPosX*(1-posX_-r) + 0.7 * t
             posY_ =   1-t+lumiTextOffset*t
 
         latex.SetTextFont(extraTextFont)

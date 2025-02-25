@@ -272,7 +272,7 @@ colors = [c_red, c_lightblue, c_purple]
 
 hist_weights = [d_herwig.nom_weights, d_pythia.nom_weights, LP_weights['nom']]
 sys_list = ['sys', 'bquark', 'prongs', 'unclust', 'distortion']
-hist_sys_weights = [ [], [[LP_weights[sys+"_up"], LP_weights[sys+"_down"]] for sys in sys_list]]
+hist_sys_weights = [ [], [[LP_weights[sys+"_up"], LP_weights[sys+"_down"]] for sys in sys_list if not np.any(np.isnan(LP_weights[sys+"_down"])) ]]
 hist_stat_weights = [ [], [LP_weights['stat_vars'], LP_weights['pt_vars']]]
 
 #hist_sys_weights = None
@@ -287,6 +287,6 @@ for l in obs_attrs.keys():
     obs = [getattr(d_herwig, l)[:max_evts], getattr(d_pythia, l)[:max_evts], getattr(d_pythia, l)[:max_evts]]
 
     make_herwig_ratio_histogram(obs, weights = hist_weights, sys_weights = hist_sys_weights, stat_weights = hist_stat_weights, first_like_data = True, 
-            labels = labels, colors = colors, axis_label = label, num_bins = nbins_, h_range = (low, high), leg_loc = leg_loc,
+            labels = labels, colors = colors, axis_label = label, bins = nbins_, h_range = (low, high), leg_loc = leg_loc,
             normalize = True, ratio_range = (0.5, 1.5), title = title, fname = outdir + l + "_cmp.png" )
 

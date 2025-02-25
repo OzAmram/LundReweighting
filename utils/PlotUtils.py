@@ -21,13 +21,15 @@ c_red = "#e42536"
 c_purple = "#964a8b"
 c_grey = "#9c9ca1"
 c_indigo = "#7a21dd"
+c_brown = "#a96b59"
 
-CMS_lightblue = ROOT.TColor.GetColor("#5709FC")
+CMS_brown = ROOT.TColor.GetColor("#A96B59")
+CMS_lightblue = ROOT.TColor.GetColor("#5790FC")
 CMS_orange = ROOT.TColor.GetColor("#F89C20")
 CMS_red = ROOT.TColor.GetColor("#E42536")
 CMS_purple = ROOT.TColor.GetColor("#964A8B")
 CMS_grey = ROOT.TColor.GetColor("#9C9CA1")
-CMS_indico = ROOT.TColor.GetColor("#7A21DD")
+CMS_indigo = ROOT.TColor.GetColor("#7A21DD")
 
 fig_size = (12,9)
 
@@ -383,7 +385,9 @@ def get_chi2(ratio):
     return chi2
 
 def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[],titles=[],dataName='Data',bkgNames=[],signalNames=[], drawSys = False, data_label = "data",
-        draw_chi2 = False, stack = True, outlines = [], logy=False,rootfile=False,xtitle='',ytitle='',dataOff=False,datastyle='pe',year=-1, ratio_range = None, NDiv = 205, prelim = False):  
+        draw_chi2 = False, stack = True, outlines = [], logy=False,rootfile=False,xtitle='',ytitle='', label_order = None,
+        dataOff=False,datastyle='pe',year=-1, 
+        ratio_range = None, NDiv = 205, prelim = False):  
 
     sig_color = ROOT.kOrange - 7
 
@@ -442,7 +446,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
     subs = []
     pulls = []
     logString = ''
-    leg_align_right = True
+    leg_align_right = False
     CMS_align_right = False
 
     # For each hist/data distribution
@@ -459,7 +463,6 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
         
         # Otherwise it's a TH1 hopefully
         else:
-            titleSize = 0.09
             alpha = 1
             if dataOff:
                 alpha = 0
@@ -492,8 +495,6 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     mains.append(ROOT.TPad(hist.GetName()+'_main',hist.GetName()+'_main',0, 0.1, 1, 1))
                     subs.append(ROOT.TPad(hist.GetName()+'_sub',hist.GetName()+'_sub',0, 0, 0, 0))
 
-                leg_align_right = True
-                CMS_align_right = False
                 x_max = totlist[hist_index].GetMaximumBin()
                 nbins = totlist[hist_index].GetXaxis().GetNbins()
                 #if(2 *x_max > nbins):
@@ -501,13 +502,13 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 #    leg_align_right = False
                 #    CMS_align_right = True
                 if not logy: 
-                    y_end = 0.88
+                    y_end = 0.77
                     y_size = 0.2 + 0.025*(len(bkglist[0])+len(signals))
                     x_size = 0.53
                     if(leg_align_right):
-                        x_start = 0.37
+                        x_start = 0.36
                     else:
-                        x_start = 0.2
+                        x_start = 0.25
 
                     legends.append(ROOT.TLegend(x_start,y_end - y_size,x_start + x_size,y_end))
                 else: 
@@ -550,9 +551,10 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                             bkg.Print()
 
                         stacks[hist_index].Add(bkg)
-                        if bkgNames == []: this_bkg_name = bkg.GetName().split('_')[0]
+                        if len(bkgNames) == 0: this_bkg_name = bkg.GetName().split('_')[0]
                         elif type(bkgNames[0]) != list: this_bkg_name = bkgNames[bkg_index]
                         else: this_bkg_name = bkgNames[hist_index][bkg_index]
+
                         legends_list[hist_index].append((bkg,this_bkg_name,'f'))
 
                     histList = [stacks[hist_index],totlist[hist_index],hist]
@@ -560,13 +562,23 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     histList = copy.copy(bkglist[hist_index])
                     histList += [totlist[hist_index], hist]
 
+                #reorder legend
+                legends_list_new = copy.deepcopy(legends_list[hist_index])
+                if(label_order is not None):
+                    for i in range(len(label_order)):
+                        found = 0
+                        for idx, (_,label,_) in enumerate(legends_list[hist_index]):
+                            if(label == label_order[i]): 
+                                found = idx
+                                break
+                        legends_list_new[i] = legends_list[hist_index][found]
                     
                 # Go to main pad, set logy if needed
                 mains[hist_index].cd()
 
 
                 # Set y max of all hists to be the same to accomodate the tallest
-                max_scaling = 2.5
+                max_scaling = 3.0
 
                 yMax = totlist[0].GetBinContent(totlist[0].GetMaximumBin())
                 maxHist = histList[0]
@@ -585,7 +597,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
                 
                 mLS = 0.07
-                mTS = 0.1
+                mTS = 0.09
                 TOffset = 0.95
                 # Now draw the main pad
                 data_leg_title = hist.GetTitle()
@@ -597,9 +609,13 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 hist.GetYaxis().SetTitle(ytitle)
                 hist.GetYaxis().SetLabelSize(mLS)
                 hist.GetYaxis().SetTitleSize(mTS)
-                hist.GetYaxis().SetNdivisions(505)
+                hist.GetYaxis().SetMaxDigits(2)
+
+                yDiv = 505
+                hist.GetYaxis().SetNdivisions(yDiv)
                 hist.GetXaxis().SetLabelOffset(999)
                 hist.SetLineWidth(2)
+
 
 
                 if logy == True:
@@ -614,7 +630,9 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     for i,h in enumerate(bkglist[hist_index]): 
                         h.SetLineWidth(2)
                         h.Draw('same hist')
-                        legends_list[hist_index].append((h,bkgNames[i], 'L') )
+
+                        legends_list_new.append((h,bkgNames[i], 'L') )
+
                 #print("Drawing %s same hist \n" stacks[hist_index].GetName())
 
                 # Do the signals
@@ -624,7 +642,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     if logy == True:
                         signals[hist_index].SetMinimum(1e-3)
                     if signalNames == []: this_sig_name = signals[hist_index].GetName().split('_')[0]
-                    legends_list[hist_index].append((signals[hist_index],this_sig_name,'L'))
+                    legends_list_new.insert(0, (signals[hist_index],this_sig_name,'L'))
                     signals[hist_index].Draw('hist same')
 
                 if(stack):
@@ -640,21 +658,24 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 else:
                     totlist[hist_index].SetLineWidth(4)
                     totlist[hist_index].Draw('hist same')
-                    legends_list[hist_index].append((totlist[hist_index], "Total", 'L') )
+                    legends_list_new.insert(0, (totlist[hist_index], "Total", 'L') )
 
 
                 if not dataOff:
-                    legends_list[hist_index].append((hist,dataName,datastyle))
+                    legends_list_new.insert(0, (hist,dataName,datastyle))
                     hist.Draw(datastyle+' same')
+
 
 
                 #Draw helpful lines
 
                 #legends[hist_index].SetHeader(titles[0], "c")
                 legends[hist_index].SetNColumns(2)
-                legends[hist_index].SetTextSize(0.04)
+                legends[hist_index].SetTextSize(0.06)
+                legends[hist_index].SetTextFont(42)
+                legends[hist_index].SetColumnSeparation(0.2)
 
-                for entry in legends_list[hist_index][::-1]:
+                for entry in legends_list_new:
                     legends[hist_index].AddEntry(entry[0], entry[1], entry[2])
 
 
@@ -694,9 +715,10 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
                 LS = mLS * 0.7/0.3
                 #title size given as fraction of pad width, scale up to have same size as main pad
-                YTS =  0.8 * mTS * 0.7/0.3
-                XTS =  mTS * 0.7/0.3
-                lTOffset = TOffset * 0.3 / 0.7
+                YTS =  mTS * 0.7/0.3
+                XTS =  mTS * 0.9/0.3 if('tau' in xtitle) else 0.9*mTS*0.7/0.3
+                lTOffset = TOffset * 0.4
+                xtitle_offset = 0.7 if ('tau' in xtitle) else 1.0
 
 
                 ratio.SetMarkerStyle(8)
@@ -709,6 +731,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 r_axis_hist.GetYaxis().SetRangeUser(ratio_range[0], ratio_range[1])
                 r_axis_hist.GetYaxis().SetTitleOffset(lTOffset)
                 r_axis_hist.GetYaxis().SetTickLength(0.04)
+                #r_axis_hist.GetYaxis().CenterTitle(True)
                              
                 r_axis_hist.GetYaxis().SetLabelSize(LS)
                 r_axis_hist.GetYaxis().SetTitleSize(YTS)
@@ -716,7 +739,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                 r_axis_hist.GetYaxis().SetTitle("Data / Sim.")
 
                 r_axis_hist.GetXaxis().SetRangeUser(hist.GetXaxis().GetXmin(), hist.GetXaxis().GetXmax())
-                r_axis_hist.GetXaxis().SetTitleOffset(1.)
+                r_axis_hist.GetXaxis().SetTitleOffset(xtitle_offset)
                 r_axis_hist.GetXaxis().SetLabelOffset(0.05)
                 r_axis_hist.GetXaxis().SetLabelSize(LS)
                 r_axis_hist.GetXaxis().SetTitleSize(XTS)
@@ -761,7 +784,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
 
 
                     pave = ROOT.TPaveText(x_start, 0.75 * ratio_range[1], x_stop, 0.98*ratio_range[1])
-                    pave.AddText("#chi^{2} / ndof = %.1f / %i" % (chi2, ndof))
+                    pave.AddText("#chi^{2} / ndof = %.0f / %i" % (round(chi2), ndof))
                     pave.SetFillColor(ROOT.kWhite)
                     pave.SetFillColor(ROOT.kWhite)
                     #pave.SetBorderSize(1)
@@ -773,7 +796,7 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                         x_stop = x_start + 0.25 * xscale
 
                         pave2 = ROOT.TPaveText(x_start, 0.75 * ratio_range[1], x_stop, 0.98*ratio_range[1])
-                        pave2.AddText("#chi^{2} / ndof = %.1f / %i" % (chi2_sig, ndof))
+                        pave2.AddText("#chi^{2} / ndof = %.0f / %i" % (round(chi2_sig), ndof))
                         pave2.SetTextColor(sig_color)
                         pave2.SetFillColor(ROOT.kWhite)
                         #pav2e.SetBorderSize(1)
@@ -788,9 +811,8 @@ def makeCan(name, fname, histlist, bkglist=[],signals=[],totlist = [], colors=[]
                     print("Prelim")
                     writeExtraText = True
                 else: writeExtraText = False
-                if(CMS_align_right): CMS_loc = 33
-                else: CMS_loc = 11
-                CMS_lumi(mains[hist_index], year, CMS_loc, writeExtraText = writeExtraText)
+                CMS_loc = 11
+                CMS_lumi(mains[hist_index], year, CMS_loc, writeExtraText = writeExtraText, extraTextRight = True)
 
     print("Creating " + fname)
     myCan.Print(fname)
@@ -1057,21 +1079,30 @@ def horizontal_bar_chart(vals, labels, fname = "", xaxis_label = ""):
         print("saving %s" % fname)
         plt.savefig(fname)
 
-def compute_chi2(data, data_unc, y):
+def compute_chi2(data, data_unc, y, sys_uncs = None):
     chi2 = 0.
     eps = 1e-8
     for i in range(len(data)):
         if(data_unc[i] <= 0.): data_unc[i] = max(y[i], data[i]) + eps
-        chi2 += (data[i] - y[i])**2/data_unc[i]**2
+
+        eps = 1e-8
+        unc2 = data_unc[i]**2 + eps
+        if(sys_uncs is not None):
+            if(data[i] > y[i]): # up uncertainty
+                unc2 += sys_uncs[0][i]**2
+            else: # down uncertainty
+                unc2 += sys_uncs[1][i]**2
+
+        chi2 += (data[i] - y[i])**2/unc2
     return chi2
 
-def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, axis_label = None, title = None, num_bins=10, normalize = False, h_range = None, first_like_data = True,
-        weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None, stat_weights = None, draw_chi2 = True, leg_loc = 'best'):
+def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, axis_label = None, title = None, bins=10, normalize = False, h_range = None, first_like_data = True,
+        preliminary = False, weights = None, fname="", ratio_range = -1, errors = False, logy = False, max_rw = 5, sys_weights = None, stat_weights = None, draw_chi2 = True, leg_loc = 'best'):
     h_type= 'step'
     alpha = 1.
-    fontsize = 28
-    label_size = 24
-    leg_size = 22
+    fontsize = 26
+    label_size = 38
+    leg_size = 26
 
 
     lw = 3
@@ -1090,46 +1121,45 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
     else:
         low,high = h_range
 
-    data,bins = np.histogram(entries[0], bins = num_bins, range=(low,high), weights = weights[0])
+
+    data,bins = np.histogram(entries[0], bins = bins, range=(low,high), weights = weights[0])
     data_uncs = np.sqrt(data)
 
+    num_bins = len(bins)-1
+
+    bin_widths = np.diff(bins)
     if(normalize):
-        norm = np.sum(data) * ((high - low)/num_bins) #counts * bin width
+        norm = np.sum(data) * bin_widths #counts * bin width
+        print(norm)
         data /= norm
         data_uncs /=norm
 
-    ns, bins, patches  = ax0.hist(entries[1:], bins=num_bins, range=(low,high), color=colors[1:], alpha=alpha,label=labels[1:len(entries)], 
+    ns, bins, patches  = ax0.hist(entries[1:], bins=bins, range=(low,high), color=colors[1:], alpha=alpha,label=labels[1:len(entries)], 
             density = normalize, weights = weights[1:], histtype=h_type, linewidth = lw)
 
     bincenters = 0.5*(bins[1:]+bins[:-1]) 
-    ax0.errorbar(bincenters, data, yerr=data_uncs, fmt='ko', markerfacecolor = colors[0], ecolor = colors[0], markeredgecolor = colors[0], label = labels[0])
+    data_drawn,_,_ = ax0.errorbar(bincenters, data, yerr=data_uncs, fmt='ko', markersize = 10, linewidth = 3, markerfacecolor = colors[0], ecolor = colors[0], markeredgecolor = colors[0])
 
     plt.xlim(h_range)
-
     if(logy): plt.yscale("log")
 
-    bin_size = bins[1] - bins[0]
-    bincenters = 0.5*(bins[1:]+bins[:-1]) 
-
     ax1 = plt.subplot(gs[1])
-    ax1.errorbar(bincenters, np.ones_like(bincenters), yerr = data_uncs/data, markerfacecolor = colors[0], ecolor = colors[0], markeredgecolor = colors[0], fmt='ko')
+    ax1.errorbar(bincenters, np.ones_like(bincenters), yerr = data_uncs/data, fmt='ko', markersize = 10, linewidth = 3, markerfacecolor = colors[0], ecolor = colors[0], markeredgecolor = colors[0])
 
     ratios = []
     chi2s = []
+    leg_list = [data_drawn]
 
     for i in range(len(ns)):
         ratio =  np.clip(data, 1e-8, None)/ np.clip(ns[i], 1e-8, None)
         ratio = np.append(ratio, ratio[-1])
         ratios.append(ratio)
 
-        plt.step(bins, ratio, color = colors[i+1], linewidth = lw, where = 'post')
+        nom, = plt.step(bins, ratio, color = colors[i+1], linewidth = lw, where = 'post')
+        leg_list.append(nom)
 
-        chi2s.append(compute_chi2(data, data_uncs, ns[i]))
 
-    print(chi2s)
 
-    leg = ax0.legend(loc=leg_loc, fontsize = leg_size)
-    leg.set_title(title)
 
     #draw sys unc band
     if(sys_weights is not None or stat_weights is not None):
@@ -1190,16 +1220,29 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
             ratio_up = np.append(ratio_up, ratio_up[-1])
             ratio_down = np.append(ratio_down, ratio_down[-1])
 
-            ax0.fill_between(bins, vals_down, vals_up, color = colors[j+1], alpha = 0.5, step = 'post')
+            err_band = ax0.fill_between(bins, vals_down, vals_up, color = colors[j+1], alpha = 0.5, step = 'post')
             ax1.fill_between(bins, ratio_down, ratio_up, color = colors[j+1], alpha = 0.5, step = 'post')
+            
+            chi2s.append(compute_chi2(data, data_uncs, ns[j], (uncs_up, uncs_down)))
+
+            leg_list[j+1] = (leg_list[j+1], err_band)
 
 
 
+    leg = ax0.legend(leg_list, labels, loc=leg_loc, fontsize = leg_size)
+    leg.set_title(title)
 
+    ax0.set_ylabel("Arbitrary units", fontsize= label_size)
 
     plt.sca(ax1)
     ax1.set_ylabel("Ratio", fontsize= label_size, loc = 'center')
-    xlabel_size = label_size * 1.2
+
+
+    ax0.tick_params(which="major", axis="y", bottom=False, top=False, labelsize=label_size*0.7)
+    ax1.tick_params(which="major", axis="x", bottom=False, top=False, labelsize=label_size*0.7)
+    ax1.tick_params(which="major", axis="y", bottom=False, top=False, labelsize=label_size*0.7)
+
+    xlabel_size = label_size
     if('tau' in axis_label): xlabel_size *= 1.5
     ax1.set_xlabel(axis_label, fontsize = xlabel_size)
     plt.subplots_adjust(top=1.0)
@@ -1231,11 +1274,11 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
             y_val = ax0.get_ylim()[1] * 0.7 - ax0.get_ylim()[0]
             x_val = ax0.get_xlim()[1] * 0.1 - ax0.get_xlim()[0]
         elif(leg_loc == 'upper left'):
-            y_val = 0.82 * (ax0.get_ylim()[1] - ax0.get_ylim()[0]) + ax0.get_ylim()[0]
-            x_val = 0.48 * (ax0.get_xlim()[1] - ax0.get_xlim()[0]) + ax0.get_xlim()[0]
+            y_val = 0.7 * (ax0.get_ylim()[1] - ax0.get_ylim()[0]) + ax0.get_ylim()[0]
+            x_val = 0.53 * (ax0.get_xlim()[1] - ax0.get_xlim()[0]) + ax0.get_xlim()[0]
         elif(leg_loc == 'upper right'):
             y_val = 0.82 * ( ax0.get_ylim()[1] - ax0.get_ylim()[0]) +  ax0.get_ylim()[0]
-            x_val = 0.4 * ( ax0.get_xlim()[1] - ax0.get_xlim()[0]) +  ax0.get_xlim()[0]
+            x_val = 0.45 * ( ax0.get_xlim()[1] - ax0.get_xlim()[0]) +  ax0.get_xlim()[0]
 
         print("Locs", x_val, y_val)
 
@@ -1244,14 +1287,15 @@ def make_herwig_ratio_histogram(entries = None, labels = None, colors = None, ax
         for j in list(reversed(range(len(chi2s)))):
             chi2 = chi2s[j]
             print(chi2, ndof)
-            txt = r"$\chi^2$ / ndof = %.1f / %i" % (chi2, ndof)
-            plt.text(x_val, y_val, txt, color = colors[j+1], horizontalalignment = 'left', fontweight = 'bold', fontsize = 18)
+            txt = r"$\chi^2$ / ndof = %.0f / %i" % (chi2, ndof)
+            plt.text(x_val, y_val, txt, color = colors[-1], horizontalalignment = 'left', fontweight = 'bold', fontsize = fontsize)
             y_val -= y_val * 0.06
 
 
     hep.cms.lumitext(ax=ax0, text=f"(13 TeV)")
 
-    hep.cms.label("Preliminary", ax=ax0, loc=0)
+    text = "Preliminary" if preliminary else ""
+    hep.cms.label(text, ax=ax0, loc=0)
 
     if(fname != ""): 
         plt.savefig(fname, bbox_inches = "tight")
