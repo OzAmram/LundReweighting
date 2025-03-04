@@ -41,21 +41,24 @@ For a full description of the method and a description of the different uncertai
     
 ## FAQ's
 
-** Can I just compute a scale factor or do I have to propagate all the weights as different shape variations? **
+**Can I just compute a scale factor or do I have to propagate all the weights as different shape variations?**
+
 If the final observable you fit is decorrlated with the substructure of the jet you are correcting (eg your search is for a resonance decaying to 2 or more jets and the final observable is the resonance mass), 
 then it is fine to use a scale factor which just corrects the efficiency of your substructure cut because changes to the substructure will not change the shape of your final observable.
 If your final observable is sensivite to the substructure (eg you are fitting some tagging score) then you need to propagate all the weights to define all the shape variations. 
 
-** Can I apply the method to signals with displaced vertices? Eg. boosted tops or a->bb **
+**Can I apply the method to signals with displaced vertices? Eg. boosted tops or a->bb**
+
 Partially. The method will correct the MC modeling of the substructure. It will not correct the MC modeling of the displaced vertices which likely also impacts the tagging of your jet. 
 So if you can find some other way to correct the modeling of these secondary vertices and derive an appropriate uncertainty then you can combine this with the Lund Plane correction to get a full correction.
 
-** Can I apply the method to signals with a lepton inside the jet? Eg. boosted semileptonic H->WW **
+**Can I apply the method to signals with a lepton inside the jet? Eg. boosted semileptonic H->WW**
 Yes this has been done in [HIG-24-008]([url](https://cms.cern.ch/iCMS/analysisadmin/cadilines?line=HIG-24-008&tp=an&id=2807&ancode=HIG-24-008)). 
 Their procedure was to remove all leptons and photons from the PF candidates in a cone of dR < 0.2 around the gen-level lepton inside the jet.
 The correction was then computed based on the remaining PF candidates/prongs. See [this presentation]([url](https://indico.cern.ch/event/1470867/#23-lund-jet-plane-for-boosted)) for details
 
-** My systematic uncertainties are very asymmetric, is this typical? ** 
+**My systematic uncertainties are very asymmetric, is this typical?** 
+
 Yes many of these systematic uncertainties are generally asymmetric. Particularly the uncertainty on the unclustered subjets is very often strongly asymmetric.
 This uncertainty is computed by varying the weights of unclustered subjets up and down by a factor of 5, which often has an asymmetric affect on the efficiency. 
 
@@ -68,7 +71,8 @@ Now consider the case where the 5 unclustered jets don't pass the cut. Varying t
 
 So we can see the asymmetric variations are natural to happen, and whether the up/down is larger depends on whether the unclustered jets pass the cut or don't.
 
-** What is a reasonable bad matching fraction? ** 
+**What is a reasonable bad matching fraction?** 
+
 The bad matching fraction depends on the number of prongs in the jet and the pt of the prongs.
 The larger number of prongs in the jet the harder it is to cleanly identify them in the reclustering, leading to a higher bad matching fraction.
 The relationship between the matching fraction and pt is more subtle. If the jet is too low pt, then it is difficult to identify the prongs inside the jet
