@@ -170,7 +170,7 @@ def check_matching(jet, f1, f2, b_quark):
     f2_in = f2 is not None and deltaR(jet, f2) < 0.8
     b_in = b_quark is not None and deltaR(jet, b_quark) < 0.8
 
-    return f1_in + f2_in + b_in
+    return (f1_in + f2_in + b_in) > 1
 
 def get_inputs(inputFile, max_events=5000):
     """Function to read the NanoV15 file of the signal and get the necessary ingredients
@@ -225,7 +225,7 @@ def get_inputs(inputFile, max_events=5000):
 
 
         # Select the leading jet with pt > 400 
-        # We also require our fatjet to be a genuine mutli-prong jet, checking that it contains 2 or 3 gen level quarks inside it
+        # We also require our fatjet to be a genuine mutli-prong jet, checking that it contains two or more gen level quarks from the top decay inside it
         # Note you don't have to require a truth-matching like this in your analysis, we just use it here for a purer sample of boosted top/W's
         jet_min_pt = 400
         my_jet = None
