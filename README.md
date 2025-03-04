@@ -1,7 +1,7 @@
 # Code for the Lund Jet Plane Reweighting Method (JME-23-001)
 
 For those seeking to just use the Lund Plane ratio for their analysis,
-I recommend to look at the at the **`example.py` and `example\_NanoV15.py`** scripts.
+I recommend to look at the at the **`example.py` and `example_NanoV15.py`** scripts.
 Both scripts show step by step how the compute the correcttion, and use it to compute the corrected efficiency
 and all components of the uncertainty on a substructure cut.
 The first one uses signal inputs based on a custom h5 data format, which has
@@ -18,6 +18,8 @@ The main ingredients the user needs to provide are:
 - The 4-vectors of the AK8 jets one is reweighting
 - The 4-vectors and PDG ID's of the gen-level quarks which are defining the prongs of the jet
 - The 4-vectors of PF candidates contained inside the AK8 jet
+
+The `example_NanoV15.py` script shows how all of these ingredients can be obtained directly from the NanoAOD. 
 
 The main piece of the correction, the data/MC Lund Jet Plane ratio and systematic uncertainties,
 can be found as ROOT files in the `data` directory. There is one version for
