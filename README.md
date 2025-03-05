@@ -78,5 +78,5 @@ The larger number of prongs in the jet the harder it is to cleanly identify them
 The relationship between the matching fraction and pt is more subtle. If the jet is too low pt, then it is difficult to identify the prongs inside the jet
 and the bad matching fraction is larger. At very high pt the jet becomes too boosted and the prongs start to overlap and it becomes difficult to separate them 
 and the bad matching fraction increases. In the middle region there is a sweet spot where the bad matching fraction is lowest.
-To to these effects it is difficult to give a precise number on what bad matching fraction is unacceptable, 
-but roughly, anything larger than 10% x n_prongs, may be an indication something is going wrong. 
+Due to these competing effects it is difficult to give a precise number on what bad matching fraction is unacceptable, 
+but roughly, anything larger than 10% x n_prongs, may be an indication something is going wrong. If the bad matching fraction approaches becomes O(1) the reclustering is clearly no longer working and requires investigation. 
