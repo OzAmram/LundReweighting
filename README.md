@@ -53,9 +53,9 @@ Partially. The method will correct the MC modeling of the substructure. It will 
 So if you can find some other way to correct the modeling of these secondary vertices and derive an appropriate uncertainty then you can combine this with the Lund Plane correction to get a full correction.
 
 **Can I apply the method to signals with a lepton inside the jet? Eg. boosted semileptonic H->WW**
-Yes this has been done in [HIG-24-008]([url](https://cms.cern.ch/iCMS/analysisadmin/cadilines?line=HIG-24-008&tp=an&id=2807&ancode=HIG-24-008)). 
+Yes this has been done in [HIG-24-008](https://cms.cern.ch/iCMS/analysisadmin/cadilines?line=HIG-24-008&tp=an&id=2807&ancode=HIG-24-008). 
 Their procedure was to remove all leptons and photons from the PF candidates in a cone of dR < 0.2 around the gen-level lepton inside the jet.
-The correction was then computed based on the remaining PF candidates/prongs. See [this presentation]([url](https://indico.cern.ch/event/1470867/#23-lund-jet-plane-for-boosted)) for details
+The correction was then computed based on the remaining PF candidates/prongs. See [this presentation](https://indico.cern.ch/event/1470867/#23-lund-jet-plane-for-boosted) for details
 
 **My systematic uncertainties are very asymmetric, is this typical?** 
 
